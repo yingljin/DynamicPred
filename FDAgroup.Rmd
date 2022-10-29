@@ -1,0 +1,214 @@
+---
+title: "Dynamic Prediction in Functional Concurrent Regression "
+output: beamer_presentation
+date: "2022-10-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(fcr)
+library(face)
+library(refund)
+library(ggplot2)
+library(tidyverse)
+
+set.seed(1025)
+
+df = content
+df_train = subset(content, include == 1)
+df_test = subset(content, include == 0)
+```
+
+## Dynamic prediction 
+
+- With observations up to $t_m$, predict outcomes (or probabilities of outcome) after that time point
+- Prediction updates with new observations
+
+
+
+
+
+## Functional Concurrent Regression (FCR)
+
+- For a subject i, we observe a function over t
+$$Y_i(t)=f_0(t)+b_i(t)+\epsilon_i(t)$$
+- We usually observe $Y_i$ on a series of discrete $t_{ij}$
+
+$$Y_{ij} = f_0(t_{ij})+b_i(t_{ij})+\epsilon_{ij}$$
+where $\epsilon_{ij} \sim N(0, \sigma_{\epsilon^2})$.
+
+- Subject-specific random effect
+
+$$b_i(t) = \Sigma_{k=1}^c u_{ik}B_k(t)$$
+where $\boldsymbol{u_i}\sim N(0, \Gamma)$
+
+
+## Dynamic prediction
+
+- Use FPCA to estimate $f_0$, $\Gamma$ and $\sigma_{\epsilon}$
+
+- For a new subject with observations up to $t_m$, estimate its score: 
+
+$$\hat{\boldsymbol{u}} = E(\boldsymbol{u}|\boldsymbol{y}) =  \boldsymbol{\hat{\Gamma}B^T}(\boldsymbol{B\hat{\Gamma}B^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})$$
+With the estimated score, we can predict its outcome in following time points
+
+$$\hat{\boldsymbol{Y}} = \boldsymbol{B}^T\hat{\boldsymbol{u}} $$
+
+
+## Simulated child growth data
+
+- Predict length-for-age, observed with noise
+
+
+```{r}
+ggplot(df %>% filter(subj%in% 1:10), aes(x=argvals, y=Y, group = subj, col = as.factor(subj)))+
+  geom_line(show.legend = F)+
+  labs(title = "Length-for-Age for the first 10 subjects",
+       x = "time")
+``` 
+
+
+## FPCA on observed LAZ
+
+```{r}
+tnew = sort(unique(df_train$argvals))
+df_laz <- df_train %>% select(argvals, subj, Y) %>%
+  rename("y" = "Y")
+fpca_laz <- face.sparse(df_laz, newdata = df_laz, knots = 15, argvals.new = tnew, calculate.scores = TRUE)
+
+# mean function
+
+par(mfrow = c(2, 2))
+plot(tnew, fpca_laz$mu.new, type = "l", 
+     xlab = "t", ylab = "f0(t)")
+plot(tnew, fpca_laz$eigenfunctions[, 1], type = "l", xlab = "t", ylab = "PC1")
+plot(tnew, fpca_laz$eigenfunctions[, 2], type = "l", xlab = "t", ylab = "PC2")
+plot(tnew, fpca_laz$eigenfunctions[, 3], type = "l", xlab = "t", ylab = "PC3")
+
+
+
+
+```
+
+## Prediction of new partially observed sample
+
+```{r}
+df_laz_test <- df_test %>%  select(argvals, subj, Y) %>%
+  rename("y" = "Y")
+
+# observe up to t = 0.3
+df_laz_test$y[df_laz_test$argvals > 0.3] <- NA
+pred1 <- predict(fpca_laz, newdata = df_laz_test)
+
+# prediction
+Bnew <- fpca_laz$eigenfunctions[tnew > 0.3, ]
+Yhat <- Bnew %*% t(pred1$rand_eff$scores)
+# every column is a new function
+
+Yhat <- data.frame(Yhat)
+colnames(Yhat) <- pred1$rand_eff$subj
+
+df_laz_pred <- Yhat %>% 
+  mutate(argvals = tnew[tnew > 0.3]) %>% 
+  pivot_longer(1:50, names_to = "subj", values_to = "y") %>%
+  mutate(type = "pred")
+
+# figure 
+bind_rows(df_test %>% 
+            select(argvals, subj, Y)%>% 
+            rename("y" = "Y") %>% 
+            mutate(type = "true", subj = as.factor(subj)), 
+          df_laz_pred %>% mutate(subj = as.factor(subj))) %>% 
+  filter(subj %in% 151:156) %>% 
+  ggplot(aes(x = argvals, y = y, col = type))+
+  geom_line()+
+  facet_wrap(~subj)+
+  labs(title = "Prediction with observation up to t=0.3", 
+       x = "time", y = "")
+
+```
+
+## Prediction of new partially observed sample
+
+```{r}
+df_laz_test <- df_test %>%  select(argvals, subj, Y) %>%
+  rename("y" = "Y")
+
+# observe up to t = 0.3
+df_laz_test$y[df_laz_test$argvals > 0.5] <- NA
+pred1 <- predict(fpca_laz, newdata = df_laz_test)
+
+# prediction
+Bnew <- fpca_laz$eigenfunctions[tnew > 0.5, ]
+Yhat <- Bnew %*% t(pred1$rand_eff$scores)
+# every column is a new function
+
+Yhat <- data.frame(Yhat)
+colnames(Yhat) <- pred1$rand_eff$subj
+
+df_laz_pred <- Yhat %>% 
+  mutate(argvals = tnew[tnew > 0.5]) %>% 
+  pivot_longer(1:50, names_to = "subj", values_to = "y") %>%
+  mutate(type = "pred")
+
+# figure 
+
+bind_rows(df_test %>% 
+            select(argvals, subj, Y)%>% 
+            rename("y" = "Y") %>% 
+            mutate(type = "true", subj = as.factor(subj)), 
+          df_laz_pred %>% mutate(subj = as.factor(subj))) %>% 
+  filter(subj %in% 151:156) %>% 
+  ggplot(aes(x = argvals, y = y, col = type))+
+  geom_line()+
+  facet_wrap(~subj)+
+  labs(title = "Prediction with observation up to t=0.5", 
+       x = "time", y = "")
+
+```
+
+## Prediction of new partially observed sample
+
+```{r}
+df_laz_test <- df_test %>%  select(argvals, subj, Y) %>%
+  rename("y" = "Y")
+
+# observe up to t = 0.3
+df_laz_test$y[df_laz_test$argvals > 0.8] <- NA
+pred1 <- predict(fpca_laz, newdata = df_laz_test)
+
+# prediction
+Bnew <- fpca_laz$eigenfunctions[tnew > 0.8, ]
+Yhat <- Bnew %*% t(pred1$rand_eff$scores)
+# every column is a new function
+
+Yhat <- data.frame(Yhat)
+colnames(Yhat) <- pred1$rand_eff$subj
+
+df_laz_pred <- Yhat %>% 
+  mutate(argvals = tnew[tnew > 0.8]) %>% 
+  pivot_longer(1:50, names_to = "subj", values_to = "y") %>%
+  mutate(type = "pred")
+
+# figure 
+
+bind_rows(df_test %>% 
+            select(argvals, subj, Y)%>% 
+            rename("y" = "Y") %>% 
+            mutate(type = "true", subj = as.factor(subj)), 
+          df_laz_pred %>% mutate(subj = as.factor(subj))) %>% 
+  filter(subj %in% 151:156) %>% 
+  ggplot(aes(x = argvals, y = y, col = type))+
+  geom_line()+
+  facet_wrap(~subj)+
+  labs(title = "Prediction with observation up to t=0.8", 
+       x = "time", y = "")
+
+```
+
+## Next steps
+
+- Establish interval prediction
+- ? fPCA on pooled prediction, instead of original functions observed with noise
+- Extension to exponential family data
