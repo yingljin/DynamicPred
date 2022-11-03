@@ -21,22 +21,7 @@ gen_data <- function(id = 1){
 }
 
 df_train2 <- bind_rows(lapply(1:100, gen_data))
-
-## four subjects
-ggplot(df_train2 %>% filter(id %in% 1:4))+
-  geom_point(aes(x=argvals, y=Y, col = "blue"),  size = 0.1,
-             show.legend = F)+
-  geom_line(aes(x=argvals, y=Z, col = "Red"), 
-            show.legend = F)+
-  facet_wrap(~id)+
-  labs(title = "Simulated function for the 4 subjects",
-       x = "time", y ="")
-
-## all subjects
-
-ggplot(df_train2)+
-  geom_line(aes(x=argvals, y=Z, col = as.factor(id)), 
-            show.legend = F)
+table(df_train2$id)
 
 
 ##### Local GLMMs #####
@@ -52,41 +37,32 @@ df_train2$time_bin <- cut(df_train2$argvals, breaks = brks, include.lowest = T, 
 df_train2$time_bin <- as.numeric(as.character(df_train2$time_bin))
 df_train2$id <- as.factor(df_train2$id)
 
+table(df_train2$id, df_train2$time_bin)
+
+
 # fit local linear mixed models in each bin
-## df: function with binary outcome Y, id and time_bin
-pred_latent <- function(df = df_train2, t = 0.005){
-  this_df <- df[df$time_bin==t, ]
-  this_glm <- glmer(Y ~ 1 + (1|id), data = this_df, family = binomial)
-  coef(this_glm)
+## df: function with binary outcome Y, with observations in one time bein
+pred_latent <- function(df){
+  this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial)
   Zhat <- predict(this_glm, type = "link")
-  return(Zhat)
+  df$Zhat <- Zhat
+  return(df)
 }
 
-df_try <- df_train2 %>% select(id, Z, argvals, time_bin) %>% 
-  filter(time_bin == 0.025) %>% 
-  mutate(Zhat = pred_latent(t = 0.025))
 
-ggplot(df_try %>% filter(id %in% 1:8))+
-  geom_line(aes(x = argvals, y=Z, col = "red"))+
-  geom_line(aes(x = argvals, y=Zhat, cold = "blue"))+
-  facet_wrap(~id, )
-
-allZhat <- unlist(sapply(df_train2_lst, pred_latent))
-df_train_sm <- data.frame(subj = df_train2$id, 
-                          argvals = df_train2$time_bin, 
-                          y = allZhat) %>% 
-  distinct()
+## do that for all time bin
+df_bin_lst <- split(df_train2, f = df_train2$time_bin)
+df_pred_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
+df_pred_latent <- bind_rows(df_pred_latent)
 
 
-ggplot(df_train_sm %>% filter(subj %in% 1:4))+
-  geom_line(aes(x=argvals, y=y), 
-            show.legend = F)+
-  facet_wrap(~subj)+
-  labs(title = "Estimated latent function tracks for the 4 subjects",
-       x = "time", y ="")
 
+ggplot(df_pred_latent %>% filter(id %in% 15:18))+
+  geom_line(aes(x = argvals, y=Zhat))+
+  geom_line(aes(x=argvals, y = Z, col = "red"))+
+  geom_point(aes(x=argvals, y = Y, col = "blue"), size = 0.01)+
+  facet_wrap(~id)
 
-rm(bin, bins, t, times, tnew)
 
 
 

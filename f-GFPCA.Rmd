@@ -1,0 +1,56 @@
+---
+title: "fGFPCA dynamic prediction"
+output: html_document
+date: "2022-11-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(here)
+```
+
+## Top simulation with a very simple function
+
+```{r, message=FALSE}
+source(here("Code/ToySimulation.R"))
+```
+
+- Below we generate 100 latent functions and their corresponding binary functions
+
+$$Z_i(t) = a_{i1}sin^2(t)+a_{i2}cos^2(t)+a_{i3}t^2+a_{i4}t$$
+
+$$Y_i(t) \sim Binomial(\frac{exp(Z_i(t))}{1+exp(Z_i(t))})$$
+
+```{r}
+## four subjects
+ggplot(df_train2 %>% filter(id %in% 15:18))+
+  geom_point(aes(x=argvals, y=Y, col = "blue"),  size = 0.1,
+             show.legend = F)+
+  geom_line(aes(x=argvals, y=Z, col = "Red"), 
+            show.legend = F)+
+  facet_wrap(~id)+
+  labs(title = "Simulated function for the 4 subjects",
+       x = "time", y ="")
+
+## all subjects latent functions
+ggplot(df_train2)+
+  geom_line(aes(x=argvals, y=Z, col = as.factor(id)), 
+            show.legend = F)+
+  labs(title = "Simulated latent functions for all subjects")
+
+```
+
+
+- Bloew is the predicted latent functions from local GLMM models
+
+```{r}
+
+
+ggplot(df_pred_latent %>% filter(id %in% 15:18))+
+  geom_line(aes(x = argvals, y=Zhat))+
+  geom_line(aes(x=argvals, y = Z, col = "red"))+
+  geom_point(aes(x=argvals, y = Y, col = "blue"), size = 0.01)+
+  facet_wrap(~id)
+
+```

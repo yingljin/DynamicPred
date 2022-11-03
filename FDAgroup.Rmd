@@ -240,42 +240,7 @@ ggplot(df_train2 %>% filter(id %in% 1:4))+
        x = "time", y ="")
 ```
 
-## Extension to non-Gaussian data
 
-```{r, message=FALSE}
-# series of mixed models
-## bin time
-cutbrk <- seq(0, 1, by = 0.01)
-cutlabs <- (cutbrk+0.01/2)[1:100]
-df_train2$time_bin <- cut(df_train2$argvals, breaks = cutbrk, 
-                include.lowest = T,
-                labels = cutlabs)
-df_train2$time_bin <- as.numeric(as.character(df_train2$time_bin))
-
-# intercept only in each bin mixed models
-df_train2_lst <- split(df_train2, f = df_train2$time_bin)
-pred_latent <- function(df){
-  fit_glm <- lme4::glmer(Y ~ 1 + (1|id), 
-                         data = df, family = binomial)
-  Zhat <- predict(fit_glm, type = "link")
-  return(Zhat)
-}
-
-allZhat <- unlist(sapply(df_train2_lst, pred_latent))
-df_train_sm <- data.frame(subj = df_train2$id, 
-                          argvals = df_train2$time_bin, 
-                          y = allZhat) %>% 
-  distinct()
-
-
-ggplot(df_train_sm %>% filter(subj %in% 1:4))+
-  geom_line(aes(x=argvals, y=y), 
-            show.legend = F)+
-  facet_wrap(~subj)+
-  labs(title = "Estimated latent function tracks for the 4 subjects",
-       x = "time", y ="")
-
-```
 
 ## Extension to non-Gaussian data
 
