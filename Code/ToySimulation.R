@@ -5,87 +5,89 @@ set.seed(1025)
 library(tidyverse)
 library(ggplot2)
 library(fcr)
+library(refund)
+library(lme4)
 
-# generate data for one subject
-
-GenData<-function(id = 1){
-  ## number of observation
-  mi <- sample(seq(15, 25, by=1), size = 1)
-  ## observation time
-  ti <- sample(seq(0, 500, by = 1), size = mi)
-  ti <- sort(ti)
-  ## coefficient
-  ai <- runif(1, -10, 10)
-  # function
-  yi <- sqrt(ti)+10*sin(ti)+ai*cos(ti)+rnorm(mi, 0, 0.2)
+#####  generate data for one subject ####
+times <- seq(0, 1, by = 0.001)
+gen_data <- function(id = 1){
+  scores <- rnorm(4)
+  pcs <- cbind(sin(times)^2, cos(times)^2, times^2, times)
+  Z <- pcs %*% scores
+  probs <- exp(Z)/(1+exp(Z))
+  Y <- sapply(probs, rbinom, n = 1, size = 1) 
   
-  return(data.frame(id = i, t = ti, y=yi))
+  return(data.frame(id = id, argvals = times, Y=Y, Z=Z))
 }
 
-# generate data for N subjects
-df <- data.frame()
-for(i in 1:100){
-  df <- bind_rows(df, GenData(id=i))
+df_train2 <- bind_rows(lapply(1:100, gen_data))
+
+## four subjects
+ggplot(df_train2 %>% filter(id %in% 1:4))+
+  geom_point(aes(x=argvals, y=Y, col = "blue"),  size = 0.1,
+             show.legend = F)+
+  geom_line(aes(x=argvals, y=Z, col = "Red"), 
+            show.legend = F)+
+  facet_wrap(~id)+
+  labs(title = "Simulated function for the 4 subjects",
+       x = "time", y ="")
+
+## all subjects
+
+ggplot(df_train2)+
+  geom_line(aes(x=argvals, y=Z, col = as.factor(id)), 
+            show.legend = F)
+
+
+##### Local GLMMs #####
+
+# bins
+w <- 0.01 # bin width
+brks <- seq(0, 01, by = w) # cutoff points
+mid <- (brks+w/2)[1:100] # mid points
+nb <- length(mid) # number of bins
+
+# bin observations
+df_train2$time_bin <- cut(df_train2$argvals, breaks = brks, include.lowest = T, labels = mid)
+df_train2$time_bin <- as.numeric(as.character(df_train2$time_bin))
+df_train2$id <- as.factor(df_train2$id)
+
+# fit local linear mixed models in each bin
+## df: function with binary outcome Y, id and time_bin
+pred_latent <- function(df = df_train2, t = 0.005){
+  this_df <- df[df$time_bin==t, ]
+  this_glm <- glmer(Y ~ 1 + (1|id), data = this_df, family = binomial)
+  coef(this_glm)
+  Zhat <- predict(this_glm, type = "link")
+  return(Zhat)
 }
 
-# check
-ggplot(df %>% filter(id %in% 1:5), aes(x=t, y=y, col=as.factor(id)))+
-  geom_line(show.legend = F)
+df_try <- df_train2 %>% select(id, Z, argvals, time_bin) %>% 
+  filter(time_bin == 0.025) %>% 
+  mutate(Zhat = pred_latent(t = 0.025))
 
-##### Fit model #####
+ggplot(df_try %>% filter(id %in% 1:8))+
+  geom_line(aes(x = argvals, y=Z, col = "red"))+
+  geom_line(aes(x = argvals, y=Zhat, cold = "blue"))+
+  facet_wrap(~id, )
 
-# functional domain
-allt <- seq(0, 500, by = 1)
-
-# FCR model
-fit_fcr <- fcr(formula = y ~ s(t, k=30, bs="ps"),
-               argvals = "t", subj = "id", argvals.new = allt,
-               data = df, use_bam = T,
-               face.args = list(knots = 30, pve = 0.99))
-
-fit_fcr$face.object
+allZhat <- unlist(sapply(df_train2_lst, pred_latent))
+df_train_sm <- data.frame(subj = df_train2$id, 
+                          argvals = df_train2$time_bin, 
+                          y = allZhat) %>% 
+  distinct()
 
 
-##### Out of sample prediction #####
-
-df_new <- data.frame()
-for(i in 101:105){
-  df_new <- bind_rows(df_new, GenData(id=i))
-}
-
-df_new <- subset(df_new, t<=200)
-df_new <- rename(df_new, "subj" = "id")
+ggplot(df_train_sm %>% filter(subj %in% 1:4))+
+  geom_line(aes(x=argvals, y=y), 
+            show.legend = F)+
+  facet_wrap(~subj)+
+  labs(title = "Estimated latent function tracks for the 4 subjects",
+       x = "time", y ="")
 
 
-# check
-ggplot(df_new, aes(x=t, y=y, col=as.factor(subj)))+
-  geom_line(show.legend = F)
-pred <- data.frame()
+rm(bin, bins, t, times, tnew)
 
-for(i in unique(df_new$subj)){
-  this_df <- subset(df_new, subj == i & t <= 300)
-  pred_df <- data.frame(subj=i,
-                        t = max(this_df$t):500, y=NA)
-  pred_df <- bind_rows(this_df, pred_df)
-  
-  this_pred <- predict(fit_fcr, newdata = pred_df)
-  
-  pred <- bind_rows(pred,
-                    data.frame(subj=i,
-                               t = pred_df$t,
-                               pred = this_pred$dynamic_predictions$fitted.values$y.pred,
-                               se = this_pred$dynamic_predictions$fitted.values$se.fit))
-  
-  
-  
-}
 
-subset(pred, subj==101) %>% head()
-subset(df_new, subj==101) %>% head()
 
-ggplot(pred)+
-  geom_line(aes(x=t, y=pred), show.legend = F)+
-  geom_line(aes(x = t, y = pred-se), linetype = "dashed")+
-  geom_line(aes(x = t, y = pred+se), linetype = "dashed")+
-  geom_point(data = df_new, aes(x=t, y=y))+
-  facet_wrap(~subj)
+
