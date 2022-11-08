@@ -142,7 +142,7 @@ bind_rows(df_test %>%
             rename("y" = "Y") %>% 
             mutate(type = "true", subj = as.factor(subj)), 
           df_test_t0.3 %>% mutate(subj = as.factor(subj))) %>% 
-  filter(subj %in% 151:156) %>% 
+  filter(subj == 152) %>% 
   ggplot(aes(x = argvals, y = y, col = type))+
   geom_line()+
   facet_wrap(~subj)+
