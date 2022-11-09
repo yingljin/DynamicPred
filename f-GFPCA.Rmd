@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(here)
 ```
 
-## Top simulation with a very simple function
+## Toy simulation with a very simple function
 
 ```{r, message=FALSE}
 source(here("Code/ToySimulation.R"))
@@ -42,7 +42,7 @@ ggplot(df_train2)+
 ```
 
 
-- Bloew is the predicted latent functions from local GLMM models
+- Below is the predicted latent functions from local GLMM models
 
 ```{r}
 
@@ -54,3 +54,11 @@ ggplot(df_pred_latent %>% filter(id %in% 15:18))+
   facet_wrap(~id)
 
 ```
+
+
+# Next steps:
+
+- Use fastGFPCA to generate more complicated functions
+- What happened to the latent gaussian function? Are they just noisy versions of true latent functions? Or it there something wrong with GLMMs? 
+- Establish prediction intervals of latent gaussian function
+- Write a function to calculate random effects (instead of using predict.fpca.sparse)
