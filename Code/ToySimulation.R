@@ -2,68 +2,67 @@
 set.seed(1025)
 ##### generate data #####
 
+rm(list=ls())
 library(tidyverse)
 library(ggplot2)
 library(fcr)
 library(refund)
 library(lme4)
 
-#####  generate data for one subject ####
-times <- seq(0, 1, by = 0.001)
-gen_data <- function(id = 1){
-  scores <- rnorm(4)
-  pcs <- cbind(sin(times)^2, cos(times)^2, times^2, times)
-  Z <- pcs %*% scores
-  probs <- exp(Z)/(1+exp(Z))
-  Y <- sapply(probs, rbinom, n = 1, size = 1) 
-  
-  return(data.frame(id = id, argvals = times, Y=Y, Z=Z))
-}
 
-df_train2 <- bind_rows(lapply(1:100, gen_data))
-table(df_train2$id)
+#####  generate data f ####
 
+## basic parameters
+# number of subjects
+N <- 500
+# number of observations per subject (observations per function)
+J <- 1000
+# functional domain, equally spaced grid on 0,1
+sind <- seq(0,1,len=J)
 
-##### Local GLMMs #####
+## simulate outcomes g(E[Y_i(s)]) = \eta_i(s) = f_0(s) + f_1(s)X_i + b_i(s)
+# f_0(s) = 0
+# b_i(s) = \sum_{k=1}^4 \phi_k(s)\xi_{ik}
+#        \xi_{ik} \sim N(0, \lambda_k)
 
-# bins
-w <- 0.01 # bin width
-brks <- seq(0, 01, by = w) # cutoff points
-mid <- (brks+w/2)[1:100] # mid points
-nb <- length(mid) # number of bins
+## fixed effects f_0, f_1
+f_0 <- function(s) 0
 
-# bin observations
-df_train2$time_bin <- cut(df_train2$argvals, breaks = brks, include.lowest = T, labels = mid)
-df_train2$time_bin <- as.numeric(as.character(df_train2$time_bin))
-df_train2$id <- as.factor(df_train2$id)
+## random effects
+# eigenfunctions \phi_k(s) evaluated on the observed grid
+phi <- sqrt(2)*cbind(sin(2*pi*sind),cos(2*pi*sind),
+                     sin(4*pi*sind),cos(4*pi*sind))
+# eigenvalues \lambda
+K <- 4
+lambda <- 0.5^(0:(K-1))
+# subject-specific weights/coefficients \xi_ik
+xi <- matrix(rnorm(N*K),N,K);
+xi <- xi %*% diag(sqrt(lambda))
+b_i <- xi %*% t(phi); # of size N by J
+dim(b_i)
 
-table(df_train2$id, df_train2$time_bin)
-
-
-# fit local linear mixed models in each bin
-## df: function with binary outcome Y, with observations in one time bein
-pred_latent <- function(df){
-  this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial)
-  Zhat <- predict(this_glm, type = "link")
-  df$Zhat <- Zhat
-  return(df)
-}
-
-
-## do that for all time bin
-df_bin_lst <- split(df_train2, f = df_train2$time_bin)
-df_pred_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
-df_pred_latent <- bind_rows(df_pred_latent)
+## linear predictor \eta_i(s), also the latent function
+eta_i <- t(vapply(1:N, function(x){
+  f_0(sind) + b_i[x,]
+}, numeric(J)))
+## response Y_i(s) \sim Binom(p = expit(eta_i))
+Y_i <- matrix(rbinom(N*J, size=1, prob=plogis(eta_i)), 
+              N, J, byrow=FALSE)
 
 
+# create data matrix in long format for estimation 
+# id = subject identifier (factor variable)
+# sind = numeric value corresponding to the observed functional domain
+# Y = functional response (binary)
+# sind_inx = numeric value associated with order of "sind"
+#            this is not necessary, but may be of convenience when you implement the method
+df <- data.frame(id = factor(rep(1:N, each=J)),
+                 sind = rep(sind, N), 
+                 Y = as.vector(t(Y_i)),
+                 eta_i = as.vector(t(eta_i)),
+                 sind_inx = rep(1:J, N))
 
-ggplot(df_pred_latent %>% filter(id %in% 15:18))+
-  geom_line(aes(x = argvals, y=Zhat))+
-  geom_line(aes(x=argvals, y = Z, col = "red"))+
-  geom_point(aes(x=argvals, y = Y, col = "blue"), size = 0.01)+
-  facet_wrap(~id)
 
-
-
+# visual check 
 
 

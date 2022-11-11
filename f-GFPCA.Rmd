@@ -10,50 +10,94 @@ knitr::opts_chunk$set(echo = FALSE)
 library(here)
 ```
 
-## Toy simulation with a very simple function
+## Toy simulation
+
+### Simulation set-up
 
 ```{r, message=FALSE}
 source(here("Code/ToySimulation.R"))
 ```
 
-- Below we generate 100 latent functions and their corresponding binary functions
+- For a random sample i: 
 
-$$Z_i(t) = a_{i1}sin^2(t)+a_{i2}cos^2(t)+a_{i3}t^2+a_{i4}t$$
+$$\eta_i(t) =f_0(t)+ \xi_{i1}sin(2\pi t)+\xi_{i2}cos(2\pi t)+\xi_{i3}sin(4\pi t)+\xi_{i4}cos(4\pi t)$$
 
-$$Y_i(t) \sim Binomial(\frac{exp(Z_i(t))}{1+exp(Z_i(t))})$$
+where $\boldsymbol{\xi}_{i} \sim N(0, \boldsymbol{\Gamma})$
+
+$$Y_i(t) \sim Binomial(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))})$$
+
+In this simulation, we set $f_0(t) = 0$. In the fPCA framework, $\Gamma$ is a diagonal matrix and diagonal elements correponds to eigen values. 
 
 ```{r}
-## four subjects
-ggplot(df_train2 %>% filter(id %in% 15:18))+
-  geom_point(aes(x=argvals, y=Y, col = "blue"),  size = 0.1,
-             show.legend = F)+
-  geom_line(aes(x=argvals, y=Z, col = "Red"), 
-            show.legend = F)+
+df %>% 
+  filter(id %in% 1:4) %>% 
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_i))+
+  geom_point(aes(x=sind, y=Y), size = 0.05)+
   facet_wrap(~id)+
-  labs(title = "Simulated function for the 4 subjects",
-       x = "time", y ="")
-
-## all subjects latent functions
-ggplot(df_train2)+
-  geom_line(aes(x=argvals, y=Z, col = as.factor(id)), 
-            show.legend = F)+
-  labs(title = "Simulated latent functions for all subjects")
-
+  labs(title = "Four simulated subjects")
 ```
 
-
-- Below is the predicted latent functions from local GLMM models
+### Local GLMMS
 
 ```{r}
-
-
-ggplot(df_pred_latent %>% filter(id %in% 15:18))+
-  geom_line(aes(x = argvals, y=Zhat))+
-  geom_line(aes(x=argvals, y = Z, col = "red"))+
-  geom_point(aes(x=argvals, y = Y, col = "blue"), size = 0.01)+
-  facet_wrap(~id)
-
+source(here("Code/GLMM-FPCA.R"))
 ```
+
+```{r}
+par(mfrow=c(3, 2))
+## mean functions
+plot(mid, fpca_fit$mu, ylab = "mean")
+
+## eigenfunctions
+plot(mid, fpca_fit$efunctions[, 1], ylab='PC1')
+plot(mid, fpca_fit$efunctions[, 2], ylab='PC2')
+plot(mid, fpca_fit$efunctions[, 3], ylab='PC3')
+plot(mid, fpca_fit$efunctions[, 4], ylab='PC4')
+```
+
+
+```{r}
+ggplot(df_pred_latent %>% filter(id %in% 1:4))+
+  geom_line(aes(x = sind_inx, y=eta_hat))+
+  geom_line(aes(x=sind_inx, y = eta_i, col = "red"))+
+  geom_point(aes(x=sind_inx, y = Y, col = "blue"), size = 0.01)+
+  facet_wrap(~id)+
+  labs(title = "Predicted latent functions for four subjects")
+```
+
+### Prediction
+
+Assume we have a new observation with outcome $\boldsymbol{Y}$ up to $t_m$. If we have an Gaussian function, the scores of this subject can be estimated with empirical Bayes:
+
+$$\hat{\boldsymbol{\xi}} = E(\boldsymbol{\xi}|\boldsymbol{Y}) =  \boldsymbol{\hat{\Gamma}\Phi ^T}(\boldsymbol{\Phi\hat{\Gamma}\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}\boldsymbol{Y}$$
+Where $\hat{\boldsymbol{\Gamma}}$ is the diagonal matrix of eigenvalues, $\boldsymbol{\Phi}$ is the matrix of eigenfunctions. These should be constant across all subjects.
+
+However, for binary data with latent function, there are a couple of differences:
+
+1. We do not have a $\sigma_{\epsilon}^2$ in the model formula
+
+2. We do not have an Gaussian outcome $\boldsymbol{Y}$. The $\boldsymbol{Y}$ should be replaced with the values of latent function $\eta(t)$. However, we also could not observe the value of $\eta(t)$.
+
+Two options I am thinking of:
+
+1. If we'd like to make predictions on more than one sample, we may be able to fit GLMM on test samples and predict $\eta(t)$
+2. Do a different set of derivation with MLE+EB like [this paper](https://www.jstor.org/stable/pdf/2533715.pdf?refreqid=excelsior%3A135dd765c41e4b46eb39bb6ef7a71053&ab_segments=&origin=&acceptTC=1)
+
+Another thing I have been thinking of is how to extend the grid of eigenfunctions from binned-grid to full-grid. I am using interpolation now, but only because I am not sure how to do it with basis functions. It looks like we will need K more sparse PCA, but it will introduce a lot more scores.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Next steps:
