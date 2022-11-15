@@ -40,11 +40,13 @@ df %>%
 
 ### Local GLMMS
 
+#### FPCA
+
 ```{r}
 source(here("Code/GLMM-FPCA.R"))
 ```
 
-```{r}
+```{r, fig.height=12, fig.width=8}
 par(mfrow=c(3, 2))
 ## mean functions
 plot(mid, fpca_fit$mu, ylab = "mean")
@@ -55,7 +57,7 @@ plot(mid, fpca_fit$efunctions[, 2], ylab='PC2')
 plot(mid, fpca_fit$efunctions[, 3], ylab='PC3')
 plot(mid, fpca_fit$efunctions[, 4], ylab='PC4')
 ```
-
+#### Estimated latent function
 
 ```{r}
 ggplot(df_pred_latent %>% filter(id %in% 1:4))+
@@ -70,7 +72,7 @@ ggplot(df_pred_latent %>% filter(id %in% 1:4))+
 
 Assume we have a new observation with outcome $\boldsymbol{Y}$ up to $t_m$. If we have an Gaussian function, the scores of this subject can be estimated with empirical Bayes:
 
-$$\hat{\boldsymbol{\xi}} = E(\boldsymbol{\xi}|\boldsymbol{Y}) =  \boldsymbol{\hat{\Gamma}\Phi ^T}(\boldsymbol{\Phi\hat{\Gamma}\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}\boldsymbol{Y}$$
+$$\hat{\boldsymbol{\xi}} = E(\boldsymbol{\xi}|\boldsymbol{Y}) =  \boldsymbol{\hat{\Gamma}\Phi ^T}(\boldsymbol{\Phi\hat{\Gamma}\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}(\hat{\boldsymbol{\eta}}-\hat{\boldsymbol{f}}_0)$$
 Where $\hat{\boldsymbol{\Gamma}}$ is the diagonal matrix of eigenvalues, $\boldsymbol{\Phi}$ is the matrix of eigenfunctions. These should be constant across all subjects.
 
 However, for binary data with latent function, there are a couple of differences:
