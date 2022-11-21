@@ -13,6 +13,7 @@ library(ggplot2)
 library(fcr)
 library(refund)
 library(lme4)
+library(ggpubr)
 set.seed(1025)
 ```
 
@@ -162,117 +163,32 @@ clean_pred <- function(subj = 1){
 ```
 
 ```{r}
-# Try on subjectw 1-4
-
+# Try on subjects 1-4
+ggarrange(
 clean_pred(1) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
-
+  geom_line(aes(x=bin, y = eta_i, col=type))+
+  labs(title = "Subject 1"),
 
 clean_pred(2) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
+  geom_line(aes(x=bin, y = eta_i, col=type))+
+  labs(title = "Subject 2"),
 
 clean_pred(3) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
+  geom_line(aes(x=bin, y = eta_i, col=type))+
+  labs(title = "Subject 3"),
 
 clean_pred(4) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
+  geom_line(aes(x=bin, y = eta_i, col=type))+
+  labs(title = "Subject 4"), nrow=2, ncol=2, common.legend = T)
 
 ```
-- Subject 2
-
-```{r}
-# Try on subject 1
-pred20 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj=2),
-                     type = "up to 195") %>% 
-  filter(bin>195)
-
-
-pred40 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj=2),
-                     type = "up to 395") %>%
-  filter(bin>395)
-
-
-pred60 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj=2),
-                     type = "up to 595") %>%
-  filter(bin>595)
-
-
-clean_pred(1)
-  ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
-```
-
-
-- Subject 3
 
 
 
-```{r}
-# Try on subject 1
-pred20 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj=3),
-                     type = "up to 195") %>% 
-  filter(bin>195)
-
-
-pred40 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj=3),
-                     type = "up to 395") %>%
-  filter(bin>395)
-
-
-pred60 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj=3),
-                     type = "up to 595") %>%
-  filter(bin>595)
-
-
-df_pred_latent %>% filter(id==3 & sind_inx==bin) %>%
-  select(bin, eta_i) %>% mutate(type="true") %>%
-  add_row(pred20) %>%
-  add_row(pred40) %>% 
-  add_row(pred60) %>% 
-  ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
-```
-- Subject 4
-
-```{r}
-# Try on subject 1
-pred20 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj=4),
-                     type = "up to 195") %>% 
-  filter(bin>195)
-
-
-pred40 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj=4),
-                     type = "up to 395") %>%
-  filter(bin>395)
-
-
-pred60 <- data.frame(bin = mid, 
-                     eta_i = in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj=4),
-                     type = "up to 595") %>%
-  filter(bin>595)
-
-
-df_pred_latent %>% filter(id==4 & sind_inx==bin) %>%
-  select(bin, eta_i) %>% mutate(type="true") %>%
-  add_row(pred20) %>%
-  add_row(pred40) %>% 
-  add_row(pred60) %>% 
-  ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))
-
-```
 
 # Next steps:
 
