@@ -1,13 +1,7 @@
 
-set.seed(1025)
 ##### generate data #####
 
-rm(list=ls())
-library(tidyverse)
-library(ggplot2)
-library(fcr)
-library(refund)
-library(lme4)
+# rm(list=ls())
 
 
 #####  generate data f ####

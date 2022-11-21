@@ -1,5 +1,5 @@
 ---
-title: "fGFPCA dynamic prediction"
+title: "fGFPCA dynamic prediction (In-sample)"
 output: html_document
 date: "2022-11-03"
 ---
@@ -8,6 +8,12 @@ date: "2022-11-03"
 knitr::opts_chunk$set(echo = FALSE)
 
 library(here)
+library(tidyverse)
+library(ggplot2)
+library(fcr)
+library(refund)
+library(lme4)
+set.seed(1025)
 ```
 
 ## Toy simulation
@@ -22,17 +28,19 @@ source(here("Code/ToySimulation.R"))
 
 $$\eta_i(t) =f_0(t)+ \xi_{i1}sin(2\pi t)+\xi_{i2}cos(2\pi t)+\xi_{i3}sin(4\pi t)+\xi_{i4}cos(4\pi t)$$
 
-where $\boldsymbol{\xi}_{i} \sim N(0, \boldsymbol{\Gamma})$
+where $\boldsymbol{\xi}_{i} \sim N(0, \boldsymbol{\Gamma})$. In the fPCA framework, $\boldsymbol{\Gamma}$ is a diagonal matrix and diagonal elements corresponds to eigenvalues. 
 
 $$Y_i(t) \sim Binomial(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))})$$
 
-In this simulation, we set $f_0(t) = 0$. In the fPCA framework, $\Gamma$ is a diagonal matrix and diagonal elements correponds to eigen values. 
+In this simulation, we set $f_0(t) = 0$, $\boldsymbol{\Gamma}$ is a diagonal matrix with diagonal elements {1, 0.5, 0.25, 0.125}. 
 
 ```{r}
 df %>% 
   filter(id %in% 1:4) %>% 
+  mutate(probs = exp(eta_i)/(1+exp(eta_i))) %>%
   ggplot()+
-  geom_line(aes(x=sind, y=eta_i))+
+  geom_line(aes(x=sind, y=eta_i), col = "blue")+
+  geom_line(aes(x=sind, y=probs), col = "red")+
   geom_point(aes(x=sind, y=Y), size = 0.05)+
   facet_wrap(~id)+
   labs(title = "Four simulated subjects")
@@ -40,71 +48,240 @@ df %>%
 
 ### Local GLMMS
 
-#### FPCA
+The entire time grid into 100 small intervals with equal length. The cut is made on the order index of measurement time, but not the actually time itself. Each bin its labeled by its midpoint (5, 15, 25, ..., 995). 
+
+Within each interval labeled as $s$, we fit a local GLMM model: 
+
+$$logit(E(Y_i^s)) = \beta_0^s+b_i^s$$
+Then we use this series of models to estimate the latent Gaussian function. Each subject will have a different value of latent function at each bin. 
+
 
 ```{r}
 source(here("Code/GLMM-FPCA.R"))
 ```
 
-```{r, fig.height=12, fig.width=8}
-par(mfrow=c(3, 2))
-## mean functions
-plot(mid, fpca_fit$mu, ylab = "mean")
 
-## eigenfunctions
-plot(mid, fpca_fit$efunctions[, 1], ylab='PC1')
-plot(mid, fpca_fit$efunctions[, 2], ylab='PC2')
-plot(mid, fpca_fit$efunctions[, 3], ylab='PC3')
-plot(mid, fpca_fit$efunctions[, 4], ylab='PC4')
-```
-#### Estimated latent function
+Figure below shows the estimated latent function for subjects 1-4:
 
 ```{r}
 ggplot(df_pred_latent %>% filter(id %in% 1:4))+
   geom_line(aes(x = sind_inx, y=eta_hat))+
   geom_line(aes(x=sind_inx, y = eta_i, col = "red"))+
-  geom_point(aes(x=sind_inx, y = Y, col = "blue"), size = 0.01)+
+  # geom_point(aes(x=sind_inx, y = Y, col = "blue"), size = 0.01)+
   facet_wrap(~id)+
-  labs(title = "Predicted latent functions for four subjects")
+  labs(title = "Predicted latent functions on original grid")
+```
+```{r}
+df_pred_latent %>% filter(id %in% 1:4 & sind_inx %in% mid) %>%
+  ggplot()+
+  geom_line(aes(x = sind_inx, y=eta_hat))+
+  geom_line(aes(x=sind_inx, y = eta_i, col = "red"))+
+  # geom_point(aes(x=sind_inx, y = Y, col = "blue"), size = 0.01)+
+  facet_wrap(~id)+
+  labs(title = "Predicted latent functions on binned grid")
+  
 ```
 
-### Prediction
 
-Assume we have a new observation with outcome $\boldsymbol{Y}$ up to $t_m$. If we have an Gaussian function, the scores of this subject can be estimated with empirical Bayes:
+### FPCA
+
+Here we fit FPCA on the estimated latent function from the previous step:
+
+```{r}
+## mean functions
+plot(mid, fpca_fit$mu, ylab = "mean")
+```
+
+```{r, fig.height=8, fig.width=8}
+
+## eigenfunctions
+par(mfrow=c(2, 2))
+plot(mid, fpca_fit$efunctions[, 1], ylab='PC1')
+plot(mid, fpca_fit$efunctions[, 2], ylab='PC2')
+plot(mid, fpca_fit$efunctions[, 3], ylab='PC3')
+plot(mid, fpca_fit$efunctions[, 4], ylab='PC4')
+```
+
+### In-sample prediction
+
+Now let's try to predict future outcomes based on observations $\boldsymbol{Y}$ up to $t_m$.
+
+For in-sample prediction, we have observed the full outcome track, thus have estimated the full latent Gaussian function $\eta(s)$ on binned grid. 
+For now, we will take the quantities up to $t_m$ and re-estimate the scores with empirical Bayes:
 
 $$\hat{\boldsymbol{\xi}} = E(\boldsymbol{\xi}|\boldsymbol{Y}) =  \boldsymbol{\hat{\Gamma}\Phi ^T}(\boldsymbol{\Phi\hat{\Gamma}\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}(\hat{\boldsymbol{\eta}}-\hat{\boldsymbol{f}}_0)$$
-Where $\hat{\boldsymbol{\Gamma}}$ is the diagonal matrix of eigenvalues, $\boldsymbol{\Phi}$ is the matrix of eigenfunctions. These should be constant across all subjects.
+Where:
 
-However, for binary data with latent function, there are a couple of differences:
+- $\hat{\boldsymbol{\Gamma}}$ is the diagonal covariance matrix of eigenvalues
+- $\boldsymbol{\Phi}$ is the matrix of eigenfunctions up to $t_m$. These should be constant across all subjects.
+- $\hat{\sigma_{\epsilon}}^2$ is the residual variance from FPCA
+- $\hat{\boldsymbol{\eta}}$ is the estimated latent Gaussian function up to $t_m$
+- $\hat{\boldsymbol{f}}_0$ is the FPCA mean function up to $t_m$
 
-1. We do not have a $\sigma_{\epsilon}^2$ in the model formula
+Below we try to do that with one subject:
 
-2. We do not have an Gaussian outcome $\boldsymbol{Y}$. The $\boldsymbol{Y}$ should be replaced with the values of latent function $\eta(t)$. However, we also could not observe the value of $\eta(t)$.
+- Subject 1
 
-Two options I am thinking of:
+```{r}
+source(here("code/DynPred.R"))
+```
+
+```{r}
+# function to clean results
+# make predictions with partial track up to 20, 40, 60
+clean_pred <- function(subj = 1){
+  pred20 <- data.frame(bin = mid, 
+                       eta_i = in_samp_dyn_pred(fpca_fit, 20,
+                                                df_pred_unique, subj),
+                       type = "up to 195") %>% 
+    filter(bin>195)
+  
+  pred40 <- data.frame(bin = mid, 
+                      eta_i = in_samp_dyn_pred(fpca_fit, 40,
+                                               df_pred_unique, subj),
+                       type = "up to 395") %>%
+    filter(bin>395)
+  
+  pred60 <- data.frame(bin = mid, 
+                       eta_i = in_samp_dyn_pred(fpca_fit, 60,
+                                                df_pred_unique, subj),
+                        type = "up to 595") %>%
+    filter(bin>595)
+  
+  df_pred <- df_pred_latent %>% filter(id==subj & sind_inx==bin) %>%
+    select(bin, eta_i) %>% mutate(type="true") %>%
+    add_row(pred20) %>%
+    add_row(pred40) %>% 
+    add_row(pred60) 
+  
+  return(df_pred)
+}
+
+
+
+```
+
+```{r}
+# Try on subjectw 1-4
+
+clean_pred(1) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+
+
+clean_pred(2) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+
+clean_pred(3) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+
+clean_pred(4) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+
+```
+- Subject 2
+
+```{r}
+# Try on subject 1
+pred20 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj=2),
+                     type = "up to 195") %>% 
+  filter(bin>195)
+
+
+pred40 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj=2),
+                     type = "up to 395") %>%
+  filter(bin>395)
+
+
+pred60 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj=2),
+                     type = "up to 595") %>%
+  filter(bin>595)
+
+
+clean_pred(1)
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+```
+
+
+- Subject 3
+
+
+
+```{r}
+# Try on subject 1
+pred20 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj=3),
+                     type = "up to 195") %>% 
+  filter(bin>195)
+
+
+pred40 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj=3),
+                     type = "up to 395") %>%
+  filter(bin>395)
+
+
+pred60 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj=3),
+                     type = "up to 595") %>%
+  filter(bin>595)
+
+
+df_pred_latent %>% filter(id==3 & sind_inx==bin) %>%
+  select(bin, eta_i) %>% mutate(type="true") %>%
+  add_row(pred20) %>%
+  add_row(pred40) %>% 
+  add_row(pred60) %>% 
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+```
+- Subject 4
+
+```{r}
+# Try on subject 1
+pred20 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj=4),
+                     type = "up to 195") %>% 
+  filter(bin>195)
+
+
+pred40 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj=4),
+                     type = "up to 395") %>%
+  filter(bin>395)
+
+
+pred60 <- data.frame(bin = mid, 
+                     eta_i = in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj=4),
+                     type = "up to 595") %>%
+  filter(bin>595)
+
+
+df_pred_latent %>% filter(id==4 & sind_inx==bin) %>%
+  select(bin, eta_i) %>% mutate(type="true") %>%
+  add_row(pred20) %>%
+  add_row(pred40) %>% 
+  add_row(pred60) %>% 
+  ggplot()+
+  geom_line(aes(x=bin, y = eta_i, col=type))
+
+```
+
+# Next steps:
+
+1. Interval prediction
+2. FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
+3. Out-of-sample prediction: how to estimate scores? 
+
+Thoughts on 3: 
 
 1. If we'd like to make predictions on more than one sample, we may be able to fit GLMM on test samples and predict $\eta(t)$
 2. Do a different set of derivation with MLE+EB like [this paper](https://www.jstor.org/stable/pdf/2533715.pdf?refreqid=excelsior%3A135dd765c41e4b46eb39bb6ef7a71053&ab_segments=&origin=&acceptTC=1)
 
-Another thing I have been thinking of is how to extend the grid of eigenfunctions from binned-grid to full-grid. I am using interpolation now, but only because I am not sure how to do it with basis functions. It looks like we will need K more sparse PCA, but it will introduce a lot more scores.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Next steps:
-
-- Use fastGFPCA to generate more complicated functions
-- What happened to the latent gaussian function? Are they just noisy versions of true latent functions? Or it there something wrong with GLMMs? 
-- Establish prediction intervals of latent gaussian function
-- Write a function to calculate random effects (instead of using predict.fpca.sparse)
