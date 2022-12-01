@@ -40,11 +40,12 @@ df %>%
   filter(id %in% 1:4) %>% 
   mutate(probs = exp(eta_i)/(1+exp(eta_i))) %>%
   ggplot()+
-  geom_line(aes(x=sind, y=eta_i), col = "blue")+
-  geom_line(aes(x=sind, y=probs), col = "red")+
-  geom_point(aes(x=sind, y=Y), size = 0.05)+
+  geom_line(aes(x=sind, y=eta_i, color = "True Gaussian function"))+
+  geom_line(aes(x=sind, y=probs, color = "Probability scale"))+
+  geom_point(aes(x=sind, y=Y, color = "Binary outcome"), size = 0.05)+
   facet_wrap(~id)+
-  labs(title = "Four simulated subjects")
+  labs(title = "Four simulated subjects", color = "Legend")+
+  scale_color_manual(values = c("True Gaussian function" = "blue", "Probability scale" = "red", "Binary outcome" = "black"))
 ```
 
 ### Local GLMMS
@@ -66,21 +67,21 @@ Figure below shows the estimated latent function for subjects 1-4:
 
 ```{r}
 ggplot(df_pred_latent %>% filter(id %in% 1:4))+
-  geom_line(aes(x = sind_inx, y=eta_hat))+
-  geom_line(aes(x=sind_inx, y = eta_i, col = "red"))+
-  # geom_point(aes(x=sind_inx, y = Y, col = "blue"), size = 0.01)+
+  geom_line(aes(x = sind_inx, y=eta_hat, color = "Estimated"))+
+  geom_line(aes(x=sind_inx, y = eta_i, color = "True"))+
   facet_wrap(~id)+
-  labs(title = "Predicted latent functions on original grid")
+  labs(title = "Predicted latent functions on original grid", color = "Lgend")+
+  scale_color_manual(values = c("Estimated" = "red", "True" = "Black"))
 ```
 ```{r}
 df_pred_latent %>% filter(id %in% 1:4 & sind_inx %in% mid) %>%
   ggplot()+
-  geom_line(aes(x = sind_inx, y=eta_hat))+
-  geom_line(aes(x=sind_inx, y = eta_i, col = "red"))+
+  geom_line(aes(x = sind_inx, y=eta_hat, col = "Estimated"))+
+  geom_line(aes(x=sind_inx, y = eta_i, col = "True"))+
   # geom_point(aes(x=sind_inx, y = Y, col = "blue"), size = 0.01)+
   facet_wrap(~id)+
-  labs(title = "Predicted latent functions on binned grid")
-  
+  labs(title = "Predicted latent functions on binned grid", color = "Lgend")+
+  scale_color_manual(values = c("Estimated" = "red", "True" = "Black"))
 ```
 
 
@@ -88,7 +89,7 @@ df_pred_latent %>% filter(id %in% 1:4 & sind_inx %in% mid) %>%
 
 Here we fit FPCA on the estimated latent function from the previous step:
 
-```{r}
+```{r, fig.height=4, fig.width=4}
 ## mean functions
 plot(mid, fpca_fit$mu, ylab = "mean")
 ```
@@ -119,9 +120,9 @@ Where:
 - $\hat{\boldsymbol{\eta}}$ is the estimated latent Gaussian function up to $t_m$
 - $\hat{\boldsymbol{f}}_0$ is the FPCA mean function up to $t_m$
 
-Below we try to do that with one subject:
+Below we try to do that with a few subjects:
 
-- Subject 1
+
 
 ```{r}
 source(here("code/DynPred.R"))
