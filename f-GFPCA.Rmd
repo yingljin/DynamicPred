@@ -48,7 +48,7 @@ df %>%
   scale_color_manual(values = c("True Gaussian function" = "blue", "Probability scale" = "red", "Binary outcome" = "black"))
 ```
 
-### Local GLMMS
+### Local GLMMs
 
 The entire time grid into 100 small intervals with equal length. The cut is made on the order index of measurement time, but not the actually time itself. Each bin its labeled by its midpoint (5, 15, 25, ..., 995). 
 
@@ -106,19 +106,27 @@ plot(mid, fpca_fit$efunctions[, 4], ylab='PC4')
 
 ### In-sample prediction
 
-Now let's try to predict future outcomes based on observations $\boldsymbol{Y}$ up to $t_m$.
+Now let's try to predict future outcomes based on observations $\boldsymbol{Y}_m$ up to $t_m$.
 
 For in-sample prediction, we have observed the full outcome track, thus have estimated the full latent Gaussian function $\eta(s)$ on binned grid. 
 For now, we will take the quantities up to $t_m$ and re-estimate the scores with empirical Bayes:
 
-$$\hat{\boldsymbol{\xi}} = E(\boldsymbol{\xi}|\boldsymbol{Y}) =  \boldsymbol{\hat{\Gamma}\Phi ^T}(\boldsymbol{\Phi\hat{\Gamma}\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}(\hat{\boldsymbol{\eta}}-\hat{\boldsymbol{f}}_0)$$
+$$\hat{\boldsymbol{\xi}} = E(\boldsymbol{\xi}|\boldsymbol{Y}_m) =  \boldsymbol{\hat{\Gamma}\Phi ^T_m}(\boldsymbol{\Phi_m\hat{\Gamma}\Phi^T_m}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}(\hat{\boldsymbol{\eta}}_m-\hat{\boldsymbol{f}}_0^m)$$
 Where:
 
 - $\hat{\boldsymbol{\Gamma}}$ is the diagonal covariance matrix of eigenvalues
-- $\boldsymbol{\Phi}$ is the matrix of eigenfunctions up to $t_m$. These should be constant across all subjects.
+- $\boldsymbol{\Phi}_m$ is the matrix of eigenfunctions up to $t_m$. These should be constant across all subjects.
 - $\hat{\sigma_{\epsilon}}^2$ is the residual variance from FPCA
-- $\hat{\boldsymbol{\eta}}$ is the estimated latent Gaussian function up to $t_m$
-- $\hat{\boldsymbol{f}}_0$ is the FPCA mean function up to $t_m$
+- $\hat{\boldsymbol{\eta}}_m$ is the estimated latent Gaussian function up to $t_m$
+- $\hat{\boldsymbol{f}}_0^m$ is the FPCA mean function up to $t_m$
+
+And then, we use the FPCA model for point prediction on the entire binned grid: 
+
+$$\hat{\boldsymbol{\eta}} = \hat{\boldsymbol{f}}_0+\boldsymbol{\Phi}\hat{\boldsymbol{\xi}}$$
+
+Here, $\boldsymbol{\Phi}$ is the eigenfunctions on the entire binned grid. For $\hat{\boldsymbol{\eta}}$, even though it is calculated for the entire binned grid, we will take values after $t_m$.
+
+
 
 Below we try to do that with a few subjects:
 
