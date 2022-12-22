@@ -1,6 +1,10 @@
 ---
 title: "fGFPCA dynamic prediction (In-sample)"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
 date: "2022-11-03"
 ---
 
@@ -17,9 +21,9 @@ library(ggpubr)
 set.seed(1025)
 ```
 
-## Toy simulation
+# Toy simulation
 
-### Simulation set-up
+## Simulation set-up
 
 ```{r, message=FALSE}
 source(here("Code/ToySimulation.R"))
@@ -48,7 +52,7 @@ df %>%
   scale_color_manual(values = c("True Gaussian function" = "blue", "Probability scale" = "red", "Binary outcome" = "black"))
 ```
 
-### Local GLMMs
+## Local GLMMs
 
 The entire time grid into 100 small intervals with equal length. The cut is made on the order index of measurement time, but not the actually time itself. Each bin its labeled by its midpoint (5, 15, 25, ..., 995). 
 
@@ -85,7 +89,7 @@ df_pred_latent %>% filter(id %in% 1:4 & sind_inx %in% mid) %>%
 ```
 
 
-### FPCA
+## FPCA
 
 Here we fit FPCA on the estimated latent function from the previous step:
 
@@ -104,7 +108,7 @@ plot(mid, fpca_fit$efunctions[, 3], ylab='PC3')
 plot(mid, fpca_fit$efunctions[, 4], ylab='PC4')
 ```
 
-### In-sample prediction
+## In-sample prediction
 
 Now let's try to predict future outcomes based on observations $\boldsymbol{Y}_m$ up to $t_m$.
 
@@ -127,6 +131,16 @@ $$\hat{\boldsymbol{\eta}} = \hat{\boldsymbol{f}}_0+\boldsymbol{\Phi}\hat{\boldsy
 Here, $\boldsymbol{\Phi}$ is the eigenfunctions on the entire binned grid. For $\hat{\boldsymbol{\eta}}$, even though it is calculated for the entire binned grid, we will take values after $t_m$.
 
 
+Let 
+
+$$\boldsymbol{H} = \boldsymbol{\hat{\Gamma}\Phi ^T_m}(\boldsymbol{\Phi_m\hat{\Gamma}\Phi^T_m}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}$$
+
+The variance of $\hat{\boldsymbol{\eta}}$ can be estimated by:
+
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi}(\hat{\boldsymbol{\Gamma}}-\boldsymbol{H}\boldsymbol{\Phi_m}\hat{\boldsymbol{\Gamma}})\boldsymbol{\Phi}^T+\hat{\sigma_{\epsilon}}^2$$
+
+It should be a $S \times S$ matrix; diagonals are variance at a specific time and off-diagonals are covariance between different times on binned grid. 
+
 
 Below we try to do that with a few subjects:
 
@@ -134,35 +148,50 @@ Below we try to do that with a few subjects:
 
 ```{r}
 source(here("code/DynPred.R"))
+
+#in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, 1)
+
 ```
 
 ```{r}
 # function to clean results
 # make predictions with partial track up to 20, 40, 60
 clean_pred <- function(subj = 1){
-  pred20 <- data.frame(bin = mid, 
-                       eta_i = in_samp_dyn_pred(fpca_fit, 20,
-                                                df_pred_unique, subj),
-                       type = "up to 195") %>% 
-    filter(bin>195)
   
-  pred40 <- data.frame(bin = mid, 
-                      eta_i = in_samp_dyn_pred(fpca_fit, 40,
-                                               df_pred_unique, subj),
-                       type = "up to 395") %>%
-    filter(bin>395)
+  pred20 <- in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj)
+  df_pred20 <- data.frame(bin = mid, 
+                          eta_i = pred20$eta_pred,
+                          eta_i_std=pred20$eta_std_var,
+                          type = "up to 195") 
+  df_pred20$eta_i[df_pred20$bin<=195] <- NA
+  df_pred20$eta_i_std[df_pred20$bin<=195] <- NA
   
-  pred60 <- data.frame(bin = mid, 
-                       eta_i = in_samp_dyn_pred(fpca_fit, 60,
-                                                df_pred_unique, subj),
-                        type = "up to 595") %>%
-    filter(bin>595)
+  pred40 <- in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj)
+  df_pred40 <- data.frame(bin = mid, 
+                          eta_i = pred40$eta_pred,
+                          eta_i_std=pred40$eta_std_var,
+                          type = "up to 395") 
+  df_pred40$eta_i[df_pred20$bin<=395] <- NA
+  df_pred40$eta_i_std[df_pred20$bin<=395] <- NA
   
-  df_pred <- df_pred_latent %>% filter(id==subj & sind_inx==bin) %>%
-    select(bin, eta_i) %>% mutate(type="true") %>%
-    add_row(pred20) %>%
-    add_row(pred40) %>% 
-    add_row(pred60) 
+  pred60 <- in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj)
+  df_pred60 <- data.frame(bin = mid, 
+                          eta_i = pred60$eta_pred,
+                          eta_i_std=pred60$eta_std_var,
+                          type = "up to 595")
+  df_pred60$eta_i[df_pred20$bin<=595] <- NA
+  df_pred60$eta_i_std[df_pred20$bin<=595] <- NA
+  
+  
+  df_pred <- df_pred20 %>%
+    add_row(df_pred40) %>% 
+    add_row(df_pred60) %>%
+    mutate(eta_i_lower = eta_i-eta_i_std, 
+           eta_i_upper = eta_i+eta_i_std) %>%
+    left_join(df_pred_latent %>% 
+                 filter(id==subj & sind_inx==bin) %>%
+                 select(bin, eta_i) %>% 
+                 rename(true_eta = eta_i), by = "bin")
   
   return(df_pred)
 }
@@ -171,32 +200,56 @@ clean_pred <- function(subj = 1){
 
 ```
 
-```{r}
+```{r, fig.width=12, fig.height=4}
 # Try on subjects 1-4
-ggarrange(
 clean_pred(1) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))+
-  labs(title = "Subject 1"),
+  geom_line(aes(x=bin, y = true_eta), col = "red")+
+  geom_line(aes(x=bin, y = eta_i), na.rm = T)+
+  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
+  labs(title = "Subject 1", x = "bin", y="")+
+  facet_wrap(~type)
 
 clean_pred(2) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))+
-  labs(title = "Subject 2"),
+  geom_line(aes(x=bin, y = true_eta), col = "red")+
+  geom_line(aes(x=bin, y = eta_i), na.rm=T)+
+  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
+  labs(title = "Subject 2", x = "bin", y="")+
+  facet_wrap(~type)
 
 clean_pred(3) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))+
-  labs(title = "Subject 3"),
+  geom_line(aes(x=bin, y=true_eta), col = "red")+
+  geom_line(aes(x=bin, y = eta_i), na.rm = T)+
+  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
+  labs(title = "Subject 3", x = "bin", y="")+
+  facet_wrap(~type)
+
 
 clean_pred(4) %>%
   ggplot()+
-  geom_line(aes(x=bin, y = eta_i, col=type))+
-  labs(title = "Subject 4"), nrow=2, ncol=2, common.legend = T)
-
+  geom_line(aes(x=bin, y=true_eta), col = "red")+
+  geom_line(aes(x=bin, y = eta_i), na.rm = T)+
+  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
+  labs(title = "Subject 4", x = "bin", y="")+
+  facet_wrap(~type)
 ```
 
 
+## Out of sample prediction
+
+Now let's say if we have a new subject with observations up to $t_m$ and $t_m$ is in mth bin:
+
+1. Local GLMMs: we will be able to estimate random effect of this subject up to mth bin, thus estimate the latent function up to the mth bin ($\hat{\boldsymbol{\eta}}_m$).
+
+2. fPCA: We will have an incomplete function for this new observation. I think fpca.face can handle that.
+
+3. Use the save formulas as in-sample prediction
 
 
 # Next steps:
