@@ -254,11 +254,30 @@ Now let's say if we have a new subject with observations up to $t_m$ and $t_m$ i
 
 # Next steps:
 
-1. Interval prediction
-2. FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
-3. Out-of-sample prediction: how to estimate scores? 
+1. Write out the formula for the BLUPs in the local GLMMs. Since we have a random intercept only model this should not be too complicated. (this is for out of sample prediction only)
+2. Approximate these values numerically via numeric integration (like we did witht he AUC paper) and/or explicit laplace approximation 
+3. Evaluate performance of dynamic predictions (both using "in sample" data -- those individuals whose BLUPs we can extract directly from the local glmm fits and out of sample data)
+4. Write an R package (see Julia's fastGFPCA and Andrew's fcr pacakge as inspiration) which has functions for performing dynamic prediction using our framework
+5. Implement a brief simulation study showing both that the approach works 
 
-Thoughts on 3: 
+6. Deriving unbiased scores
+ 
+As in our first paper (attached), the scores we obtain from the approach you're using are biased. We can show that the scores obtained from the local models (i.e. Step 3 in the fastGFPCA approach) are a linear function of the true scores.
+1) Derive the result that the binned scores are linear in the true scores (I have already derived this result, but you should attempt to do this yourself.)
+- Attempt to find an analytic solution for the bias factor. This may be challenging, so don't spend too much time here, but it would be an amazing result if we could do so
+
+2) Assuming you cannot find an analytic solution for the bias factor, attempt to estimate this factor yourself. To do so implement the full fastGFPCA approach (i.e. Step 4, where we re-estimate the scores), then:
+- Take the estimated scores for each subject from step 4 and and regress them on the scores from step 3 using linear regression. Do this separately for each eigenfunction
+-  Identify and report the estimated coefficients and R^2 for each eigenfunction separately
+- Use these models to create a de-biasing model for the Step 3 scores
+Show these scores are closer (lower MSE) to the true scores than those obtained from Step 3, and that these result in lower MSE for the latent subject specific functoions
+- Incorporate this result into the dynamic prediction framework you developed per the instructions above
+
+
+7. FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
+
+
+Thoughts on 1: 
 
 1. If we'd like to make predictions on more than one sample, we may be able to fit GLMM on test samples and predict $\eta(t)$
 2. Do a different set of derivation with MLE+EB like [this paper](https://www.jstor.org/stable/pdf/2533715.pdf?refreqid=excelsior%3A135dd765c41e4b46eb39bb6ef7a71053&ab_segments=&origin=&acceptTC=1)
