@@ -3,7 +3,8 @@ title: "fGFPCA dynamic prediction (In-sample)"
 output: 
   html_document:
     toc: true
-    toc_float: true
+    toc_float: 
+      collapsed: false
     toc_depth: 3
 date: "2022-11-03"
 ---
@@ -64,6 +65,13 @@ Then we use this series of models to estimate the latent Gaussian function. Each
 
 ```{r}
 source(here("Code/GLMM-FPCA.R"))
+```
+
+Figure below is the "mean" latent function across subject, which essential is $\beta_0^s$ from the series of mixed models. 
+
+```{r,fig.height=4, fig.width=4}
+ggplot(data.frame(x=mid, y=mean_latent))+
+  geom_line(aes(x=x, y=y))
 ```
 
 
@@ -243,13 +251,19 @@ clean_pred(4) %>%
 
 ## Out of sample prediction
 
-Now let's say if we have a new subject with observations up to $t_m$ and $t_m$ is in mth bin:
+Now let's say if we have a new subject $\boldsymbol{Y}_{new}$ with observations up to $t_m$ and $t_m$ is in mth bin. Also, we do not wish to refit any model, including the local GLMMs. In the first step, we need to use the series of local GLMMs that's already been fitted to get the random intercepts for this new observations ($\boldsymbol{b}_{new}$).
+
+We first focus on one specific interval s. 
 
 1. Local GLMMs: we will be able to estimate random effect of this subject up to mth bin, thus estimate the latent function up to the mth bin ($\hat{\boldsymbol{\eta}}_m$).
 
 2. fPCA: We will have an incomplete function for this new observation. I think fpca.face can handle that.
 
 3. Use the save formulas as in-sample prediction
+
+
+```{r}
+```
 
 
 # Next steps:

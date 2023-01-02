@@ -18,6 +18,7 @@ df$bin <- as.numeric(as.character(df$bin))
 #   facet_wrap(~id)
 
 # fit local linear mixed models in each bin
+# and extract subject level estimation
 ## df: function with binary outcome Y, with observations in one time bein
 pred_latent <- function(df){
   this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial)
@@ -26,11 +27,24 @@ pred_latent <- function(df){
   return(df)
 }
 
+# additionally, get the average estimation across subject 
+# by extacting the random intercepts from each bin
+mean_latent <- function(df){
+  this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial)
+  beta_hat <- coef(summary(this_glm))[1]
+  return(beta_hat)
+}
+
 ## do that for all time bin
 df_bin_lst <- split(df, f = df$bin)
+
+###### subject specific
 df_pred_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
 # lapply(df_pred_latent, dim)
 df_pred_latent <- bind_rows(df_pred_latent)
+
+###### subject average
+mean_latent <- sapply(df_bin_lst, function(x){mean_latent(x)}) 
 
 #### fPCA on predicted latent variables #####
 rm(df_bin_lst)
