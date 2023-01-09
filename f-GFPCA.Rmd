@@ -279,7 +279,7 @@ Now let's say if we have a new subject $\boldsymbol{Y}$ with observations up to 
 
 ### Do not estimate latent function
 
-Let say on the binned grid, at each interval s, new sample has $n_s$ observations, among which $m_s$ are successes. $m_s = \sum_{j=1}^{n_S} I(Y_{sj}=1)$, j is the index for observation in a specific interval. 
+Let say on the binned grid, at each interval s, new sample has $n_s$ observations, among which $h_s$ are successes. $h_s = \sum_{j=1}^{n_S} I(Y_{sj}=1)$, j is the index for observation in a specific interval. 
 
 We use the expectation of latent function conditonal on fPCA score to estimate the true latent function, so that the error term can be removed from following calculation:
 
@@ -310,8 +310,23 @@ $$p(\boldsymbol{\xi}) = (2\pi)^{-K/2}det(\boldsymbol{\Gamma})^{-1/2}exp(-\boldsy
 And the binary outcome, conditional on score, follows a Binomial distribution:
 
 $$\begin{aligned}
-p(\boldsymbol{Y}|\boldsymbol{\xi}) &= \prod_{s=1}^{m}p(\boldsymbol{Y}_t|\boldsymbol{\xi})
+p(\boldsymbol{Y}|\boldsymbol{\xi}) &= \prod_{s=1}^{m}p(\boldsymbol{Y}_s|\boldsymbol{\xi}) \\
+& = \prod_{s=1}^{m} \binom{h_s}{n_s}p_s^{h_s}(1-p_s)^{n_s-h_s}\\
+logit(p_s) & = \hat{\eta}_s = \hat{f}_{0}(s)+\phi(s)\boldsymbol{\xi}
 \end{aligned}$$
+
+Please note that here, we are assuming $\boldsymbol{Y}_s$ is independent from each other given fPCA score. That is, all correlation across time within the same subject is introduced by underlying eigenfunctions. 
+
+If we write this down for a single score: 
+
+$$E(\xi_k|\boldsymbol{Y})=\frac{\int \xi_k \int p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi})d\boldsymbol{\xi_{(-k)}}d\xi_k}{\int_{\boldsymbol{\xi}}p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi})d\boldsymbol{\xi}}$$
+
+# Problems: 
+Numeric integration too slow (adaptIntegrate multidimensional)! Maybe try  MLE?
+
+
+
+
 <!-- We can utilize the fitted series of local GLMMs, instead of refitting them. Since $\boldsymbol{Y}_{new}$ is a binary function, we can get its (incomplete) latent function value $\eta^s$ with Maximum Likelihood Estimation. Specifically, we need to estimate its (incomplete) random intercept function $b^s$. -->
 
 <!-- Let's focus on a specific bin $s$. If the new sample has $n_s$ observations in this bin, among which $m_s$ are success (value = 1). Then $\boldsymbol{Y}^s$ would follow a Binomial distribution:  -->
@@ -391,6 +406,7 @@ p(\boldsymbol{Y}|\boldsymbol{\xi}) &= \prod_{s=1}^{m}p(\boldsymbol{Y}_t|\boldsym
 # Next steps:
 
 1. Write out the formula for the BLUPs in the local GLMMs. Since we have a random intercept only model this should not be too complicated. (this is for out of sample prediction only)
+
 2. Approximate these values numerically via numeric integration (like we did witht he AUC paper) and/or explicit laplace approximation 
 3. Evaluate performance of dynamic predictions (both using "in sample" data -- those individuals whose BLUPs we can extract directly from the local glmm fits and out of sample data)
 4. Write an R package (see Julia's fastGFPCA and Andrew's fcr pacakge as inspiration) which has functions for performing dynamic prediction using our framework

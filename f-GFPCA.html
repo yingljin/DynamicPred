@@ -1624,7 +1624,7 @@ observation. I think fpca.face can handle that.</p></li>
 </div>
 <div id="do-not-estimate-latent-function" class="section level3">
 <h3>Do not estimate latent function</h3>
-<p>Let say on the binned grid, at each interval s, new sample has <span class="math inline">\(n_s\)</span> observations, among which <span class="math inline">\(m_s\)</span> are successes. <span class="math inline">\(m_s = \sum_{j=1}^{n_S} I(Y_{sj}=1)\)</span>, j is
+<p>Let say on the binned grid, at each interval s, new sample has <span class="math inline">\(n_s\)</span> observations, among which <span class="math inline">\(h_s\)</span> are successes. <span class="math inline">\(h_s = \sum_{j=1}^{n_S} I(Y_{sj}=1)\)</span>, j is
 the index for observation in a specific interval.</p>
 <p>We use the expectation of latent function conditonal on fPCA score to
 estimate the true latent function, so that the error term can be removed
@@ -1656,9 +1656,22 @@ distribution:</p>
 distribution:</p>
 <p><span class="math display">\[\begin{aligned}
 p(\boldsymbol{Y}|\boldsymbol{\xi}) &amp;=
-\prod_{s=1}^{m}p(\boldsymbol{Y}_t|\boldsymbol{\xi})
-\end{aligned}\]</span>
-<!-- We can utilize the fitted series of local GLMMs, instead of refitting them. Since $\boldsymbol{Y}_{new}$ is a binary function, we can get its (incomplete) latent function value $\eta^s$ with Maximum Likelihood Estimation. Specifically, we need to estimate its (incomplete) random intercept function $b^s$. --></p>
+\prod_{s=1}^{m}p(\boldsymbol{Y}_s|\boldsymbol{\xi}) \\
+&amp; = \prod_{s=1}^{m} \binom{h_s}{n_s}p_s^{h_s}(1-p_s)^{n_s-h_s}\\
+logit(p_s) &amp; = \hat{\eta}_s = \hat{f}_{0}(s)+\phi(s)\boldsymbol{\xi}
+\end{aligned}\]</span></p>
+<p>Please note that here, we are assuming <span class="math inline">\(\boldsymbol{Y}_s\)</span> is independent from each
+other given fPCA score. That is, all correlation across time within the
+same subject is introduced by underlying eigenfunctions.</p>
+<p>If the formula of conditional expecation, the binomial factor and
+normalizing factor from multivariate normal distribution are canceled
+out. Therefore the formula gets down to:</p>
+<p><span class="math display">\[E(\boldsymbol{\xi}|\boldsymbol{Y})=\frac{\int_{\boldsymbol{\xi}}\boldsymbol{\xi}
+\prod_{s=1}^{m}p_s^{h_s}(1-p_s)^{n_s-h_s}exp(-\boldsymbol{\xi^T
+\Gamma^{-1} \xi}/2) d\boldsymbol{\xi}}{\int_{\boldsymbol{\xi}}
+\prod_{s=1}^{m}p_s^{h_s}(1-p_s)^{n_s-h_s}exp(-\boldsymbol{\xi^T
+\Gamma^{-1} \xi}/2)}\]</span></p>
+<!-- We can utilize the fitted series of local GLMMs, instead of refitting them. Since $\boldsymbol{Y}_{new}$ is a binary function, we can get its (incomplete) latent function value $\eta^s$ with Maximum Likelihood Estimation. Specifically, we need to estimate its (incomplete) random intercept function $b^s$. -->
 <!-- Let's focus on a specific bin $s$. If the new sample has $n_s$ observations in this bin, among which $m_s$ are success (value = 1). Then $\boldsymbol{Y}^s$ would follow a Binomial distribution:  -->
 <!-- $$\boldsymbol{Y}^s \sim Binomial(n_s, \frac{exp(\eta^s)}{1+exp(\eta^s)})$$ -->
 <!-- Where $\eta^s = \beta_0^s+b^s$, and $\beta_0^s$ is already estimated with training data.  -->
