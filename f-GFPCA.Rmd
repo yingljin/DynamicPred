@@ -168,96 +168,75 @@ Below we try to do that with a few subjects:
 
 
 ```{r}
-source(here("code/DynPred.R"))
-
-#in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, 1)
-
+source(here("code/InSampPred.R"))
 ```
 
 ```{r}
 # function to clean results
-# make predictions with partial track up to 20, 40, 60
-clean_pred <- function(subj = 1){
+# make predictions with partial track up to 195, 395, 595
+
+in_pred_clean <- function(subjID){
+  # make predictions
+  pred_t195 <- in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==subjID & bin<=195))
+  pred_t395 <- in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==subjID & bin<=395))
+  pred_t595 <- in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==subjID & bin<=595))
+
+  df_pred_t195 <- data.frame(mid,
+                             eta=pred_t195$eta_pred,
+                             eta_std = pred_t195$eta_std_var) %>%
+    mutate(eta_lower = eta-eta_std, 
+             eta_upper = eta+eta_std) %>% 
+    filter(mid > 195)
   
-  pred20 <- in_samp_dyn_pred(fpca_fit, 20, df_pred_unique, subj)
-  df_pred20 <- data.frame(bin = mid, 
-                          eta_i = pred20$eta_pred,
-                          eta_i_std=pred20$eta_std_var,
-                          type = "up to 195") 
-  df_pred20$eta_i[df_pred20$bin<=195] <- NA
-  df_pred20$eta_i_std[df_pred20$bin<=195] <- NA
+  df_pred_t395 <- data.frame(mid,
+                             eta=pred_t395$eta_pred,
+                             eta_std = pred_t395$eta_std_var) %>%
+    mutate(eta_lower = eta-eta_std, 
+             eta_upper = eta+eta_std) %>% 
+    filter(mid > 395)
   
-  pred40 <- in_samp_dyn_pred(fpca_fit, 40, df_pred_unique, subj)
-  df_pred40 <- data.frame(bin = mid, 
-                          eta_i = pred40$eta_pred,
-                          eta_i_std=pred40$eta_std_var,
-                          type = "up to 395") 
-  df_pred40$eta_i[df_pred20$bin<=395] <- NA
-  df_pred40$eta_i_std[df_pred20$bin<=395] <- NA
+  df_pred_t595 <- data.frame(mid,
+                             eta=pred_t595$eta_pred,
+                             eta_std = pred_t595$eta_std_var) %>%
+    mutate(eta_lower = eta-eta_std, 
+             eta_upper = eta+eta_std) %>% 
+  filter(mid > 595)
   
-  pred60 <- in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, subj)
-  df_pred60 <- data.frame(bin = mid, 
-                          eta_i = pred60$eta_pred,
-                          eta_i_std=pred60$eta_std_var,
-                          type = "up to 595")
-  df_pred60$eta_i[df_pred20$bin<=595] <- NA
-  df_pred60$eta_i_std[df_pred20$bin<=595] <- NA
-  
-  
-  df_pred <- df_pred20 %>%
-    add_row(df_pred40) %>% 
-    add_row(df_pred60) %>%
-    mutate(eta_i_lower = eta_i-eta_i_std, 
-           eta_i_upper = eta_i+eta_i_std) %>%
-    left_join(df_pred_latent %>% 
-                 filter(id==subj & sind_inx==bin) %>%
-                 select(bin, eta_i) %>% 
-                 rename(true_eta = eta_i), by = "bin")
-  
-  return(df_pred)
+  return(list(df_pred_t195, df_pred_t395, df_pred_t595))
 }
 
-
+# true latent function on the binned grid
+df_true_eta <- df_pred_latent %>% 
+  filter(sind_inx %in% mid) %>%
+  select(id, bin, eta_i) %>% rename("mid" = "bin", "true" = "eta_i")
 
 ```
 
+
 ```{r, fig.width=12, fig.height=4}
 # Try on subjects 1-4
-clean_pred(1) %>%
+bind_rows(in_pred_clean(1), .id = "type") %>%
+  mutate(type=factor(type, levels=1:3, 
+                     labels = c("Up to 195", "Up to 395", "Up to 595"))) %>%
+  left_join(df_true_eta %>% filter(id==1), by = "mid") %>% 
   ggplot()+
-  geom_line(aes(x=bin, y = true_eta), col = "red")+
-  geom_line(aes(x=bin, y = eta_i), na.rm = T)+
-  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
-  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=mid, y = true, col = "True"))+
+  geom_line(aes(x=mid, y = eta), na.rm = T)+
+  geom_line(aes(x=mid, y=eta_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=mid, y = eta_upper), linetype = "dashed", na.rm=T)+
   labs(title = "Subject 1", x = "bin", y="")+
   facet_wrap(~type)
 
-clean_pred(2) %>%
+bind_rows(in_pred_clean(2), .id = "type") %>%
+  mutate(type=factor(type, levels=1:3, 
+                     labels = c("Up to 195", "Up to 395", "Up to 595"))) %>%
+  left_join(df_true_eta %>% filter(id==2), by = "mid") %>% 
   ggplot()+
-  geom_line(aes(x=bin, y = true_eta), col = "red")+
-  geom_line(aes(x=bin, y = eta_i), na.rm=T)+
-  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
-  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=mid, y = true, col = "True"))+
+  geom_line(aes(x=mid, y = eta), na.rm = T)+
+  geom_line(aes(x=mid, y=eta_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=mid, y = eta_upper), linetype = "dashed", na.rm=T)+
   labs(title = "Subject 2", x = "bin", y="")+
-  facet_wrap(~type)
-
-clean_pred(3) %>%
-  ggplot()+
-  geom_line(aes(x=bin, y=true_eta), col = "red")+
-  geom_line(aes(x=bin, y = eta_i), na.rm = T)+
-  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
-  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
-  labs(title = "Subject 3", x = "bin", y="")+
-  facet_wrap(~type)
-
-
-clean_pred(4) %>%
-  ggplot()+
-  geom_line(aes(x=bin, y=true_eta), col = "red")+
-  geom_line(aes(x=bin, y = eta_i), na.rm = T)+
-  geom_line(aes(x=bin, y=eta_i_lower), linetype = "dashed", na.rm=T)+
-  geom_line(aes(x=bin, y = eta_i_upper), linetype = "dashed", na.rm=T)+
-  labs(title = "Subject 4", x = "bin", y="")+
   facet_wrap(~type)
 ```
 
@@ -294,6 +273,8 @@ $$\begin{aligned}
  logit(p_s) & = \hat{\eta}_s = \hat{f}_{0}(s)+\phi(s)\boldsymbol{\xi}
 \end{aligned}$$
 
+#### Empirical Bayes
+
 Now let's find the empirical bayes estimator of score $E(\boldsymbol{\xi}|\boldsymbol{Y})$, which is not likely to have closed form solution. 
 
 $$E(\boldsymbol{\xi}|\boldsymbol{Y})=\int_{\boldsymbol{\xi}} \boldsymbol{\xi} p(\boldsymbol{\xi}|\boldsymbol{Y})d\boldsymbol{\xi}$$
@@ -321,87 +302,104 @@ If we write this down for a single score:
 
 $$E(\xi_k|\boldsymbol{Y})=\frac{\int \xi_k \int p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi})d\boldsymbol{\xi_{(-k)}}d\xi_k}{\int_{\boldsymbol{\xi}}p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi})d\boldsymbol{\xi}}$$
 
-# Problems: 
-Numeric integration too slow (adaptIntegrate multidimensional)! Maybe try  MLE?
+
+In this case, I ran into the problem of numeric integration being too slow (adaptIntegrate multidimensional). The function value is also very small. Therefore, I turned to MLE instead. 
 
 
+#### MLE
+
+We utilize the same conditional likelihood of scores:
 
 
-<!-- We can utilize the fitted series of local GLMMs, instead of refitting them. Since $\boldsymbol{Y}_{new}$ is a binary function, we can get its (incomplete) latent function value $\eta^s$ with Maximum Likelihood Estimation. Specifically, we need to estimate its (incomplete) random intercept function $b^s$. -->
+$$p(\boldsymbol{\xi}|\boldsymbol{Y}) = \frac{p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi})}{\int_{\boldsymbol{\xi}}p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi})d\boldsymbol{\xi}}$$
 
-<!-- Let's focus on a specific bin $s$. If the new sample has $n_s$ observations in this bin, among which $m_s$ are success (value = 1). Then $\boldsymbol{Y}^s$ would follow a Binomial distribution:  -->
+But now we don't need to calculated the marginal distribution of $\boldsymbol{Y}$ anymore (denominator). So we'll get:
 
-<!-- $$\boldsymbol{Y}^s \sim Binomial(n_s, \frac{exp(\eta^s)}{1+exp(\eta^s)})$$ -->
-<!-- Where $\eta^s = \beta_0^s+b^s$, and $\beta_0^s$ is already estimated with training data.  -->
+$$\begin{aligned}
+p(\boldsymbol{\xi}|\boldsymbol{Y}) & \propto p(\boldsymbol{Y}|\boldsymbol{\xi})p(\boldsymbol{\xi}) \\
 
-<!-- Now we write out the likelihood in interval s: -->
+l(\boldsymbol{\xi}|\boldsymbol{Y}) & \propto logp (\boldsymbol{Y}|\boldsymbol{\xi})+log p(\boldsymbol{\xi})
+\end{aligned}$$
 
-<!-- $$L(b^s|\boldsymbol{Y}^s) = \binom{n^s}{m^s}p_s^{m^s}(1-p_s)^{n^s-m^s}$$ -->
-<!-- where  -->
+Plug in the conditional log-likelihood of $\boldsymbol{Y}$ and marginal log-likelihood of $\boldsymbol{\xi}$:
 
-<!-- $$p_s = \frac{exp(\eta^s)}{1+exp(\eta^s)}, \hspace{0.5cm}  -->
-<!-- \eta^s = \beta_0^s+b^s$$ -->
+$$\begin{aligned}
+l(\boldsymbol{\xi}|\boldsymbol{Y}) & \propto \sum_{s=1}^mh_s\eta_s-\sum_{s=1}^mn_slog(1+exp(\eta_s))-\boldsymbol{\xi^T\Gamma^{-1}\xi}/2\\
+\frac{dl(\boldsymbol{\xi}|\boldsymbol{Y})}{d\boldsymbol{\xi}}& =\sum_{s=1}^mh_s\phi(s)-\sum_{s=1}^mn_s\frac{exp(\eta_s)}{1+exp(\eta_s)}\phi(s)-\boldsymbol{\xi^T\Gamma^{-1}} = 0
+\end{aligned}$$
 
-<!-- Then the log likelihood is: -->
+It is not easy to get a closed-form solution for the score equation above. We can try to get a numeric solution instead. Below are some visualization of the prediction performances
 
-<!-- $$\begin{aligned} -->
-<!-- l(b^s|\boldsymbol{Y}^s) &= log\binom{n^s}{m^s}+{m^s}logp_s+(n^s-m^s)log(1-p_s)\\ -->
-<!-- &= log\binom{n^s}{m^s}+m^slog(\frac{p_s}{1-p_s})+n^slog(1-p_s)\\ -->
-<!-- &= log\binom{n^s}{m^s}+m^s(\beta_0+b^s)-n^slog(1+exp(\beta_0^s+b^s)) -->
-<!-- \end{aligned}$$ -->
+#### In- and out-of-sample prediction of latent function
 
-
-<!-- Then we take the first derivative and set it to zero, and end up with MLE os $b^s$: -->
-
-<!-- $$\hat{b}^s=log(\frac{m^s}{n^s-m^s})-\beta_0^s$$ -->
-<!-- Again, $\beta_0^s$ is the estimated mean latent function from the local GlMMs steps. In fact, this individual latent track can be simply estimated by success ratio in the corresponding interval: -->
-
-<!-- $$\eta^s = log\frac{m^s}{n^s-m^s}$$ -->
-
-<!-- ```{r} -->
-<!-- # generate one subject from the smae generating mechanism -->
-<!-- xi_new <- matrix(rnorm(1*K),1,K); -->
-<!-- xi_new <- xi_new %*% diag(sqrt(lambda)) -->
-<!-- # random intercept function -->
-<!-- b_new <- xi_new %*% t(phi) -->
-<!-- # latent function -->
-<!-- eta_new <- f_0(sind) + b_new -->
-<!-- ## response binary function -->
-<!-- Y_new <- rbinom(length(eta_new), size=1, prob=plogis(eta_new)) -->
-<!-- df_new_true <- data.frame( -->
-<!--   id = N+1000, -->
-<!--   sind = sind,  -->
-<!--   Y = Y_new, -->
-<!--   eta = t(eta_new), -->
-<!--   sind_inx = 1:J) -->
-
-<!-- # cut observations after specific time point -->
-<!-- tm <- 0.5 -->
-<!-- df_new_obs <- df_new_true %>%  select(-eta) %>%  -->
-<!--   filter(sind<=0.5) -->
-<!-- ``` -->
+```{r}
+source(here("Code/OutSampMLE.R"))
+```
 
 
-<!-- ```{r} -->
-<!-- # bin observations -->
-<!-- df_new_obs$bin <- cut(df_new_obs$sind_inx, breaks = brks,  -->
-<!--                       include.lowest = T,labels = mid) -->
-<!-- df_new_obs$bin <- as.numeric(as.character(df_new_obs$bin)) -->
+```{r}
+# out-of-sample
+pred1_t195 <- out_samp_dyn_pred(df_new = df %>% filter(id == 1 & sind_inx <= 195) %>%
+                                  select(-eta_i),
+                                fpca_fit = fpca_fit)
+pred1_t395 <- out_samp_dyn_pred(df_new = df %>% filter(id == 1 & sind_inx <= 395) %>%
+                                  select(-eta_i),
+                                fpca_fit = fpca_fit)
 
-<!-- # estimated MLE of latent function -->
-<!-- eta_hat_new <- df_new_obs %>% group_by(bin) %>%  -->
-<!--   summarise_at("Y", function(x){log(sum(x==1)/sum(x==0))})  -->
+pred1_t595 <- out_samp_dyn_pred(df_new = df %>% filter(id == 1 & sind_inx <= 595) %>%
+                                  select(-eta_i),
+                                fpca_fit = fpca_fit)
 
-<!-- # plot -->
-<!-- df_new_true %>% filter(sind_inx %in% mid) %>%  -->
-<!--   select(sind_inx, eta) %>%  -->
-<!--   rename(bin = sind_inx) %>%  -->
-<!--   left_join(eta_hat_new) %>%  -->
-<!--   ggplot()+ -->
-<!--   geom_line(aes(x=bin, y=eta, col = "True"))+ -->
-<!--   geom_line(aes(x=bin, y=Y, col = "Predicted")) -->
+df_out_pred1 <- data.frame(mid, pred1_t195,pred1_t395, pred1_t595)
+df_out_pred1$pred1_t195[1:which(mid==195)] <- NA
+df_out_pred1$pred1_t395[1:which(mid==395)] <- NA
+df_out_pred1$pred1_t595[1:which(mid==595)] <- NA
+df_out_pred1$true <- df[df$id==1 & df$sind_inx%in%mid, "eta_i"]  
 
-<!-- ``` -->
+```
+
+
+```{r}
+# in-sample  
+df_in_pred1 <- data.frame(mid,
+                          pred_t195 = in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==1 & bin<=195))$eta_pred,
+                          pred_t395 = in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==1 & bin<=395))$eta_pred,
+                          pred_t595 = in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==1 & bin<=595))$eta_pred)
+
+df_in_pred1$pred_t195[1:which(mid==195)] <- NA
+df_in_pred1$pred_t395[1:which(mid==395)] <- NA
+df_in_pred1$pred_t595[1:which(mid==595)] <- NA
+df_in_pred1$true <- df[df$id==1 & df$sind_inx%in%mid, "eta_i"]  
+
+```
+
+
+```{r}
+# compare point prediction with in-sample
+
+## out-of-sample
+ggplot(df_out_pred1)+
+  geom_line(aes(x=mid, y=true, col="True"))+
+  geom_line(aes(x=mid, y=pred1_t195, col="Up to 195"), na.rm = T)+
+  geom_line(aes(x=mid, y=pred1_t395, col="Up to 395"), na.rm = T)+
+  geom_line(aes(x=mid, y=pred1_t595, col="Up to 595"), na.rm = T)+
+  labs(y = "Out-of-sample prediction", x = "Binned time")
+
+## in-sample
+ggplot(df_in_pred1)+
+  geom_line(aes(x=mid, y=true, col="True"))+
+  geom_line(aes(x=mid, y=pred_t195, col="Up to 195"), na.rm = T)+
+  geom_line(aes(x=mid, y=pred_t395, col="Up to 395"), na.rm = T)+
+  geom_line(aes(x=mid, y=pred_t595, col="Up to 595"), na.rm = T)+
+  labs(y = "In-sample prediction", x = "Binned time")
+
+```
+
+- Repeat this for more subjects
+- Interval prediction for MLE
+- Bias of score for both in-sample and out-of-sample estimation
+
+
 
 # Next steps:
 
