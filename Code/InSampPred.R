@@ -29,6 +29,7 @@ in_samp_dyn_pred <- function(fpca_fit, df_part){
               score_hat = score_hat))
 }
 
+# return: predicted latent function, its variance/std, PC scores
 
 # try <- in_samp_dyn_pred(fpca_fit, 60, df_pred_unique, 4)
 # 

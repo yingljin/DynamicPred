@@ -5,7 +5,7 @@ output:
     toc: true
     toc_float: 
       collapsed: false
-    toc_depth: 3
+    toc_depth: 4
 date: "2022-11-03"
 ---
 
@@ -15,10 +15,12 @@ knitr::opts_chunk$set(echo = FALSE)
 library(here)
 library(tidyverse)
 library(ggplot2)
+theme_set(theme_minimal())
 library(fcr)
 library(refund)
 library(lme4)
 library(ggpubr)
+library(gridExtra)
 set.seed(1025)
 ```
 
@@ -74,6 +76,8 @@ Within each interval labeled as $s$, we fit a local GLMM model:
 
 $$logit(E(Y_i^s)) = \beta_0^s+b_i^s$$
 Then we use this series of models to estimate the latent Gaussian function. Each subject will have a different value of latent function at each bin. 
+
+<span style="color: red;">When fitting local GLMMs, it seems that the intervals are essentially independent. We do not consider the effect of neighborhood intervals on a specific interval. This means that correlation between repeated measures from the same subject is only introduced by the latent function.</span>
 
 
 ```{r}
@@ -175,34 +179,41 @@ source(here("code/InSampPred.R"))
 # function to clean results
 # make predictions with partial track up to 195, 395, 595
 
-in_pred_clean <- function(subjID){
+in_pred_clean <- function(subjID=1, mid=mid){
   # make predictions
   pred_t195 <- in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==subjID & bin<=195))
   pred_t395 <- in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==subjID & bin<=395))
   pred_t595 <- in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==subjID & bin<=595))
-
+  # put predicted function and standard error in to a data frame
+  # calculate confidence interval
   df_pred_t195 <- data.frame(mid,
                              eta=pred_t195$eta_pred,
                              eta_std = pred_t195$eta_std_var) %>%
     mutate(eta_lower = eta-eta_std, 
-             eta_upper = eta+eta_std) %>% 
-    filter(mid > 195)
+             eta_upper = eta+eta_std)
   
   df_pred_t395 <- data.frame(mid,
                              eta=pred_t395$eta_pred,
                              eta_std = pred_t395$eta_std_var) %>%
     mutate(eta_lower = eta-eta_std, 
-             eta_upper = eta+eta_std) %>% 
-    filter(mid > 395)
+             eta_upper = eta+eta_std) 
   
   df_pred_t595 <- data.frame(mid,
                              eta=pred_t595$eta_pred,
                              eta_std = pred_t595$eta_std_var) %>%
     mutate(eta_lower = eta-eta_std, 
-             eta_upper = eta+eta_std) %>% 
-  filter(mid > 595)
+             eta_upper = eta+eta_std) 
+  # remove observed part
+  df_pred_t195[df_pred_t195$mid<=195, c("eta", "eta_std", "eta_lower", "eta_upper")] <- NA
+  df_pred_t395[df_pred_t195$mid<=395, c("eta", "eta_std", "eta_lower", "eta_upper")] <- NA
+  df_pred_t595[df_pred_t195$mid<=595, c("eta", "eta_std", "eta_lower", "eta_upper")] <- NA
+  # put into one data frame
+  df_pred <- bind_rows(df_pred_t195, df_pred_t395, df_pred_t595, .id="type") %>%
+    mutate(type = factor(type, levels=1:3, 
+                         labels = c("Up to 195", "Up to 395", "Up to 595")))
   
-  return(list(df_pred_t195, df_pred_t395, df_pred_t595))
+  
+  return(df_pred)
 }
 
 # true latent function on the binned grid
@@ -213,36 +224,57 @@ df_true_eta <- df_pred_latent %>%
 ```
 
 
-```{r, fig.width=12, fig.height=4}
+```{r}
 # Try on subjects 1-4
-bind_rows(in_pred_clean(1), .id = "type") %>%
-  mutate(type=factor(type, levels=1:3, 
-                     labels = c("Up to 195", "Up to 395", "Up to 595"))) %>%
-  left_join(df_true_eta %>% filter(id==1), by = "mid") %>% 
+in_pred_subj1 <- in_pred_clean(1, mid) %>% 
+  left_join(df_true_eta %>% filter(id==1), by = "mid") 
+in_pred_subj2 <- in_pred_clean(2, mid) %>% 
+  left_join(df_true_eta %>% filter(id==2), by = "mid")
+in_pred_subj3 <- in_pred_clean(3, mid) %>% 
+  left_join(df_true_eta %>% filter(id==3), by = "mid") 
+in_pred_subj4 <- in_pred_clean(4, mid) %>% 
+  left_join(df_true_eta %>% filter(id==4), by = "mid") 
+```
+
+
+```{r, fig.width=12, fig.height=4}
+in_pred_subj1 %>%
   ggplot()+
-  geom_line(aes(x=mid, y = true, col = "True"))+
+  geom_line(aes(x=mid, y = true), col = "red")+
   geom_line(aes(x=mid, y = eta), na.rm = T)+
   geom_line(aes(x=mid, y=eta_lower), linetype = "dashed", na.rm=T)+
   geom_line(aes(x=mid, y = eta_upper), linetype = "dashed", na.rm=T)+
   labs(title = "Subject 1", x = "bin", y="")+
   facet_wrap(~type)
 
-bind_rows(in_pred_clean(2), .id = "type") %>%
-  mutate(type=factor(type, levels=1:3, 
-                     labels = c("Up to 195", "Up to 395", "Up to 595"))) %>%
-  left_join(df_true_eta %>% filter(id==2), by = "mid") %>% 
+in_pred_subj2 %>% 
   ggplot()+
-  geom_line(aes(x=mid, y = true, col = "True"))+
+  geom_line(aes(x=mid, y = true), col = "red")+
   geom_line(aes(x=mid, y = eta), na.rm = T)+
   geom_line(aes(x=mid, y=eta_lower), linetype = "dashed", na.rm=T)+
   geom_line(aes(x=mid, y = eta_upper), linetype = "dashed", na.rm=T)+
   labs(title = "Subject 2", x = "bin", y="")+
   facet_wrap(~type)
+
+in_pred_subj3 %>% 
+  ggplot()+
+  geom_line(aes(x=mid, y = true), col = "red")+
+  geom_line(aes(x=mid, y = eta), na.rm = T)+
+  geom_line(aes(x=mid, y=eta_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=mid, y = eta_upper), linetype = "dashed", na.rm=T)+
+  labs(title = "Subject 3", x = "bin", y="")+
+  facet_wrap(~type)
+
+in_pred_subj4 %>% 
+  ggplot()+
+  geom_line(aes(x=mid, y = true), col = "red")+
+  geom_line(aes(x=mid, y = eta), na.rm = T)+
+  geom_line(aes(x=mid, y=eta_lower), linetype = "dashed", na.rm=T)+
+  geom_line(aes(x=mid, y = eta_upper), linetype = "dashed", na.rm=T)+
+  labs(title = "Subject 4", x = "bin", y="")+
+  facet_wrap(~type)
 ```
 
-## Some clarification points
-
-1. When fitting local GLMMs, it seems that the intervals are essentially independent. We do not consider the effect of neighborhood intervals on a specific interval. 
 
 ## Out of sample prediction
 
@@ -330,7 +362,7 @@ l(\boldsymbol{\xi}|\boldsymbol{Y}) & \propto \sum_{s=1}^mh_s\eta_s-\sum_{s=1}^mn
 
 It is not easy to get a closed-form solution for the score equation above. We can try to get a numeric solution instead. Below are some visualization of the prediction performances
 
-#### In- and out-of-sample prediction of latent function
+### In-/Out-of-sample prediction of latent function
 
 ```{r}
 source(here("Code/OutSampMLE.R"))
@@ -338,97 +370,177 @@ source(here("Code/OutSampMLE.R"))
 
 
 ```{r}
-# out-of-sample
-pred1_t195 <- out_samp_dyn_pred(df_new = df %>% filter(id == 1 & sind_inx <= 195) %>%
+# clean out-of-sample prediction results
+out_pred_clean <- function(subjID, mid=mid){
+  # Prediction
+  pred_t195 <- out_samp_dyn_pred(df_new = df %>% filter(id==subjID & sind_inx<=195) %>%
                                   select(-eta_i),
                                 fpca_fit = fpca_fit)
-pred1_t395 <- out_samp_dyn_pred(df_new = df %>% filter(id == 1 & sind_inx <= 395) %>%
+  pred_t395 <- out_samp_dyn_pred(df_new = df %>% filter(id==subjID & sind_inx<=395) %>%
                                   select(-eta_i),
                                 fpca_fit = fpca_fit)
-
-pred1_t595 <- out_samp_dyn_pred(df_new = df %>% filter(id == 1 & sind_inx <= 595) %>%
+  pred_t595 <- out_samp_dyn_pred(df_new = df %>% filter(id==subjID & sind_inx<=595) %>%
                                   select(-eta_i),
                                 fpca_fit = fpca_fit)
-
-df_out_pred1 <- data.frame(mid, pred1_t195,pred1_t395, pred1_t595)
-df_out_pred1$pred1_t195[1:which(mid==195)] <- NA
-df_out_pred1$pred1_t395[1:which(mid==395)] <- NA
-df_out_pred1$pred1_t595[1:which(mid==595)] <- NA
-df_out_pred1$true <- df[df$id==1 & df$sind_inx%in%mid, "eta_i"]  
+  
+  # clean
+  df_pred <- data.frame(mid, 
+                        pred_t195=pred_t195$eta_pred,
+                        pred_t395=pred_t395$eta_pred, 
+                        pred_t595=pred_t595$eta_pred)
+  df_pred[df_pred$mid<=195, "pred_t195"] <- NA
+  df_pred[df_pred$mid<=395, "pred_t395"] <- NA
+  df_pred[df_pred$mid<=595, "pred_t595"] <- NA
+  
+  df_pred <- df_pred %>% pivot_longer(starts_with("pred_t"), 
+                                      names_to = "type", values_to = "eta") %>%
+    mutate(type = factor(type, levels=c("pred_t195", "pred_t395", "pred_t595"),
+                         labels=c("Up to 195", "Up to 395", "Up to 595")))
+  
+  return(df_pred)
+}
 
 ```
 
 
 ```{r}
-# in-sample  
-df_in_pred1 <- data.frame(mid,
-                          pred_t195 = in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==1 & bin<=195))$eta_pred,
-                          pred_t395 = in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==1 & bin<=395))$eta_pred,
-                          pred_t595 = in_samp_dyn_pred(fpca_fit, df_pred_unique %>% filter(id==1 & bin<=595))$eta_pred)
-
-df_in_pred1$pred_t195[1:which(mid==195)] <- NA
-df_in_pred1$pred_t395[1:which(mid==395)] <- NA
-df_in_pred1$pred_t595[1:which(mid==595)] <- NA
-df_in_pred1$true <- df[df$id==1 & df$sind_inx%in%mid, "eta_i"]  
-
+out_pred_subj1 <- out_pred_clean(1, mid) %>% 
+  left_join(df_true_eta %>% filter(id==1), by = "mid")
+out_pred_subj2 <- out_pred_clean(2, mid) %>% 
+  left_join(df_true_eta %>% filter(id==2), by = "mid")
+out_pred_subj3 <- out_pred_clean(3, mid) %>% 
+  left_join(df_true_eta %>% filter(id==3), by = "mid")
+out_pred_subj4 <- out_pred_clean(4, mid) %>% 
+  left_join(df_true_eta %>% filter(id==4), by = "mid")
 ```
 
 
-```{r}
+```{r, fig.width=8, fig.height=4}
 # compare point prediction with in-sample
+# subject 1
+grid.arrange(
+  out_pred_subj1 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 1 out-of-sample"),
+  
+  in_pred_subj1 %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col="black")+
+    geom_line(aes(x=mid, y=eta, col=type, group=type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 1 in-sample"),
+  nrow=1)
 
-## out-of-sample
-ggplot(df_out_pred1)+
-  geom_line(aes(x=mid, y=true, col="True"))+
-  geom_line(aes(x=mid, y=pred1_t195, col="Up to 195"), na.rm = T)+
-  geom_line(aes(x=mid, y=pred1_t395, col="Up to 395"), na.rm = T)+
-  geom_line(aes(x=mid, y=pred1_t595, col="Up to 595"), na.rm = T)+
-  labs(y = "Out-of-sample prediction", x = "Binned time")
+# subject 2
+grid.arrange(
+  out_pred_subj2 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 2 out-of-sample"),
+  
+  in_pred_subj2 %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col="black")+
+    geom_line(aes(x=mid, y=eta, col=type, group=type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 2 in-sample"),
+  nrow=1)
 
-## in-sample
-ggplot(df_in_pred1)+
-  geom_line(aes(x=mid, y=true, col="True"))+
-  geom_line(aes(x=mid, y=pred_t195, col="Up to 195"), na.rm = T)+
-  geom_line(aes(x=mid, y=pred_t395, col="Up to 395"), na.rm = T)+
-  geom_line(aes(x=mid, y=pred_t595, col="Up to 595"), na.rm = T)+
-  labs(y = "In-sample prediction", x = "Binned time")
+# subject 3
+grid.arrange(
+  out_pred_subj3 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 3 out-of-sample"),
+  
+  in_pred_subj3 %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col="black")+
+    geom_line(aes(x=mid, y=eta, col=type, group=type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 3 in-sample"),
+  nrow=1)
+
+# subject 4
+grid.arrange(
+  out_pred_subj4 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 4 out-of-sample"),
+  
+  in_pred_subj4 %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col="black")+
+    geom_line(aes(x=mid, y=eta, col=type, group=type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 4 in-sample"),
+  nrow=1)
 
 ```
 
-- Repeat this for more subjects
-- Interval prediction for MLE
-- Bias of score for both in-sample and out-of-sample estimation
 
+### In-/Out-of-sample PC scores
+
+<span style="color: red;">Doesn't look biased? </span>
+<span style="color: red;">Perhaps because the function value range is so small? </span>
+
+```{r}
+# true scores:xi
+
+# scores
+in_score <- matrix(NA, nrow=N, ncol=4)
+out_score <- matrix(NA, nrow=N, ncol=4)
+for(i in 1:N){
+  in_score[i, ] <- in_samp_dyn_pred(fpca_fit=fpca_fit, 
+                   df_part=df_pred_unique %>% filter(id==i & bin<=595))$score
+  out_score[i,] <- out_samp_dyn_pred(df %>% filter(id==i & sind_inx<=595) %>%
+                                  select(-eta_i),
+                                  fpca_fit=fpca_fit)$score_out
+}
+
+# bias
+in_bias <- in_score-xi
+out_bias <- out_score-xi
+```
+
+```{r, fig.height=4, fig.width=8}
+grid.arrange(
+  out_bias %>% data.frame() %>%
+    pivot_longer(1:4, names_to = "PC", values_to = "Bias") %>%
+    ggplot()+
+    geom_boxplot(aes(x=PC, y=Bias))+
+    stat_summary(aes(x=PC, y=Bias), fun = mean, geom = "point", col = "red")+
+    labs(title = "Out-of-sample"),
+  
+  in_bias %>% data.frame() %>%
+    pivot_longer(1:4, names_to = "PC", values_to = "Bias") %>%
+    ggplot()+
+    geom_boxplot(aes(x=PC, y=Bias))+
+    stat_summary(aes(x=PC, y=Bias), fun = mean, geom = "point", col = "red")+
+    labs(title = "In-sample"), 
+nrow=1)
+
+```
 
 
 # Next steps:
 
-1. Write out the formula for the BLUPs in the local GLMMs. Since we have a random intercept only model this should not be too complicated. (this is for out of sample prediction only)
 
-2. Approximate these values numerically via numeric integration (like we did witht he AUC paper) and/or explicit laplace approximation 
-3. Evaluate performance of dynamic predictions (both using "in sample" data -- those individuals whose BLUPs we can extract directly from the local glmm fits and out of sample data)
-4. Write an R package (see Julia's fastGFPCA and Andrew's fcr pacakge as inspiration) which has functions for performing dynamic prediction using our framework
-5. Implement a brief simulation study showing both that the approach works 
-
-6. Deriving unbiased scores
- 
-As in our first paper (attached), the scores we obtain from the approach you're using are biased. We can show that the scores obtained from the local models (i.e. Step 3 in the fastGFPCA approach) are a linear function of the true scores.
-1) Derive the result that the binned scores are linear in the true scores (I have already derived this result, but you should attempt to do this yourself.)
-- Attempt to find an analytic solution for the bias factor. This may be challenging, so don't spend too much time here, but it would be an amazing result if we could do so
-
-2) Assuming you cannot find an analytic solution for the bias factor, attempt to estimate this factor yourself. To do so implement the full fastGFPCA approach (i.e. Step 4, where we re-estimate the scores), then:
-- Take the estimated scores for each subject from step 4 and and regress them on the scores from step 3 using linear regression. Do this separately for each eigenfunction
--  Identify and report the estimated coefficients and R^2 for each eigenfunction separately
-- Use these models to create a de-biasing model for the Step 3 scores
-Show these scores are closer (lower MSE) to the true scores than those obtained from Step 3, and that these result in lower MSE for the latent subject specific functoions
-- Incorporate this result into the dynamic prediction framework you developed per the instructions above
+- Interval prediction for MLE
+- FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
 
 
-7. FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
-
-
-Thoughts on 1: 
-
-1. If we'd like to make predictions on more than one sample, we may be able to fit GLMM on test samples and predict $\eta(t)$
-2. Do a different set of derivation with MLE+EB like [this paper](https://www.jstor.org/stable/pdf/2533715.pdf?refreqid=excelsior%3A135dd765c41e4b46eb39bb6ef7a71053&ab_segments=&origin=&acceptTC=1)
 

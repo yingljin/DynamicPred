@@ -45,7 +45,8 @@ out_samp_dyn_pred <- function(df_new, fpca_fit){
   score_out <- multiroot(f=llh_div, start = rep(0, 4), df_new=df_new, fpca_fit=fpca_fit)$root
   eta_pred_out <- fpca_fit$mu+fpca_fit$efunctions%*%score_out
   
-  return(eta_pred_out)
+  return(list(eta_pred = eta_pred_out,
+              score_out = score_out))
   
 }
 
