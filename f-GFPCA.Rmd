@@ -541,6 +541,6 @@ nrow=1)
 
 - Interval prediction for MLE
 - FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
-
+- 
 
 
