@@ -1,5 +1,5 @@
 ---
-title: "fGFPCA dynamic prediction (In-sample)"
+title: "fGFPCA dynamic prediction"
 output: 
   html_document:
     toc: true
@@ -535,12 +535,33 @@ nrow=1)
 
 ```
 
+### Prediction interval
+
+With MLE of scores $\hat{\boldsymbol{\xi}}$
+
+$$\boldsymbol{\hat{\eta}}=\boldsymbol{\hat{f_0}}+\boldsymbol{\Phi\hat{\xi}}$$
+$$\begin{aligned}
+\hat{\boldsymbol{\eta}}-\boldsymbol{\eta}&=\boldsymbol{\hat{f_0}}+\boldsymbol{\Phi\hat{\xi}}-\boldsymbol{\eta}\\
+&= \boldsymbol{\hat{f_0}-f_0}+\boldsymbol{\Phi(\hat{\xi}-\xi)}-\boldsymbol{\epsilon}
+\end{aligned}$$
+
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi\Gamma \Phi^T}+\hat{\sigma_{\epsilon}}^2$$
+Note:
+
+- $\boldsymbol{\Gamma}$ is estimated from FPCA. $\hat{\boldsymbol{\xi}}$ is also derived conditional on this covariance matrix.
+- <span style="color: red;"> ? Covariance of $\boldsymbol{\hat{f_0}-\eta}$ and $\hat{\boldsymbol{\xi}}$ should be 0 by assumption? </span>
+- <span style="color: red;"> $Var(\boldsymbol{\hat{f_0}-f_0})$ should not change from in-sample prediction formula since it is only related to the FPCA part? </span>
+
+$$Var(\boldsymbol{\hat{f_0}-f_0})=\boldsymbol{\Phi(H\Phi_m\Gamma)\Phi^T}$$
+
+
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi(H\Phi_m+I_K)\Gamma\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I}_m$$
 
 # Next steps:
 
 
 - Interval prediction for MLE
 - FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
-- 
+
 
 

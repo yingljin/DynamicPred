@@ -47,11 +47,24 @@ out_samp_dyn_pred <- function(df_new, fpca_fit){
   
   return(list(eta_pred = eta_pred_out,
               score_out = score_out))
-  
 }
 
 
-# test
+#### Estimate standard error of MLE ####
+
+# # Jacabian matrix of first dirivative of llh
+# try <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=195) %>%
+#                     select(-eta_i),
+#                   fpca_fit = fpca_fit)$score_out
+# 
+# I_mat <- -gradient(f = llh_div, x = try,
+#          df_new = df %>% filter(id==1 & sind_inx<=195) %>%
+#            select(-eta_i),
+#          fpca_fit=fpca_fit)
+# 
+# var <- diag(solve(I_mat))
+# 1.96*sqrt(var)
+# # test
 # out_samp_dyn_pred(df_new, fpca_fit)
 
 
