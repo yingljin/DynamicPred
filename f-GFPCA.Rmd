@@ -491,6 +491,15 @@ grid.arrange(
 
 ```
 
+#### Explicit laplace approximation
+
+- Idea: the posterior distribution approaches a Gaussian distribution as sample size grows. 
+- <span style="color: red;"> Looks like it is also maximizing posterior log-likelihood </span>
+- <span style="color: red;"> How to use Laplace Approximation to approximate integrals? </span>
+
+https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximation.html
+
+
 
 ### In-/Out-of-sample PC scores
 
@@ -562,6 +571,5 @@ $$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi(H\Phi_m+I_K)\G
 
 - Interval prediction for MLE
 - FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?
-
 
 

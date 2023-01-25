@@ -1,0 +1,3 @@
+library(LaplacesDemon)
+
+data("demonsnacks")
