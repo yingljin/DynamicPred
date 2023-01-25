@@ -491,10 +491,11 @@ grid.arrange(
 
 ```
 
-#### Explicit laplace approximation
+#### Laplace approximation
 
-- Idea: the posterior distribution approaches a Gaussian distribution as sample size grows. 
-- <span style="color: red;"> Looks like it is also maximizing posterior log-likelihood </span>
+This method essential finds $\boldsymbol{\xi}$ that maximizes $p(\boldsymbol{Y}|\boldsymbol{\xi})$.
+
+
 - <span style="color: red;"> How to use Laplace Approximation to approximate integrals? </span>
 
 https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximation.html
