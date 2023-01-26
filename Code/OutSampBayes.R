@@ -14,14 +14,14 @@ library(cubature)
 # Y: newly observed data (up to mth bin)
 
 # just for mess around
-tao <- diag(fpca_fit$evalues)
-f0 <- fpca_fit$mu[1:max_bin]
-phi <- ç
-df_out <- df %>% filter(id == 1 & sind_inx <= 395) %>% select(-eta_i)
-max_bin <- which(mid==395)
-xi <- fpca_fit$scores[1, ]
-xi <- matrix(xi, nrow = 4, ncol = 1)
-k <- 4
+# tao <- diag(fpca_fit$evalues)
+# f0 <- fpca_fit$mu[1:max_bin]
+# phi <- ç
+# df_out <- df %>% filter(id == 1 & sind_inx <= 395) %>% select(-eta_i)
+# max_bin <- which(mid==395)
+# xi <- fpca_fit$scores[1, ]
+# xi <- matrix(xi, nrow = 4, ncol = 1)
+# k <- 4
   
 joint_pdf <- function(xi, tao, f0, phi, df_out){
   
@@ -43,10 +43,10 @@ joint_pdf <- function(xi, tao, f0, phi, df_out){
 }
 
 #test 
-joint_pdf(xi, tao, f0, phi, df_out)
-
-adaptIntegrate(joint_pdf, lower = rep(-500, K), upper = rep(500, K), 
-          tao=tao, f0=f0, phi=phi, df_out=df_out)
+# joint_pdf(xi, tao, f0, phi, df_out)
+# 
+# adaptIntegrate(joint_pdf, lower = rep(-500, K), upper = rep(500, K), 
+#           tao=tao, f0=f0, phi=phi, df_out=df_out)
   
 # takes a really long time to run!
 
@@ -55,42 +55,7 @@ adaptIntegrate(joint_pdf, lower = rep(-500, K), upper = rep(500, K),
 library(LaplacesDemon)
 library(mvtnorm)
 
-# experiment with one subject
-
-# data
-df_new <- df %>% filter(id==1 & sind_inx<=195) %>% select(-eta_i)
-ns <- as.vector(table(df_new$bin)) # number of observations
-hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
-  select(Y) %>% unlist()# number of success
-nf <- ns-hs # number of failure
-max_bin <- length(unique(df_new$bin)) # assume new skipped bins  
-
-df_new2 <- data.frame(bin = 1:max_bin, ns, hs, nf)
-
-## format into a list
-tao <- diag(fpca_fit$evalues)
-f0 <- fpca_fit$mu[1:max_bin]
-N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
-n <- df_new2$ns # number of experiements at each bin
-y <- df_new2$hs # outcome, number of 1
-X <- fpca_fit$efunctions[1:max_bin, ] # "covariates", in this case PC functions
-J <- K # number of parameters/scores
-mon.names <- "LP"
-parm.names <- as.parm.names(list(xi1=0, xi2=0, xi3=0, xi4=0))
-pos.xi <- grep("xi", parm.names)
-PGF <- function(Data) {
-  xi <- rnorm(Data$J)
-  return(xi)
-}
-
-MyData <- list(J=J, PGF=PGF, X=X, mon.names=mon.names,
-              parm.names=parm.names, pos.xi=pos.xi, y=y, n=n, tao=tao, f0=f0)
-
-
 ## model
-## additional values needed from FPCA
-
-
 Model <- function(parm, Data){
   xi <- parm[Data$pos.xi]
   
@@ -109,13 +74,56 @@ Model <- function(parm, Data){
   return(Modelout)
 }
 
-# fit model
-Fit <- LaplacesDemon(Model, Data=MyData, rep(0, 4),
-                     Covar=NULL, Iterations=1000, Status=100, Thinning=1,
-                     Algorithm="AFSS", Specs=list(A=500, B=NULL, m=100, n=0, w=1))
 
-Fit2 <- LaplaceApproximation(Model, parm = rep(0, 4), Data=MyData)
+# data: 
+out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=195) %>% select(-eta_i)){
+  
+  # put data into correct format
+  ns <- as.vector(table(df_new$bin)) # number of observations
+  hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% select(Y) %>% unlist()# number of success
+  nf <- ns-hs # number of failure
+  max_bin <- length(unique(df_new$bin)) # assume new skipped bins  
+  df_new2 <- data.frame(bin = unique(df_new$bin), ns, hs, nf)  
+  
+  # into a list
+  tao <- diag(fpca_fit$evalues)
+  f0 <- fpca_fit$mu[1:max_bin]
+  N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
+  n <- df_new2$ns # number of experiements at each bin
+  y <- df_new2$hs # outcome, number of 1
+  X <- fpca_fit$efunctions[1:max_bin, ] # "covariates", in this case PC functions
+  J <- ncol(fpca_fit$efunctions) # number of parameters/scores
+  mon.names <- "LP"
+  parm.names <- as.parm.names(list(xi1=0, xi2=0, xi3=0, xi4=0))
+  pos.xi <- grep("xi", parm.names)
+  PGF <- function(Data) {
+    xi <- rnorm(Data$J)
+    return(xi)
+  }
+  
+  MyData <- list(J=J, PGF=PGF, X=X, mon.names=mon.names,
+                 parm.names=parm.names, pos.xi=pos.xi, y=y, n=n, tao=tao, f0=f0)
+  
+  
+  # fit laplace approximation
+  Fit <- LaplaceApproximation(Model, parm = rep(0, 4), Data=MyData)
+  score <- Fit$Summary1[, "Mode"]
+  
+  # prediction
+  eta_pred_out <- fpca_fit$mu+fpca_fit$efunctions%*%score
+  
+  return(list(eta_pred = eta_pred_out,
+               score_out = score))
+}
 
 
-Consort(Fit)
-Fit2
+
+# fit LaplacesDemon model
+# Fit <- LaplacesDemon(Model, Data=MyData, rep(0, 4),
+#                      Covar=NULL, Iterations=1000, Status=100, Thinning=1,
+#                      Algorithm="AFSS", Specs=list(A=500, B=NULL, m=100, n=0, w=1))
+
+# test
+
+# out_pred_laplace(fpca_fit,  df %>% filter(id==2 & sind_inx<=395) %>% select(-eta_i))
+

@@ -364,13 +364,14 @@ It is not easy to get a closed-form solution for the score equation above. We ca
 
 ### In-/Out-of-sample prediction of latent function
 
-```{r}
+```{r, results='hide'}
 source(here("Code/OutSampMLE.R"))
+source(here("Code/OutSampBayes.R"))
 ```
 
 
-```{r}
-# clean out-of-sample prediction results
+```{r, MLE_pred}
+# clean MLE out-of-sample prediction results
 out_pred_clean <- function(subjID, mid=mid){
   # Prediction
   pred_t195 <- out_samp_dyn_pred(df_new = df %>% filter(id==subjID & sind_inx<=195) %>%
@@ -415,7 +416,46 @@ out_pred_subj4 <- out_pred_clean(4, mid) %>%
 ```
 
 
-```{r, fig.width=8, fig.height=4}
+```{r, laplace_ped}
+# clean MLE out-of-sample prediction results
+out_pred_clean_laplace <- function(subjID=1, mid=mid){
+  # Prediction
+  pred_t195 <- out_pred_laplace(fpca_fit = fpca_fit, df_new = df %>% filter(id==subjID & sind_inx<=195) %>% select(-eta_i))
+  pred_t395 <- out_pred_laplace(fpca_fit = fpca_fit, df_new = df %>% filter(id==subjID & sind_inx<=395) %>% select(-eta_i))
+  pred_t595 <- out_pred_laplace(fpca_fit = fpca_fit, df_new = df %>% filter(id==subjID & sind_inx<=595) %>% select(-eta_i))
+  
+  # clean
+  df_pred <- data.frame(mid, 
+                        pred_t195=pred_t195$eta_pred,
+                        pred_t395=pred_t395$eta_pred, 
+                        pred_t595=pred_t595$eta_pred)
+  df_pred[df_pred$mid<=195, "pred_t195"] <- NA
+  df_pred[df_pred$mid<=395, "pred_t395"] <- NA
+  df_pred[df_pred$mid<=595, "pred_t595"] <- NA
+  
+  df_pred <- df_pred %>% pivot_longer(starts_with("pred_t"), 
+                                      names_to = "type", values_to = "eta") %>%
+    mutate(type = factor(type, levels=c("pred_t195", "pred_t395", "pred_t595"),
+                         labels=c("Up to 195", "Up to 395", "Up to 595")))
+  
+  return(df_pred)
+}
+
+```
+
+```{r, results='hide'}
+out_pred_lap_subj1 <- out_pred_clean_laplace(1, mid) %>% 
+  left_join(df_true_eta %>% filter(id==1), by = "mid")
+out_pred_lap_subj2 <- out_pred_clean_laplace(2, mid) %>% 
+  left_join(df_true_eta %>% filter(id==2), by = "mid")
+out_pred_lap_subj3 <- out_pred_clean_laplace(3, mid) %>% 
+  left_join(df_true_eta %>% filter(id==3), by = "mid")
+out_pred_lap_subj4 <- out_pred_clean_laplace(4, mid) %>% 
+  left_join(df_true_eta %>% filter(id==4), by = "mid")
+```
+
+
+```{r, fig.width=12, fig.height=4}
 # compare point prediction with in-sample
 # subject 1
 grid.arrange(
@@ -425,7 +465,15 @@ grid.arrange(
     geom_line(aes(x=mid, y=true), col = "black")+
     geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
               show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 1 out-of-sample"),
+    labs(x="Binned time", title = "Subject 1 out-of-sample MLE"),
+  
+  out_pred_lap_subj1 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 1 out-of-sample Laplace"),
   
   in_pred_subj1 %>%
     ggplot()+
@@ -443,7 +491,15 @@ grid.arrange(
     geom_line(aes(x=mid, y=true), col = "black")+
     geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
               show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 2 out-of-sample"),
+    labs(x="Binned time", title = "Subject 2 out-of-sample MLE"),
+  
+  out_pred_lap_subj2 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
   
   in_pred_subj2 %>%
     ggplot()+
@@ -461,7 +517,15 @@ grid.arrange(
     geom_line(aes(x=mid, y=true), col = "black")+
     geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
               show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 3 out-of-sample"),
+    labs(x="Binned time", title = "Subject 3 out-of-sample MLE"),
+  
+  out_pred_lap_subj3 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 3 out-of-sample Laplace"),
   
   in_pred_subj3 %>%
     ggplot()+
@@ -479,7 +543,15 @@ grid.arrange(
     geom_line(aes(x=mid, y=true), col = "black")+
     geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
               show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 4 out-of-sample"),
+    labs(x="Binned time", title = "Subject 4 out-of-sample MLE"),
+  
+  out_pred_lap_subj4 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 4 out-of-sample Laplace"),
   
   in_pred_subj4 %>%
     ggplot()+
@@ -496,6 +568,7 @@ grid.arrange(
 This method essential finds $\boldsymbol{\xi}$ that maximizes $p(\boldsymbol{Y}|\boldsymbol{\xi})$.
 
 
+- <span style="color: red;"> Is it equivalent to posterior mean $E(\boldsymbol{\xi}|\boldsymbol{Y})$ under certain conditionss? (according to decision theory) </span>
 - <span style="color: red;"> How to use Laplace Approximation to approximate integrals? </span>
 
 https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximation.html
@@ -507,33 +580,45 @@ https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximatio
 <span style="color: red;">Doesn't look biased? </span>
 <span style="color: red;">Perhaps because the function value range is so small? </span>
 
-```{r}
+```{r, results='hide'}
 # true scores:xi
 
 # scores
 in_score <- matrix(NA, nrow=N, ncol=4)
-out_score <- matrix(NA, nrow=N, ncol=4)
+out_score_MLE <- matrix(NA, nrow=N, ncol=4)
+out_score_laplace <- matrix(NA, nrow=N, ncol=4)
+
 for(i in 1:N){
   in_score[i, ] <- in_samp_dyn_pred(fpca_fit=fpca_fit, 
                    df_part=df_pred_unique %>% filter(id==i & bin<=595))$score
-  out_score[i,] <- out_samp_dyn_pred(df %>% filter(id==i & sind_inx<=595) %>%
+  out_score_MLE[i,] <- out_samp_dyn_pred(df %>% filter(id==i & sind_inx<=595) %>%
                                   select(-eta_i),
                                   fpca_fit=fpca_fit)$score_out
+  out_score_laplace[i,] <- out_pred_laplace(fpca_fit=fpca_fit, 
+                                            df_new = df %>% filter(id==i & sind_inx<=595) %>% select(-eta_i))$score_out
 }
 
 # bias
 in_bias <- in_score-xi
-out_bias <- out_score-xi
+out_bias_MLE <- out_score_MLE-xi
+out_bias_laplace <- out_score_laplace-xi
 ```
 
 ```{r, fig.height=4, fig.width=8}
 grid.arrange(
-  out_bias %>% data.frame() %>%
+  out_bias_MLE %>% data.frame() %>%
     pivot_longer(1:4, names_to = "PC", values_to = "Bias") %>%
     ggplot()+
     geom_boxplot(aes(x=PC, y=Bias))+
     stat_summary(aes(x=PC, y=Bias), fun = mean, geom = "point", col = "red")+
-    labs(title = "Out-of-sample"),
+    labs(title = "Out-of-sample MLE"),
+  
+  out_bias_laplace %>% data.frame() %>%
+    pivot_longer(1:4, names_to = "PC", values_to = "Bias") %>%
+    ggplot()+
+    geom_boxplot(aes(x=PC, y=Bias))+
+    stat_summary(aes(x=PC, y=Bias), fun = mean, geom = "point", col = "red")+
+    labs(title = "Out-of-sample laplace"),
   
   in_bias %>% data.frame() %>%
     pivot_longer(1:4, names_to = "PC", values_to = "Bias") %>%
@@ -556,6 +641,9 @@ $$\begin{aligned}
 \end{aligned}$$
 
 $$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi\Gamma \Phi^T}+\hat{\sigma_{\epsilon}}^2$$
+
+What happens to the variance of mean function? In practice it is estimated by smoothed population mean at each observation time.
+
 Note:
 
 - $\boldsymbol{\Gamma}$ is estimated from FPCA. $\hat{\boldsymbol{\xi}}$ is also derived conditional on this covariance matrix.
