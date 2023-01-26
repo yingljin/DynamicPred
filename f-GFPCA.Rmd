@@ -640,23 +640,22 @@ $$\begin{aligned}
 &= \boldsymbol{\hat{f_0}-f_0}+\boldsymbol{\Phi(\hat{\xi}-\xi)}-\boldsymbol{\epsilon}
 \end{aligned}$$
 
-$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi\Gamma \Phi^T}+\hat{\sigma_{\epsilon}}^2$$
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi Var(\hat{\xi}-\xi) \Phi^T}+Var(\epsilon)$$
 
-What happens to the variance of mean function? In practice it is estimated by smoothed population mean at each observation time.
+- The three components should be mutally independent? 
+- Through some derivation, I think $Var(\boldsymbol{f_0})=\frac{Var(\boldsymbol{Y})}{N} = \frac{1}{N}\boldsymbol{\Phi\Gamma \Phi}+\sigma_{\epsilon}^2\boldsymbol{I}_m$.
+- Variance of $\hat{\boldsymbol{\xi}}$ will depend on the method used for its estimation
+- $Var(\epsilon) =\hat{\sigma}_{\epsilon}^2$ from FPCA
+- Very different approach from in-sample estimation
 
-Note:
+Additional questions:
 
-- $\boldsymbol{\Gamma}$ is estimated from FPCA. $\hat{\boldsymbol{\xi}}$ is also derived conditional on this covariance matrix.
-- <span style="color: red;"> ? Covariance of $\boldsymbol{\hat{f_0}-\eta}$ and $\hat{\boldsymbol{\xi}}$ should be 0 by assumption? </span>
-- <span style="color: red;"> $Var(\boldsymbol{\hat{f_0}-f_0})$ should not change from in-sample prediction formula since it is only related to the FPCA part? </span>
+Variance of $\boldsymbol{\xi}$ and random error is in fact given from the FPCA procedure. But we need to variance of mean function for the actual prediction interval.
 
-$$Var(\boldsymbol{\hat{f_0}-f_0})=\boldsymbol{\Phi(H\Phi_m\Gamma)\Phi^T}$$
+What happens to the variance of mean function? In practice it is estimated by smoothed population mean at each observation time. It looks like in existing derivations, outcomes are usually assumed to be centered.
 
-
-$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi(H\Phi_m+I_K)\Gamma\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I}_m$$
 
 # Next steps:
-
 
 - Interval prediction for MLE
 - FPCA eigenfunctions: how to extend to the original grid? Interpolation or projection?

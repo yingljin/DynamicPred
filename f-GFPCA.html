@@ -1750,20 +1750,27 @@ small? </span></p>
 &amp;=
 \boldsymbol{\hat{f_0}-f_0}+\boldsymbol{\Phi(\hat{\xi}-\xi)}-\boldsymbol{\epsilon}
 \end{aligned}\]</span></p>
-<p><span class="math display">\[Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi\Gamma
-\Phi^T}+\hat{\sigma_{\epsilon}}^2\]</span> Note:</p>
+<p><span class="math display">\[Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi
+Var(\hat{\xi}-\xi) \Phi^T}+Var(\epsilon)\]</span></p>
 <ul>
-<li><span class="math inline">\(\boldsymbol{\Gamma}\)</span> is
-estimated from FPCA. <span class="math inline">\(\hat{\boldsymbol{\xi}}\)</span> is also derived
-conditional on this covariance matrix.</li>
-<li><span style="color: red;"> ? Covariance of <span class="math inline">\(\boldsymbol{\hat{f_0}-\eta}\)</span> and <span class="math inline">\(\hat{\boldsymbol{\xi}}\)</span> should be 0 by
-assumption? </span></li>
-<li><span style="color: red;"> <span class="math inline">\(Var(\boldsymbol{\hat{f_0}-f_0})\)</span> should
-not change from in-sample prediction formula since it is only related to
-the FPCA part? </span></li>
+<li>The three components should be mutally independent?</li>
+<li>Through some derivation, I think <span class="math inline">\(Var(\boldsymbol{f_0})=\frac{Var(\boldsymbol{Y})}{N}
+= \frac{1}{N}\boldsymbol{\Phi\Gamma
+\Phi}+\sigma_{\epsilon}^2\boldsymbol{I}_m\)</span>.</li>
+<li>Variance of <span class="math inline">\(\hat{\boldsymbol{\xi}}\)</span> will depend on the
+method used for its estimation</li>
+<li><span class="math inline">\(Var(\epsilon)
+=\hat{\sigma}_{\epsilon}^2\)</span> from FPCA</li>
+<li>Very different approach from in-sample estimation</li>
 </ul>
-<p><span class="math display">\[Var(\boldsymbol{\hat{f_0}-f_0})=\boldsymbol{\Phi(H\Phi_m\Gamma)\Phi^T}\]</span></p>
-<p><span class="math display">\[Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi(H\Phi_m+I_K)\Gamma\Phi^T}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I}_m\]</span></p>
+<p>Additional questions:</p>
+<p>Variance of <span class="math inline">\(\boldsymbol{\xi}\)</span> and
+random error is in fact given from the FPCA procedure. But we need to
+variance of mean function for the actual prediction interval.</p>
+<p>What happens to the variance of mean function? In practice it is
+estimated by smoothed population mean at each observation time. It looks
+like in existing derivations, outcomes are usually assumed to be
+centered.</p>
 </div>
 </div>
 </div>
