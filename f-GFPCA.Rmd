@@ -364,7 +364,7 @@ It is not easy to get a closed-form solution for the score equation above. We ca
 
 ### In-/Out-of-sample prediction of latent function
 
-```{r, results='hide'}
+```{r, results='hide', message=FALSE}
 source(here("Code/OutSampMLE.R"))
 source(here("Code/OutSampBayes.R"))
 ```

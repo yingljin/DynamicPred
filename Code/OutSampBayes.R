@@ -50,7 +50,7 @@ joint_pdf <- function(xi, tao, f0, phi, df_out){
   
 # takes a really long time to run!
 
-#### Laplace approximation ####
+#### Laplace approximation with Bayes package ####
 
 library(LaplacesDemon)
 library(mvtnorm)
@@ -127,3 +127,5 @@ out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=
 
 # out_pred_laplace(fpca_fit,  df %>% filter(id==2 & sind_inx<=395) %>% select(-eta_i))
 
+##### Hand-coded Laplace Approximation #####
+s
