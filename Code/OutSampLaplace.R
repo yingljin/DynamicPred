@@ -4,6 +4,8 @@
 
 library(mvtnorm)
 library(rootSolve)
+
+
 ##### Marginal distribution of outcome #####
 
 # first, approximate the denominator
@@ -45,4 +47,33 @@ mle_max <- maximum$value
 # 2nd derivative
 joint_llh_div2 <- function(xi = mle_score){
   eta <- f0+ Phi%*%xi
+  div <- 0
+  for(i in 1:max_bin){
+    div <- div+ns[i]*exp(eta[i])/(1+exp(eta[i]))^2*crossprod(t(Phi[i, ]))
+  }
+  
+  return(div)
 }
+
+# approximate marginal likelihood of Y
+den <- exp(mle_max+log((2*pi)^K/det(joint_llh_div2()))/2)
+
+
+##### joint expectation of scores #####
+
+# then, approximate the numerator
+# We need: log score, posterior log likelihood of observation, prior marginal log likelihood of score
+# but the target function can be negative, thus cannot be approximated by Laplace's method
+
+# target function of laplace approximation
+tfunc <- function(xi=mle_score){
+  return(log(xi)+joint_llh(xi))
+}
+
+# MLE
+maximum2 <- optim(par=mle_score, fn = tfunc, control = list(fnscale=-1))
+mle_score <-maximum$par
+mle_max <- maximum$value
+
+
+    
