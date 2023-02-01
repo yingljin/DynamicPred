@@ -75,5 +75,9 @@ maximum2 <- optim(par=mle_score, fn = tfunc, control = list(fnscale=-1))
 mle_score <-maximum$par
 mle_max <- maximum$value
 
+##### joint likelihood of scores and outcome #####
+
+
+
 
     

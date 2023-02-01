@@ -65,8 +65,8 @@ Model <- function(parm, Data){
   # log-posterior likelihood
   eta <- Data$f0+Data$X %*% xi
   p <- exp(eta)/(1+exp(eta))
-  LL <- sum(dbinom(x=Data$y, size = Data$n, prob=p))
-  LP <- LL+sum(xi.prior)
+  LL <- sum(dbinom(x=Data$y, size = Data$n, prob=p, log = TRUE)) # log likelihood of Y|xi
+  LP <- LL+sum(xi.prior) # joint log likelihood of (Y, xi)
   
   # output
   Modelout <- list(LP=LP, Dev=-2*LL, Monitor=LL,

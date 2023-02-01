@@ -362,6 +362,13 @@ l(\boldsymbol{\xi}|\boldsymbol{Y}) & \propto \sum_{s=1}^mh_s\eta_s-\sum_{s=1}^mn
 
 It is not easy to get a closed-form solution for the score equation above. We can try to get a numeric solution instead. Below are some visualization of the prediction performances
 
+#### Laplace approximation
+
+Posterior mean from Laplace method is the same as posterior mode. In this sense, empirical bayes method and MLE are in fact equivalent. 
+
+https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximation.html
+https://bookdown.org/rdpeng/advstatcomp/laplace-approximation.html
+
 ### In-/Out-of-sample prediction of latent function
 
 ```{r, results='hide', message=FALSE}
@@ -443,7 +450,7 @@ out_pred_clean_laplace <- function(subjID=1, mid=mid){
 
 ```
 
-```{r, results='hide'}
+```{r, results='hide', message=FALSE}
 out_pred_lap_subj1 <- out_pred_clean_laplace(1, mid) %>% 
   left_join(df_true_eta %>% filter(id==1), by = "mid")
 out_pred_lap_subj2 <- out_pred_clean_laplace(2, mid) %>% 
@@ -563,16 +570,6 @@ grid.arrange(
 
 ```
 
-#### Laplace approximation
-
-This method essential finds $\boldsymbol{\xi}$ that maximizes $p(\boldsymbol{Y}|\boldsymbol{\xi})$.
-
-
-- <span style="color: red;"> Is it equivalent to posterior mean $E(\boldsymbol{\xi}|\boldsymbol{Y})$ under certain conditionss? (according to decision theory) </span>
-- <span style="color: red;"> How to use Laplace Approximation to approximate integrals? </span>
-
-https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximation.html
-
 
 
 ### In-/Out-of-sample PC scores
@@ -580,7 +577,7 @@ https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/LaplaceApproximatio
 <span style="color: red;">Doesn't look biased? </span>
 <span style="color: red;">Perhaps because the function value range is so small? </span>
 
-```{r, results='hide'}
+```{r, results='hide', message=FALSE}
 # true scores:xi
 
 # scores
@@ -642,9 +639,9 @@ $$\begin{aligned}
 
 $$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi Var(\hat{\xi}-\xi) \Phi^T}+Var(\epsilon)$$
 
-- The three components should be mutally independent? 
-- Through some derivation, I think $Var(\boldsymbol{f_0})=\frac{Var(\boldsymbol{Y})}{N} = \frac{1}{N}\boldsymbol{\Phi\Gamma \Phi}+\sigma_{\epsilon}^2\boldsymbol{I}_m$.
-- Variance of $\hat{\boldsymbol{\xi}}$ will depend on the method used for its estimation
+- The three components should be mutually independent? 
+- Through some derivation, I think $Var(\boldsymbol{f_0})=\frac{Var(\boldsymbol{Y})}{N} = \frac{1}{N}[\boldsymbol{\Phi\Gamma \Phi^T}+\sigma_{\epsilon}^2\boldsymbol{I}_m]$.
+- Variance of $\hat{\boldsymbol{\xi}}$ will depend on the method used for its estimation. But isn't the estimated done conditioning on $Var(\boldsymbol{\xi}) = \boldsymbol{\Gamma}$?ß
 - $Var(\epsilon) =\hat{\sigma}_{\epsilon}^2$ from FPCA
 - Very different approach from in-sample estimation
 
