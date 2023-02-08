@@ -637,6 +637,13 @@ $$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})
 - May need to circle back to in-sample estimation and dig into where that formula came from
 
 
+Some new updates:
+
+Actually, after going over the full derivation in Leroux2017 paper, I think the preidction interval completely ignored the randomness from fixed effects. In other worlds, prediction intervals are made conditioning on fixed effect coefficients (in our case $\boldsymbol{f_0}$). 
+
+
+
+
 # Next steps:
 
 - Interval prediction for MLE
