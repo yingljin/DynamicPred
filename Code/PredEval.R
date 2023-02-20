@@ -41,11 +41,28 @@ summary(auc_perf)
 
 
 
+##### Reference methods #####
 
+# binary FPCA for dynamic prediction
+# non-convergence
+library(registr)
 
+bfpca_fit <- bfpca(Y= df %>% select(id, Y, sind_inx) %>% rename(index=sind_inx, value = Y), 
+      npc_varExplained = 0.95, t_min=1, t_max = J)
 
+# A standard mxied model
+# time as the only fixed effect
+# random intercept for ID and random slope for time
+# slow, also with numeric issues
+glmm_fit <- glmer(Y ~ sind_inx + (id | sind_inx),
+                  data = df %>% select(id, Y, sind_inx), family = binomial)
 
-
+# functional mixed models
+# generalized function-on-scalar regression
+# marginal constrants? 
+fit_gam <- gam(Y ~ s(sind_inx, k=20, bs = "cr") + ti(id, sind_inx, bs=c("re","cr"), mc=c(TRUE,FALSE), k=c(5,5)), 
+              family = "binomial",
+              data =  df %>% select(id, Y, sind_inx))
 
 
 

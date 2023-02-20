@@ -365,10 +365,9 @@ Below I have experimented with *LaplaceDemon::LaplaceApproximation*: https://sea
 
 ```{r, results='hide', message=FALSE}
 source(here("Code/OutSampMLE.R"))
-# source(here("Code/OutSampBayes.R"))
+source(here("Code/OutSampBayes.R"))
 ```
 
-#### Figure
 
 ```{r, MLE_pred}
 # clean MLE out-of-sample prediction results
@@ -416,7 +415,7 @@ out_pred_subj4 <- out_pred_clean(4, mid) %>%
 ```
 
 
-```{r, laplace_ped, eval=FALSE}
+```{r, laplace_pred}
 # clean MLE out-of-sample prediction results
 out_pred_clean_laplace <- function(subjID=1, mid=mid){
   # Prediction
@@ -443,7 +442,7 @@ out_pred_clean_laplace <- function(subjID=1, mid=mid){
 
 ```
 
-```{r, results='hide', message=FALSE, eval=FALSE}
+```{r, results='hide', message=FALSE}
 out_pred_lap_subj1 <- out_pred_clean_laplace(1, mid) %>% 
   left_join(df_true_eta %>% filter(id==1), by = "mid")
 out_pred_lap_subj2 <- out_pred_clean_laplace(2, mid) %>% 
@@ -467,6 +466,14 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 1 out-of-sample MLE"),
   
+  out_pred_lap_subj1 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 1 out-of-sample Laplace"),
+  
   in_pred_subj1 %>%
     ggplot()+
     geom_line(aes(x=mid, y=true), col="black")+
@@ -484,6 +491,15 @@ grid.arrange(
     geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 2 out-of-sample MLE"),
+  
+  out_pred_lap_subj2 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
+  
   
   in_pred_subj2 %>%
     ggplot()+
@@ -503,6 +519,15 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 3 out-of-sample MLE"),
   
+  out_pred_lap_subj3 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
+  
+  
   in_pred_subj3 %>%
     ggplot()+
     geom_line(aes(x=mid, y=true), col="black")+
@@ -521,6 +546,15 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 4 out-of-sample MLE"),
   
+  out_pred_lap_subj4 %>% 
+    group_by("type") %>%
+    ggplot()+
+    geom_line(aes(x=mid, y=true), col = "black")+
+    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+              show.legend = FALSE)+
+    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
+  
+  
   in_pred_subj4 %>%
     ggplot()+
     geom_line(aes(x=mid, y=true), col="black")+
@@ -532,35 +566,42 @@ grid.arrange(
 ```
 
 
-#### Predictive performance measures
+## Predictive performance measures
 
-- Modeled after dynamic prediction paper (Leroux 2017), focusing on prediction of individual tracks
+#### Measures
+
+- Focusing on prediction of individual tracks
 - Integrated error: for latent process
 
 $$\frac{1}{N}\sum_{i=1}^N\sum_s(\hat{\eta}_{is}-\eta_{is})^2$$
 where s covers only unobserved tracks
 
 - Integrated AUC: for binary outcome
-- Also, compare with a existing method (e.g, AMM, FRI)
 - Perhaps, also computation time?
 
 <span style="color:red;">The problem with measures above is that predictions are made on a different grid than observations. I can think of two potential ways to address this issue: 1) only evaluate at bin midpoints; 2) use interpolation to extend latend function from binned grid to the original grid (in GFPCA paper this is done through projection. ) </span>
 
 
+#### Reference methods
 
-```{r}
-df_true_eta %>% filter(id==1)
-eta_hat_mat <- matrix(NA, ncol = )
+Also, we need to compare with a existing method for dynamic prediction of binary outcomes. Ideals, there should be a FDA component to this methods.
 
-out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=195) %>%
-                                  select(-eta_i),
-                                fpca_fit = fpca_fit)$eta_pred
-```
+1. registr::bfpca: 
+
+This method is not a method for prediction. If we would like to use it for binary prediction, the two methods will only differ in the first half (FPCA). But this comparision has already been made in the GFPCA paper.
+
+This method also has convergence issue. 
+
+2. Functional mixed models (Intercept-only)
+
+Can these methods handle binary function? They are also very, very slow to fit on the full dataset. 
+
+3. GLMM
+Also had convergence issues.
 
 
 
-
-### In-/Out-of-sample PC scores
+## In-/Out-of-sample PC scores
 
 Here I explored the estimated scores, comparing them with the true scores from simulation setup. The figures actually didn't look biased to me. Perhaps it is an artifact of small functional range. Need to think about that. 
 

@@ -4,24 +4,13 @@ library(cubature)
 # of fPCA scores 
 # of an out-of-sample observation
 
-# first, only subject one, time up to 395
-
 #### Numeric integration: denominator of E(xi|Y) ####
 # xi: scores. The value to integrate over
 # tao: estimated covariance matrix(eigenvalues) of score from fPCA
 # f0: mean function from fPCA (up to mth bin)
 # phi: basis function of fPCA (up to mth bin)
-# Y: newly observed data (up to mth bin)
+# df_out: newly observed data (up to mth bin)
 
-# just for mess around
-# tao <- diag(fpca_fit$evalues)
-# f0 <- fpca_fit$mu[1:max_bin]
-# phi <- ç
-# df_out <- df %>% filter(id == 1 & sind_inx <= 395) %>% select(-eta_i)
-# max_bin <- which(mid==395)
-# xi <- fpca_fit$scores[1, ]
-# xi <- matrix(xi, nrow = 4, ncol = 1)
-# k <- 4
   
 joint_pdf <- function(xi, tao, f0, phi, df_out){
   
@@ -127,5 +116,4 @@ out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=
 
 # out_pred_laplace(fpca_fit,  df %>% filter(id==2 & sind_inx<=395) %>% select(-eta_i))
 
-##### Hand-coded Laplace Approximation #####
-s
+
