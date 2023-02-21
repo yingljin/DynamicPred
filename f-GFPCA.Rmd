@@ -466,13 +466,13 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 1 out-of-sample MLE"),
   
-  out_pred_lap_subj1 %>% 
-    group_by("type") %>%
-    ggplot()+
-    geom_line(aes(x=mid, y=true), col = "black")+
-    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
-              show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 1 out-of-sample Laplace"),
+  # out_pred_lap_subj1 %>% 
+  #   group_by("type") %>%
+  #   ggplot()+
+  #   geom_line(aes(x=mid, y=true), col = "black")+
+  #   geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+  #             show.legend = FALSE)+
+  #   labs(x="Binned time", title = "Subject 1 out-of-sample Laplace"),
   
   in_pred_subj1 %>%
     ggplot()+
@@ -492,13 +492,13 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 2 out-of-sample MLE"),
   
-  out_pred_lap_subj2 %>% 
-    group_by("type") %>%
-    ggplot()+
-    geom_line(aes(x=mid, y=true), col = "black")+
-    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
-              show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
+  # out_pred_lap_subj2 %>% 
+  #   group_by("type") %>%
+  #   ggplot()+
+  #   geom_line(aes(x=mid, y=true), col = "black")+
+  #   geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+  #             show.legend = FALSE)+
+  #   labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
   
   
   in_pred_subj2 %>%
@@ -519,13 +519,13 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 3 out-of-sample MLE"),
   
-  out_pred_lap_subj3 %>% 
-    group_by("type") %>%
-    ggplot()+
-    geom_line(aes(x=mid, y=true), col = "black")+
-    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
-              show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
+  # out_pred_lap_subj3 %>% 
+    # group_by("type") %>%
+    # ggplot()+
+    # geom_line(aes(x=mid, y=true), col = "black")+
+    # geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+    #           show.legend = FALSE)+
+    # labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
   
   
   in_pred_subj3 %>%
@@ -546,14 +546,14 @@ grid.arrange(
               show.legend = FALSE)+
     labs(x="Binned time", title = "Subject 4 out-of-sample MLE"),
   
-  out_pred_lap_subj4 %>% 
-    group_by("type") %>%
-    ggplot()+
-    geom_line(aes(x=mid, y=true), col = "black")+
-    geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
-              show.legend = FALSE)+
-    labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
-  
+  # out_pred_lap_subj4 %>% 
+  #   group_by("type") %>%
+  #   ggplot()+
+  #   geom_line(aes(x=mid, y=true), col = "black")+
+  #   geom_line(aes(x=mid, y=eta, col= type, group = type), linetype="dashed", na.rm = T,
+  #             show.legend = FALSE)+
+  #   labs(x="Binned time", title = "Subject 2 out-of-sample Laplace"),
+  # 
   
   in_pred_subj4 %>%
     ggplot()+
