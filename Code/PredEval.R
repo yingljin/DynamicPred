@@ -57,6 +57,27 @@ bfpca_fit <- bfpca(Y= df %>% select(id, Y, sind_inx) %>% rename(index=sind_inx, 
 glmm_fit <- glmer(Y ~ sind_inx + (id | sind_inx),
                   data = df %>% select(id, Y, sind_inx), family = binomial)
 
+
+# Adaptive GLMM
+
+library(GLMMadaptive)
+
+View(df)
+fm1 <- mixed_model(Y ~ sind, random = ~ sind | id, 
+                   data =  df,
+                   family = binomial())
+
+preds_fm1 <- predict(fm1, 
+                     newdata = df %>% filter(sind_inx <= 195),
+                     newdata2 =  df %>% filter(sind_inx > 195), 
+                     type = "subject_specific", type_pred = "link",
+                     se.fit = TRUE, return_newdata = TRUE)
+head(preds_fm1$newdata2)
+
+ggplot(preds_fm1$newdata2%>% filter(id==1))+
+  geom_line(aes(x=sind_inx, y=pred))
+#large coefficient issue
+
 # functional mixed models
 # generalized function-on-scalar regression
 # marginal constrants? 
