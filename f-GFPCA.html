@@ -1975,9 +1975,14 @@ of the maximum observed time, due to how interpolation works</li>
 <ol start="3" style="list-style-type: decimal">
 <li>Computation time</li>
 </ol>
-<p>This is a bit more complicated. The full compuation time consists of
-two parts: - Time spent on model fitting - Time spent on prediction
-<strong>given</strong> the fitted FPCA or adaptive GLMM models.</p>
+<p>This is a bit more complicated. The full computation time consists of
+two parts:</p>
+<ul>
+<li>Time spent on model fitting</li>
+<li>Time spent on prediction <strong>given</strong> the fitted FPCA or
+adaptive GLMM models</li>
+</ul>
+<p>Table below include time spent only for prediction.</p>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -2041,10 +2046,10 @@ GLMMadaptive
 0.538
 </td>
 <td style="text-align:center;">
-1.017
+58.576
 </td>
 <td style="text-align:center;">
-40.272
+38.532
 </td>
 </tr>
 <tr>
@@ -2064,10 +2069,10 @@ GLMMadaptive
 0.499
 </td>
 <td style="text-align:center;">
-1.100
+1.032
 </td>
 <td style="text-align:center;">
-41.785
+40.133
 </td>
 </tr>
 <tr>
@@ -2087,10 +2092,10 @@ GLMMadaptive
 0.423
 </td>
 <td style="text-align:center;">
-1.148
+1.053
 </td>
 <td style="text-align:center;">
-45.005
+43.182
 </td>
 </tr>
 </tbody>

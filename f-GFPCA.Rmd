@@ -590,9 +590,13 @@ $$\frac{1}{N}\sum_{i=1}^N\sum_{s=m+1}^S(\hat{\eta}_{is}-\eta_{is})^2$$
 
 3. Computation time
 
-This is a bit more complicated. The full compuation time consists of two parts: 
+This is a bit more complicated. The full computation time consists of two parts:
+
+
 - Time spent on model fitting
-- Time spent on prediction **given** the fitted FPCA or adaptive GLMM models.
+- Time spent on prediction **given** the fitted FPCA or adaptive GLMM models
+
+Table below include time spent only for prediction. 
 
 
 ```{r, results='hide', message=FALSE}
