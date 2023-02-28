@@ -52,20 +52,48 @@ out_samp_dyn_pred <- function(df_new, fpca_fit){
 
 #### Estimate standard error of MLE ####
 
-# # Jacabian matrix of first dirivative of llh
-# try <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=195) %>%
-#                     select(-eta_i),
-#                   fpca_fit = fpca_fit)$score_out
-# 
-# I_mat <- -gradient(f = llh_div, x = try,
-#          df_new = df %>% filter(id==1 & sind_inx<=195) %>%
-#            select(-eta_i),
-#          fpca_fit=fpca_fit)
+# Jacabian matrix of first dirivative of llh
+try <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=195) %>%
+                    select(-eta_i),
+                  fpca_fit = fpca_fit)$score_out
+
+I_mat <- -gradient(f = llh_div, x = try,
+         df_new = df %>% filter(id==1 & sind_inx<=195) %>%
+           select(-eta_i),
+         fpca_fit=fpca_fit)
+
+var <- diag(solve(I_mat))
+sqrt(diag(fpca_fit$efunctions %*% solve(I_mat) %*% t(fpca_fit$efunctions)))
+
+# I_mat <- function(xi, df_new, fpca_fit){
+#   
+#   # observations
+#   ns <- as.vector(table(df_new$bin)) # number of observations
+#   hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
+#     select(Y) %>% unlist()# number of success
+#   max_bin <- length(unique(df_new$bin)) # assume new skipped bins 
+#   
+#   # fpca objects
+#   phi_m <- fpca_fit$efunctions[1:max_bin, ]
+#   f0_m <- fpca_fit$mu[1:max_bin]
+#   eta_s <- f0_m + phi_m %*% xi
+#   tao <- diag(fpca_fit$evalues)
+#   
+#   # derivative
+#   val1 <- ns*(exp(eta_s)/(1+exp(eta_s))^2)
+#   div2 <- lapply(1:max_bin,  function(x)val1[x]*phi_m[x, ] %*% t(phi_m[x, ]))
+#   div2 <- array(unlist(div2), dim = c(K, K, max_bin))
+#   div2 <- apply(div2, 1:2, sum)+solve(tao)
+#   
+#   return(div2)
+# }
 # 
 # var <- diag(solve(I_mat))
-# 1.96*sqrt(var)
-# # test
-# out_samp_dyn_pred(df_new, fpca_fit)
-
+# sqrt(var)
+# # # test
+# # out_samp_dyn_pred(df_new, fpca_fit)
+# 
+# I_mat(try, df %>% filter(id==1 & sind_inx<=195) %>%
+#         select(-eta_i), fpca_fit)
 
 

@@ -241,6 +241,10 @@ in_pred_subj3 <- in_pred_clean(3, mid) %>%
   left_join(df_true_eta %>% filter(id==3), by = "mid") 
 in_pred_subj4 <- in_pred_clean(4, mid) %>% 
   left_join(df_true_eta %>% filter(id==4), by = "mid") 
+
+
+# in_pred_subj1 %>% filter(mid >595)
+# in_pred_subj2 %>% filter(mid >595)
 ```
 
 
@@ -618,6 +622,100 @@ tb_pred_eval %>% kable(digits = 3, align = "lcccccc") %>%
   add_header_above(c(" "=1, "ISE"=2, "AUC "=2, "Prediction time"=2))
 ```
 
+## Prediction interval
+
+With an estimate of scores $\hat{\boldsymbol{\xi}}$
+
+$$\boldsymbol{\hat{\eta}}=\boldsymbol{\hat{f_0}}+\boldsymbol{\Phi\hat{\xi}}$$
+$$\begin{aligned}
+\hat{\boldsymbol{\eta}}-\boldsymbol{\eta}&=\boldsymbol{\hat{f_0}}+\boldsymbol{\Phi\hat{\xi}}-\boldsymbol{\eta}\\
+&= \boldsymbol{\hat{f_0}-f_0}+\boldsymbol{\Phi(\hat{\xi}-\xi)}-\boldsymbol{\epsilon}
+\end{aligned}$$
+
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi Var(\hat{\xi}-\xi) \Phi^T}+Var(\epsilon)$$
+
+- The three components should be mutually independent? 
+- Through some derivation, I think $Var(\boldsymbol{f_0})=\frac{Var(\boldsymbol{Y})}{N} = \frac{1}{N}[\boldsymbol{\Phi\Gamma \Phi^T}+\sigma_{\epsilon}^2\boldsymbol{I}_m]$.
+- Variance of $\hat{\boldsymbol{\xi}}$ will depend on the method used for its estimation. But isn't the estimated done conditioning on $Var(\boldsymbol{\xi}) = \boldsymbol{\Gamma}$?
+- $Var(\epsilon) =\hat{\sigma}_{\epsilon}^2$ from FPCA
+- May need to circle back to in-sample estimation and dig into where that formula came from
+
+Below are some potential methods: 
+
+1. Estimate the variance with Empirical Bayes estimators of Gaussian process
+
+- Essentially the same formula as in-sample prediction interval
+
+$$\boldsymbol{H} = \boldsymbol{\hat{\Gamma}\Phi ^T_m}(\boldsymbol{\Phi_m\hat{\Gamma}\Phi^T_m}+\hat{\sigma_{\epsilon}}^2\boldsymbol{I_m})^{-1}$$
+
+
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi}(\hat{\boldsymbol{\Gamma}}-\boldsymbol{H}\boldsymbol{\Phi_m}\hat{\boldsymbol{\Gamma}})\boldsymbol{\Phi}^T+\hat{\sigma_{\epsilon}}^2$$
+
+- This estimate does not change across subject? 
+- Also does not change from in- to out-of-sample? 
+- Ignore randomness from FPCA estimates (that is, $\boldsymbol{f}_0$, $\boldsymbol{\Gamma}$ and $\sigma_{\epsilon}$).
+
+
+2. Fisher information matrix
+
+- Based on posterior likelihood
+- Standard deviation from this method ended up being very big
+- Also does not change from in-sample to out-of-sample, nor across subjects
+
+
+
+3. Bootstrap
+
+```{r, warning=FALSE}
+source(here("Code/OutSampPredInterv.R"))
+
+# EB
+pred_std_eb <- data.frame(mid,
+                          t195 = pred_std_eb(fpca_fit, 195),
+                          t395 = pred_std_eb(fpca_fit, 395),
+                          t595 = pred_std_eb(fpca_fit, 595)) %>%
+  pivot_longer(2:4, values_to = "std_eb", names_to = "type") %>%
+  mutate(type = factor(type, levels = c("t195", "t395", "t595"),
+                       labels=c("Up to 195", "Up to 395", "Up to 595")))
+
+```
+
+
+```{r}
+pred_std_mle <- data.frame(mid)
+
+for(t in c(195, 395, 595)){
+  mle_xi <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=t) %>%
+                           select(-eta_i),fpca_fit = fpca_fit)$score_out
+  I_mat <- -gradient(f = llh_div, x = mle_xi, 
+                     df_new = df %>% filter(id==1 & sind_inx<=195) %>% select(-eta_i),
+                   fpca_fit=fpca_fit)
+  std <- sqrt(diag(fpca_fit$efunctions %*% solve(I_mat) %*% t(fpca_fit$efunctions))+fpca_fit$sigma2)
+  
+  pred_std_mle <- data.frame(pred_std_mle, std)
+}
+pred_std_mle <- pred_std_mle %>%  pivot_longer(2:4, values_to = "std_mle", names_to = "type") %>%
+  mutate(type = factor(type, levels = c("std", "std.1", "std.2"),
+                       labels=c("Up to 195", "Up to 395", "Up to 595")))
+```
+
+```{r}
+out_pred_subj1 %>%
+  left_join(pred_std_eb, by = c("mid", "type")) %>% 
+  mutate(eta_upper_eb = eta+std_eb,
+         eta_lower_eb = eta-std_eb) %>%
+  left_join(pred_std_mle, by = c("mid", "type")) %>% 
+  mutate(eta_upper_mle = eta+std_mle,
+         eta_lower_mle = eta-std_mle) %>%
+  ggplot()+
+    geom_line(aes(x=mid, y=true), col="black")+
+    geom_line(aes(x=mid, y=eta, col="Estimated"))+
+    geom_line(aes(x=mid, y=eta_upper_eb, col="EB"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_eb, col="EB"), linetype="dashed")+
+  geom_line(aes(x=mid, y=eta_upper_mle, col="MLE"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_mle, col="MLE"), linetype="dashed")+
+    facet_wrap(~type)
+```
 
 
 
@@ -675,30 +773,6 @@ nrow=1)
 
 ```
 
-### Prediction interval
-
-<span style="color:red;"> Questions 3: a lot of problems on this part </span>
-
-With an estimate of scores $\hat{\boldsymbol{\xi}}$
-
-$$\boldsymbol{\hat{\eta}}=\boldsymbol{\hat{f_0}}+\boldsymbol{\Phi\hat{\xi}}$$
-$$\begin{aligned}
-\hat{\boldsymbol{\eta}}-\boldsymbol{\eta}&=\boldsymbol{\hat{f_0}}+\boldsymbol{\Phi\hat{\xi}}-\boldsymbol{\eta}\\
-&= \boldsymbol{\hat{f_0}-f_0}+\boldsymbol{\Phi(\hat{\xi}-\xi)}-\boldsymbol{\epsilon}
-\end{aligned}$$
-
-$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=Var(\boldsymbol{\hat{f_0}-f_0})+\boldsymbol{\Phi Var(\hat{\xi}-\xi) \Phi^T}+Var(\epsilon)$$
-
-- The three components should be mutually independent? 
-- Through some derivation, I think $Var(\boldsymbol{f_0})=\frac{Var(\boldsymbol{Y})}{N} = \frac{1}{N}[\boldsymbol{\Phi\Gamma \Phi^T}+\sigma_{\epsilon}^2\boldsymbol{I}_m]$.
-- Variance of $\hat{\boldsymbol{\xi}}$ will depend on the method used for its estimation. But isn't the estimated done conditioning on $Var(\boldsymbol{\xi}) = \boldsymbol{\Gamma}$?
-- $Var(\epsilon) =\hat{\sigma}_{\epsilon}^2$ from FPCA
-- May need to circle back to in-sample estimation and dig into where that formula came from
-
-
-Some new updates:
-
-Actually, after going over the full derivation in Leroux2017 paper, I think the preidction interval completely ignored the randomness from fixed effects. In other worlds, prediction intervals are made conditioning on fixed effect coefficients (in our case $\boldsymbol{f_0}$). 
 
 
 
