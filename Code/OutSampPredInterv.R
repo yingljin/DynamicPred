@@ -25,3 +25,14 @@ pred_std_eb <- function(fpca_fit, tm){
 #### MLE ####
 
 
+pred_std_mle <- function(df, fpca_fit){
+  mle_xi <- out_samp_dyn_pred(df_new = df ,fpca_fit = fpca_fit)$score_out
+  I_mat <- -gradient(f = llh_div, x = mle_xi, df_new = df, fpca_fit=fpca_fit)
+  std <- sqrt(diag(fpca_fit$efunctions %*% solve(I_mat) %*% t(fpca_fit$efunctions))+fpca_fit$sigma2)
+  
+  return(std)
+}
+
+# pred_std_mle(df %>% filter(id==1 & sind_inx<=395) %>% select(-eta_i), fpca_fit)
+
+

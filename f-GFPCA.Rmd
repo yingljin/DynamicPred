@@ -600,7 +600,6 @@ This is a bit more complicated. The full computation time consists of two parts:
 - Time spent on model fitting
 - Time spent on prediction **given** the fitted FPCA or adaptive GLMM models
 
-Table below include time spent only for prediction. 
 
 
 ```{r, results='hide', message=FALSE}
@@ -611,15 +610,21 @@ source(here("Code/PredEval.R"))
 # table displaying predictive performance
 tb_pred_eval <- tibble(
   c("195", "395", "595"),
-  ise_fgfpca, ise_adglmm, auc_fgfpca, auc_adglmm, comp_t_fgfpca, comp_t_adglmm)
+  ise_fgfpca, ise_adglmm, auc_fgfpca, auc_adglmm)
 colnames(tb_pred_eval) <- 
   c("Maximum observed time", rep(c("fGFPCA", "GLMMadaptive"), 3))
+
+# print(tb_pred_eval)
+# print(comp_t_fgfpca)
+# print(comp_t_adglmm)
 ```
 
 ```{r, results='asis'}
-tb_pred_eval %>% kable(digits = 3, align = "lcccccc") %>%
+tb_pred_eval  %>% 
+  kable(format = "html", digits = 3, align = "lcccccc", 
+        table.attr = "style = \"color: black;\"") %>%
   kable_styling(full_width = F) %>%
-  add_header_above(c(" "=1, "ISE"=2, "AUC "=2, "Prediction time"=2))
+  add_header_above(c(" "=1, "ISE"=2, "AUC "=2))
 ```
 
 ## Prediction interval
@@ -659,14 +664,13 @@ $$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi}(\hat{\boldsym
 2. Fisher information matrix
 
 - Based on posterior likelihood
-- Standard deviation from this method ended up being very big
-- Also does not change from in-sample to out-of-sample, nor across subjects
+- Also ignore randomness from FPCA estimates
+
+$$Var(\hat{\boldsymbol{\eta}}-\boldsymbol{\eta})=\boldsymbol{\Phi}I(\hat{\boldsymbol{\xi}})\boldsymbol{\Phi}^T+\hat{\sigma_{\epsilon}}^2\boldsymbol{I}_m $$
+- Standard deviation would change across subjects.
 
 
-
-3. Bootstrap
-
-```{r, warning=FALSE}
+```{r}
 source(here("Code/OutSampPredInterv.R"))
 
 # EB
@@ -682,33 +686,131 @@ pred_std_eb <- data.frame(mid,
 
 
 ```{r}
-pred_std_mle <- data.frame(mid)
-
-for(t in c(195, 395, 595)){
-  mle_xi <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=t) %>%
-                           select(-eta_i),fpca_fit = fpca_fit)$score_out
-  I_mat <- -gradient(f = llh_div, x = mle_xi, 
-                     df_new = df %>% filter(id==1 & sind_inx<=195) %>% select(-eta_i),
-                   fpca_fit=fpca_fit)
-  std <- sqrt(diag(fpca_fit$efunctions %*% solve(I_mat) %*% t(fpca_fit$efunctions))+fpca_fit$sigma2)
-  
-  pred_std_mle <- data.frame(pred_std_mle, std)
-}
-pred_std_mle <- pred_std_mle %>%  pivot_longer(2:4, values_to = "std_mle", names_to = "type") %>%
-  mutate(type = factor(type, levels = c("std", "std.1", "std.2"),
+df_std_mle_subj1 <- data.frame(mid, 
+                               t195 = pred_std_mle(df %>% 
+                                                     filter(id==1 & sind_inx<=195) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t395 =  pred_std_mle(df %>% 
+                                                     filter(id==1 & sind_inx<=395) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t595 =  pred_std_mle(df %>% 
+                                                     filter(id==1 & sind_inx<=595) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit)) %>%
+  pivot_longer(2:4, values_to = "std_mle", names_to = "type") %>%
+  mutate(type = factor(type, levels = c("t195", "t395", "t595"),
                        labels=c("Up to 195", "Up to 395", "Up to 595")))
+
+df_std_mle_subj2 <- data.frame(mid, 
+                               t195 = pred_std_mle(df %>% 
+                                                     filter(id==2 & sind_inx<=195) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t395 =  pred_std_mle(df %>% 
+                                                     filter(id==2 & sind_inx<=395) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t595 =  pred_std_mle(df %>% 
+                                                     filter(id==2 & sind_inx<=595) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit))%>%
+  pivot_longer(2:4, values_to = "std_mle", names_to = "type") %>%
+  mutate(type = factor(type, levels = c("t195", "t395", "t595"),
+                       labels=c("Up to 195", "Up to 395", "Up to 595")))
+
+df_std_mle_subj3 <- data.frame(mid, 
+                               t195 = pred_std_mle(df %>% 
+                                                     filter(id==3 & sind_inx<=195) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t395 =  pred_std_mle(df %>% 
+                                                     filter(id==3 & sind_inx<=395) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t595 =  pred_std_mle(df %>% 
+                                                     filter(id==3 & sind_inx<=595) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit))%>%
+  pivot_longer(2:4, values_to = "std_mle", names_to = "type") %>%
+  mutate(type = factor(type, levels = c("t195", "t395", "t595"),
+                       labels=c("Up to 195", "Up to 395", "Up to 595")))
+
+df_std_mle_subj4 <- data.frame(mid, 
+                               t195 = pred_std_mle(df %>% 
+                                                     filter(id==4 & sind_inx<=195) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t395 =  pred_std_mle(df %>% 
+                                                     filter(id==4 & sind_inx<=395) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit),
+                               t595 =  pred_std_mle(df %>% 
+                                                     filter(id==4 & sind_inx<=595) %>%
+                                                     select(-eta_i),
+                                                   fpca_fit))%>%
+  pivot_longer(2:4, values_to = "std_mle", names_to = "type") %>%
+  mutate(type = factor(type, levels = c("t195", "t395", "t595"),
+                       labels=c("Up to 195", "Up to 395", "Up to 595")))
+
 ```
 
-```{r}
+
+```{r, warning=FALSE,fig.height=3, fig.width=10}
 out_pred_subj1 %>%
   left_join(pred_std_eb, by = c("mid", "type")) %>% 
   mutate(eta_upper_eb = eta+std_eb,
          eta_lower_eb = eta-std_eb) %>%
-  left_join(pred_std_mle, by = c("mid", "type")) %>% 
+  left_join(df_std_mle_subj1, by = c("mid", "type")) %>% 
   mutate(eta_upper_mle = eta+std_mle,
          eta_lower_mle = eta-std_mle) %>%
   ggplot()+
-    geom_line(aes(x=mid, y=true), col="black")+
+    geom_line(aes(x=mid, y=eta, col="Estimated"))+
+    geom_line(aes(x=mid, y=eta_upper_eb, col="EB"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_eb, col="EB"), linetype="dashed")+
+  geom_line(aes(x=mid, y=eta_upper_mle, col="MLE"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_mle, col="MLE"), linetype="dashed")+
+    facet_wrap(~type)
+
+out_pred_subj2 %>%
+  left_join(pred_std_eb, by = c("mid", "type")) %>% 
+  mutate(eta_upper_eb = eta+std_eb,
+         eta_lower_eb = eta-std_eb) %>%
+  left_join(df_std_mle_subj2, by = c("mid", "type")) %>% 
+  mutate(eta_upper_mle = eta+std_mle,
+         eta_lower_mle = eta-std_mle) %>%
+  ggplot()+
+    geom_line(aes(x=mid, y=eta, col="Estimated"))+
+    geom_line(aes(x=mid, y=eta_upper_eb, col="EB"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_eb, col="EB"), linetype="dashed")+
+  geom_line(aes(x=mid, y=eta_upper_mle, col="MLE"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_mle, col="MLE"), linetype="dashed")+
+    facet_wrap(~type)
+
+out_pred_subj3 %>%
+  left_join(pred_std_eb, by = c("mid", "type")) %>% 
+  mutate(eta_upper_eb = eta+std_eb,
+         eta_lower_eb = eta-std_eb) %>%
+  left_join(df_std_mle_subj3, by = c("mid", "type")) %>% 
+  mutate(eta_upper_mle = eta+std_mle,
+         eta_lower_mle = eta-std_mle) %>%
+  ggplot()+
+    geom_line(aes(x=mid, y=eta, col="Estimated"))+
+    geom_line(aes(x=mid, y=eta_upper_eb, col="EB"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_eb, col="EB"), linetype="dashed")+
+  geom_line(aes(x=mid, y=eta_upper_mle, col="MLE"), linetype="dashed")+
+    geom_line(aes(x=mid, y=eta_lower_mle, col="MLE"), linetype="dashed")+
+    facet_wrap(~type)
+
+out_pred_subj4 %>%
+  left_join(pred_std_eb, by = c("mid", "type")) %>% 
+  mutate(eta_upper_eb = eta+std_eb,
+         eta_lower_eb = eta-std_eb) %>%
+  left_join(df_std_mle_subj4, by = c("mid", "type")) %>% 
+  mutate(eta_upper_mle = eta+std_mle,
+         eta_lower_mle = eta-std_mle) %>%
+  ggplot()+
     geom_line(aes(x=mid, y=eta, col="Estimated"))+
     geom_line(aes(x=mid, y=eta_upper_eb, col="EB"), linetype="dashed")+
     geom_line(aes(x=mid, y=eta_lower_eb, col="EB"), linetype="dashed")+
