@@ -47,17 +47,22 @@ Unlike FPCA on Gaussian data, fewer papers have focused on its extension to non-
 
 Method
 =================================================================================================================================
+
 -	Need better notation system
+- Change to general exponential family
+- Add section of de-bias score: conditional on subject. Need repeat simulation to demonstrate
 
 Result
 =================================================================================================================================
--	Repeat simulation: is it necessary in this case?
+-	Repeat simulation: repeat 10-100 times
+
 -	Different set-up:
-a.	Different eigenfunctions: with or without periodicity
+a.	Different eigenfunctions: with or without periodicity (start with the current one)
 b.	Outcome: binary or count
-c.	Sample size
-d.	Grid density
-e.	Bin width, overlap or not
+c.	Sample size: start with N=500
+d.	Grid density: start with J=1000
+e.	Bin width, overlap or not: start with non-overlap, bin width = 10 (100 bins)
+
 -	Real data application
 
 Discussion
