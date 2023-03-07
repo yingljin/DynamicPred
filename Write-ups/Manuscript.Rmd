@@ -1,0 +1,70 @@
+---
+title: "Dynamic Prediction of Non-Guassian Outcome with fast Generalized Functional Principal Analysis"
+author:
+  - Ying Jin
+  - Andrew Leroux
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  pdf_document:
+    fig_caption: yes
+    keep_tex: yes
+    latex_engine: pdflatex
+fontfamily: mathpazo
+fontsize: 11pt
+geometry: margin = 1in
+bibliography: refs.bib
+nocite: '@*'
+link-citations: yes
+linkcolor: blue
+csl: ASA.cls
+
+---
+Abstract: 
+=================================================================================================================================
+  Biomedical investigators are often interested in predicting future observations of subjects based on their historical data, referred to as dynamic prediction. Traditional methods are often limited in flexibility and computationally intensive, especially with non-Gaussian data. To address these issues, we propose a novel method for dynamic prediction based on Generalized Functional Principal Component Analysis (FPCA). Assume the observed outcome follows an exponential family distribution parameterized by a latent Gaussian function, the proposed method consists of the following steps: 1) Bin the data across functional domain into small, equal-length intervals; 2) Fit local generalized mixed models at every bin to estimate individual latent functions; 3) Fit FPCA model to smooth latent functions and 4) Obtain estimates of subject-specific PC scores using partial observations and recover the unobserved part on the binned grid. Our simulation study showed the proposed method achieved significantly better out-of-sample predictive performance compared to existing methods with much shorter computation time, thus has the potential to be widely applicable to large datasets.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+Introduction
+=================================================================================================================================
+
+-	Overview of dynamic prediction methods
+
+Prediction of repeated measures has been a problem of interest in the biomedical field. Typically, such predictions are made based on the correlation between repeated measures from the same subject, and/or covariates that can be either fixed or time-varying. Traditionally, repeated measures have been modeled using marginal models (generalized estimating equations) or conditional models (mixed effect models) [@liang1986; @Laird1982; @lindstrom1990; @davidian2003; @GLMMadaptive]. These methods, while allowing for correlation between repeated measures, are limited in terms of flexibility of correlation structure and the ability to handle out-of-sample prediction. Therefore, one may turn to functional mixed effect models when measures are dense across the domain. Such methods accommodates more flexible correlation structure by modeling subject-specific random effects as a function, but often cause nontrivial computational burden. A feasible approach to address this issue is non-parametric smoothing [@Scheipl2014], such as spline basis functions or eigenfunctions from functional principal component analysis (fPCA). The introduction of basis functions also makes out-of-sample prediction more straightforward. Instead of estimating subject-specific random effects of new observations, we can simply estimate coefficients/loadings on the basis function used for smoothing. In this project, we will focus on the prediction of non-Gaussian outcomes (e.g. binary or count) from a random-intercept only model, with no covariates considered. In other words, we aim to propose a new fast, scalable method for dynamic prediction of discrete function tracks based only on past observations using functional mixed effect model with fPCA smoothing.
+
+-	Dynamic prediction with functional methods
+
+Research on dynamic prediction of functional outcomes has been focusing on continuous/Gaussian outcomes, modelling subject-specific random effects with FPCA [@chiou2012; @goldberg2014; @shang2017]. @kraus2015 has used this approach to predict missing observations in partially observed function tracks, and @delaigo2016 achieved similar goals using Markov Chains. While methods mentioned above used only partial observations for prediction with an intercept-only model, @leroux2016 proposed Functional Concurrent Regression (FCR) framework which can incorporate the effect of subject-specific predictors. However, little extension was made on prediction of non-Gaussian functions, such as binary and count outcomes.
+
+-	fPCA and GFPCA [@leroux2022]    
+
+Unlike FPCA on Gaussian data, fewer papers have focused on its extension to non-Gaussian data, such as series of binary or count outcomes. Existing methods also tend to be computationally intensive. For example, @chen2013 proposed approaches to fit marginal functional models that is compatible to multi-level, generalized outcomes. @goldsmith2015 established a model framework that takes into account the fixed effect of time-invariant covariates, with parameters estimated with Bayesian method in *Stan*. @gertheiss2016 identified bias introduced by directly applying FPCA methods to generalized functions, and proposed to address this problem using a two-stage, joint estimation strategy. @linde2019 used an adapted Bayesian variational algorithm for FPCA of binary and count data. In terms of implementation, @wrobel2019 proposed a fast, efficient way to fit GFPCA on binary data using EM algorithm, accompanied by the an open source R package *registr*. 
+
+
+
+Method
+=================================================================================================================================
+-	Need better notation system
+
+Result
+=================================================================================================================================
+-	Repeat simulation: is it necessary in this case?
+-	Different set-up:
+a.	Different eigenfunctions: with or without periodicity
+b.	Outcome: binary or count
+c.	Sample size
+d.	Grid density
+e.	Bin width, overlap or not
+-	Real data application
+
+Discussion
+=================================================================================================================================
+-	Grid 
+-	Score bias: cannot demonstrate without repeat simulation
+
+References
+=================================================================================================================================
+<div id="refs"></div>

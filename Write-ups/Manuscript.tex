@@ -1,0 +1,388 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  11pt,
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage[]{mathpazo}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin = 1in]{geometry}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\newlength{\cslhangindent}
+\setlength{\cslhangindent}{1.5em}
+\newlength{\csllabelwidth}
+\setlength{\csllabelwidth}{3em}
+\newlength{\cslentryspacingunit} % times entry-spacing
+\setlength{\cslentryspacingunit}{\parskip}
+\newenvironment{CSLReferences}[2] % #1 hanging-ident, #2 entry spacing
+ {% don't indent paragraphs
+  \setlength{\parindent}{0pt}
+  % turn on hanging indent if param 1 is 1
+  \ifodd #1
+  \let\oldpar\par
+  \def\par{\hangindent=\cslhangindent\oldpar}
+  \fi
+  % set entry spacing
+  \setlength{\parskip}{#2\cslentryspacingunit}
+ }%
+ {}
+\usepackage{calc}
+\newcommand{\CSLBlock}[1]{#1\hfill\break}
+\newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{#1}}
+\newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{#1}\break}
+\newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={Dynamic Prediction of Non-Guassian Outcome with fast Generalized Functional Principal Analysis},
+  pdfauthor={Ying Jin; Andrew Leroux},
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
+Functional Principal Analysis}
+\author{Ying Jin \and Andrew Leroux}
+\date{March 07, 2023}
+
+\begin{document}
+\maketitle
+
+\hypertarget{abstract}{%
+\section{Abstract:}\label{abstract}}
+
+Biomedical investigators are often interested in predicting future
+observations of subjects based on their historical data, referred to as
+dynamic prediction. Traditional methods are often limited in flexibility
+and computationally intensive, especially with non-Gaussian data. To
+address these issues, we propose a novel method for dynamic prediction
+based on Generalized Functional Principal Component Analysis (FPCA).
+Assume the observed outcome follows an exponential family distribution
+parameterized by a latent Gaussian function, the proposed method
+consists of the following steps: 1) Bin the data across functional
+domain into small, equal-length intervals; 2) Fit local generalized
+mixed models at every bin to estimate individual latent functions; 3)
+Fit FPCA model to smooth latent functions and 4) Obtain estimates of
+subject-specific PC scores using partial observations and recover the
+unobserved part on the binned grid. Our simulation study showed the
+proposed method achieved significantly better out-of-sample predictive
+performance compared to existing methods with much shorter computation
+time, thus has the potential to be widely applicable to large datasets.
+
+\hypertarget{introduction}{%
+\section{Introduction}\label{introduction}}
+
+\begin{itemize}
+\tightlist
+\item
+  Overview of dynamic prediction methods
+\end{itemize}
+
+Prediction of repeated measures has been a problem of interest in the
+biomedical field. Typically, such predictions are made based on the
+correlation between repeated measures from the same subject, and/or
+covariates that can be either fixed or time-varying. Traditionally,
+repeated measures have been modeled using marginal models (generalized
+estimating equations) or conditional models (mixed effect models)
+(\protect\hyperlink{ref-Laird1982}{Laird and Ware 1982};
+\protect\hyperlink{ref-liang1986}{LIANG and ZEGER 1986};
+\protect\hyperlink{ref-lindstrom1990}{Lindstrom and Bates 1990};
+\protect\hyperlink{ref-davidian2003}{{``Nonlinear models for repeated
+measurement data''} 2003};
+\protect\hyperlink{ref-GLMMadaptive}{Rizopoulos 2022}). These methods,
+while allowing for correlation between repeated measures, are limited in
+terms of flexibility of correlation structure and the ability to handle
+out-of-sample prediction. Therefore, one may turn to functional mixed
+effect models when measures are dense across the domain. Such methods
+accommodates more flexible correlation structure by modeling
+subject-specific random effects as a function, but often cause
+nontrivial computational burden. A feasible approach to address this
+issue is non-parametric smoothing
+(\protect\hyperlink{ref-Scheipl2014}{Scheipl et al. 2014}), such as
+spline basis functions or eigenfunctions from functional principal
+component analysis (fPCA). The introduction of basis functions also
+makes out-of-sample prediction more straightforward. Instead of
+estimating subject-specific random effects of new observations, we can
+simply estimate coefficients/loadings on the basis function used for
+smoothing. In this project, we will focus on the prediction of
+non-Gaussian outcomes (e.g.~binary or count) from a random-intercept
+only model, with no covariates considered. In other words, we aim to
+propose a new fast, scalable method for dynamic prediction of discrete
+function tracks based only on past observations using functional mixed
+effect model with fPCA smoothing.
+
+\begin{itemize}
+\tightlist
+\item
+  Dynamic prediction with functional methods
+\end{itemize}
+
+Research on dynamic prediction of functional outcomes has been focusing
+on continuous/Gaussian outcomes, modelling subject-specific random
+effects with FPCA (\protect\hyperlink{ref-chiou2012}{Chiou 2012};
+\protect\hyperlink{ref-goldberg2014}{Goldberg et al. 2014};
+\protect\hyperlink{ref-shang2017}{Shang 2017}). Kraus
+(\protect\hyperlink{ref-kraus2015}{2015}) has used this approach to
+predict missing observations in partially observed function tracks, and
+Delaigle and Hall (\protect\hyperlink{ref-delaigo2016}{2016}) achieved
+similar goals using Markov Chains. While methods mentioned above used
+only partial observations for prediction with an intercept-only model,
+Leroux et al. (\protect\hyperlink{ref-leroux2016}{2018}) proposed
+Functional Concurrent Regression (FCR) framework which can incorporate
+the effect of subject-specific predictors. However, little extension was
+made on prediction of non-Gaussian functions, such as binary and count
+outcomes.
+
+\begin{itemize}
+\tightlist
+\item
+  fPCA and GFPCA (\protect\hyperlink{ref-leroux2022}{Leroux et al.
+  n.d.})
+\end{itemize}
+
+Unlike FPCA on Gaussian data, fewer papers have focused on its extension
+to non-Gaussian data, such as series of binary or count outcomes.
+Existing methods also tend to be computationally intensive. For example,
+Chen et al. (\protect\hyperlink{ref-chen2013}{2013}) proposed approaches
+to fit marginal functional models that is compatible to multi-level,
+generalized outcomes. Goldsmith et al.
+(\protect\hyperlink{ref-goldsmith2015}{2015}) established a model
+framework that takes into account the fixed effect of time-invariant
+covariates, with parameters estimated with Bayesian method in
+\emph{Stan}. Gertheiss et al.
+(\protect\hyperlink{ref-gertheiss2016}{2016}) identified bias introduced
+by directly applying FPCA methods to generalized functions, and proposed
+to address this problem using a two-stage, joint estimation strategy.
+Linde (\protect\hyperlink{ref-linde2019}{2009}) used an adapted Bayesian
+variational algorithm for FPCA of binary and count data. In terms of
+implementation, Wrobel et al. (\protect\hyperlink{ref-wrobel2019}{2019})
+proposed a fast, efficient way to fit GFPCA on binary data using EM
+algorithm, accompanied by the an open source R package \emph{registr}.
+
+\hypertarget{method}{%
+\section{Method}\label{method}}
+
+\begin{itemize}
+\tightlist
+\item
+  Need better notation system
+\end{itemize}
+
+\hypertarget{result}{%
+\section{Result}\label{result}}
+
+\begin{itemize}
+\tightlist
+\item
+  Repeat simulation: is it necessary in this case?
+\item
+  Different set-up:
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi}.}
+\tightlist
+\item
+  Different eigenfunctions: with or without periodicity
+\item
+  Outcome: binary or count
+\item
+  Sample size
+\item
+  Grid density
+\item
+  Bin width, overlap or not
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Real data application
+\end{itemize}
+
+\hypertarget{discussion}{%
+\section{Discussion}\label{discussion}}
+
+\begin{itemize}
+\tightlist
+\item
+  Grid
+\item
+  Score bias: cannot demonstrate without repeat simulation
+\end{itemize}
+
+\hypertarget{references}{%
+\section{References}\label{references}}
+
+\hypertarget{refs}{}
+\begin{CSLReferences}{1}{0}
+\leavevmode\vadjust pre{\hypertarget{ref-chen2013}{}}%
+Chen, H., Wang, Y., Paik, M. cho, and Choi, H. A. (2013), {``A marginal
+approach to reduced-rank penalized spline smoothing with application to
+multilevel functional data,''} \emph{J Am Stat Assoc.}, 108, 1216--1229.
+\url{https://doi.org/10.1080/01621459.2013.826134}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-chiou2012}{}}%
+Chiou, J.-M. (2012), {``Dynamical functional prediction and
+classification, with application to traffic flow prediction,''}
+\emph{The Annals of Applied Statistics}, Institute of Mathematical
+Statistics, 6, 1588--1614. \url{https://doi.org/10.1214/12-AOAS595}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-delaigo2016}{}}%
+Delaigle, A., and Hall, P. (2016), {``Approximating fragmented
+functional data by segments of markov chains,''} \emph{Biometrika}, 103,
+779--799. \url{https://doi.org/10.1093/biomet/asw040}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-gertheiss2016}{}}%
+Gertheiss, J., Goldsmith, J., and Staicu, A. (2016), {``A note on
+modeling sparse exponential-family functional response curves,''}
+\emph{Comput Stat Data Anal}, 105, 46--52.
+\url{https://doi.org/10.1016/j.csda.2016.07.010}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-goldberg2014}{}}%
+Goldberg, Y., Ritov, Y., and Mandelbaum, A. (2014), {``Predicting the
+continuation of a function with applications to call center data,''}
+\emph{Journal of Statistical Planning and Inference}, 147, 53--65.
+https://doi.org/\url{https://doi.org/10.1016/j.jspi.2013.11.006}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-goldsmith2015}{}}%
+Goldsmith, J., Zipunnikov, V., and Schrack, J. (2015), {``Generalized
+multilevel function-on-scalar regression and principal component
+analysis,''} \emph{Biometrics}, 71, 344--53.
+\url{https://doi.org/10.1111/biom.12278}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-hall2018}{}}%
+Hall, P., Müller, H.-G., and Yao, F. (2008), {``Modelling sparse
+generalized longitudinal observations with latent gaussian processes,''}
+\emph{Journal of the Royal Statistical Society: Series B (Statistical
+Methodology)}, 70, 703--723.
+https://doi.org/\url{https://doi.org/10.1111/j.1467-9868.2008.00656.x}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-kraus2015}{}}%
+Kraus, D. (2015),
+{``\href{http://www.jstor.org/stable/24775309}{Components and completion
+of partially observed functional data},''} \emph{Journal of the Royal
+Statistical Society. Series B (Statistical Methodology)}, {[}Royal
+Statistical Society, Wiley{]}, 77, 777--801.
+
+\leavevmode\vadjust pre{\hypertarget{ref-Laird1982}{}}%
+Laird, N. M., and Ware, J. H. (1982),
+{``\href{http://www.jstor.org/stable/2529876}{Random-effects models for
+longitudinal data},''} \emph{Biometrics}, {[}Wiley, International
+Biometric Society{]}, 38, 963--974.
+
+\leavevmode\vadjust pre{\hypertarget{ref-leroux2022}{}}%
+Leroux, A., Crainiceanu, C. M., and Wrobel, J. (n.d.). {``Fast
+generalized functional principal component analysis.''}
+
+\leavevmode\vadjust pre{\hypertarget{ref-leroux2016}{}}%
+Leroux, A., Xiao, L., Crainiceanu, C., and Checkley, W. (2018),
+{``Dynamic prediction in functional concurrent regression with an
+application to child growth,''} \emph{Statistics in medicine}, 37,
+1376--1388.
+
+\leavevmode\vadjust pre{\hypertarget{ref-liang1986}{}}%
+LIANG, K.-Y., and ZEGER, S. L. (1986), {``Longitudinal data analysis
+using generalized linear models,''} \emph{Biometrika}, 73, 13--22.
+\url{https://doi.org/10.1093/biomet/73.1.13}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-linde2019}{}}%
+Linde, van der (2009), {``A bayesian latent variable approach to
+functional principal components analysi with binary and count data,''}
+\emph{A StA Adv Stat Anal}, 307--333.
+\url{https://doi.org/10.1007/s10182-009-0113-6}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-lindstrom1990}{}}%
+Lindstrom, M. J., and Bates, D. M. (1990),
+{``\href{http://www.jstor.org/stable/2532087}{Nonlinear mixed effects
+models for repeated measures data},''} \emph{Biometrics}, {[}Wiley,
+International Biometric Society{]}, 46, 673--687.
+
+\leavevmode\vadjust pre{\hypertarget{ref-davidian2003}{}}%
+{``\href{http://www.jstor.org/stable/1400665}{Nonlinear models for
+repeated measurement data: An overview and update}''} (2003),
+{[}International Biometric Society, Springer{]}, 8, 387--419.
+
+\leavevmode\vadjust pre{\hypertarget{ref-GLMMadaptive}{}}%
+Rizopoulos, D. (2022),
+\emph{\href{https://CRAN.R-project.org/package=GLMMadaptive}{GLMMadaptive:
+Generalized linear mixed models using adaptive gaussian quadrature}}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-Scheipl2014}{}}%
+Scheipl, F., Staicu, A.-M., and Greven, S. (2014), {``Functional
+additive mixed models,''} \emph{J Comput Graph Stat}, 24, 447--501.
+\url{https://doi.org/10.1080/10618600.2014.901914}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-shang2017}{}}%
+Shang, H. L. (2017), {``Functional time series forecasting with dynamic
+updating: An application to intraday particulate matter
+concentration,''} \emph{Econometrics and Statistics}, 1, 184--200.
+https://doi.org/\url{https://doi.org/10.1016/j.ecosta.2016.08.004}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-suresh2017}{}}%
+Suresh, K., Taylor, J. M. G., Spratt, D. E., Daignault, S., and
+Tsodikov, A. (2017), {``Comparison of joint modeling and landmarking for
+dynamic prediction under an illness-death model,''} \emph{Biom J}, 59,
+1277--1300. \url{https://doi.org/10.1002/bimj.201600235}.
+
+\leavevmode\vadjust pre{\hypertarget{ref-wrobel2019}{}}%
+Wrobel, J., Zipunnikov, V., Schrack, J., and Goldsmith, J. (2019),
+{``Registration for exponential family functional data,''}
+\emph{Biometrics}, 75, 48--57.
+https://doi.org/\url{https://doi.org/10.1111/biom.12963}.
+
+\end{CSLReferences}
+
+\end{document}

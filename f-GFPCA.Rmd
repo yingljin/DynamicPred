@@ -459,7 +459,7 @@ out_pred_lap_subj4 <- out_pred_clean_laplace(4, mid) %>%
 ```
 
 
-```{r, fig.width=8, fig.height=4}
+```{r, fig.width=6, fig.height=3}
 # compare point prediction with in-sample
 # subject 1
 grid.arrange(
