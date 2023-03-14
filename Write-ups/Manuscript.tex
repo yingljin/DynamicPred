@@ -96,7 +96,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{March 13, 2023}
+\date{March 14, 2023}
 
 \begin{document}
 \maketitle
@@ -300,7 +300,26 @@ like ISE, the AUC report is also the average value across the whole
 sample.
 
 As a reference method, we compare our method to Generalized Linear Mixed
-Models using Adaptive Gaussian Quadrature (GLMMadaptive).
+Models using Adaptive Gaussian Quadrature (GLMMadaptive). This is one of
+the fastest existing method developed for dynamic prediction of repeated
+generalized outcomes. Just like many mixed models, this method is very
+limited in terms of flexibility. For example, the model used for
+prediction of our simulated datset would simply be an linear model with
+one covariate indicating observation time:
+\(g(E(Y_i)) = \beta_0+\beta_1t+b_{i0}+b_{i1}t\). While the flexibility
+of this mixed model can be increased using spline functions, the
+dimension of spline basis is also restricted by computational ability,
+and is unfeasible to implement under the scale of our simulated data or
+the complexity of our proposed method.
+
+\hypertarget{result}{%
+\subsection{Result}\label{result}}
+
+\includegraphics{Manuscript_files/figure-latex/unnamed-chunk-2-1.pdf}
+
+\begin{verbatim}
+## [1] 5.033985 5.134139 5.195642 5.152902 5.082466
+\end{verbatim}
 
 \hypertarget{data-application}{%
 \section{Data application}\label{data-application}}

@@ -22,7 +22,7 @@ llh_div <- function(xi, df_new, fpca_fit){
   hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
     select(Y) %>% unlist()# number of success
   nf <- ns-hs # number of failure
-  max_bin <- length(unique(df_new$bin)) # assume new skipped bins 
+  max_bin <- length(unique(df_new$bin)) # assume no skipped bins 
   
   # fpca objects
   phi_m <- fpca_fit$efunctions[1:max_bin, ]
@@ -50,6 +50,8 @@ out_samp_dyn_pred <- function(df_new, fpca_fit){
               score_out = score_out))
 }
 
+# test
+# multiroot(f=llh_div, start = rep(0, 4), df_new=df_i %>% filter(sind_inx<=800), fpca_fit=fpca_mod)
 
 #### Estimate standard error of MLE ####
 

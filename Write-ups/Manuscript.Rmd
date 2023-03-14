@@ -27,6 +27,11 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(here)
+library(ROCR)
+
+set.seed(314)
 ```
 
 
@@ -94,7 +99,112 @@ We use two metrics to evaluate the out-of-sample predictive performance: integra
 
 The second metric, AUC, focuses on evaluation of prediction of the binary outcome. Since the binary outcomes are generated on the original, un-binned grid, we evaluated AUC on this grid as well and estimated values of latent functions between bins with linear interpolation. Just like ISE, the AUC report is also the average value across the whole sample. 
 
-As a reference method, we compare our method to Generalized Linear Mixed Models using Adaptive Gaussian Quadrature (GLMMadaptive).
+As a reference method, we compare our method to Generalized Linear Mixed Models using Adaptive Gaussian Quadrature (GLMMadaptive). This is one of the fastest existing method developed for dynamic prediction of repeated generalized outcomes. Just like many mixed models, this method is very limited in terms of flexibility. For example, the model used for prediction of our simulated datset would simply be an linear model with one covariate indicating observation time: $g(E(Y_i)) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$. While the flexibility of this mixed model can be increased using spline functions, the dimension of spline basis is also restricted by computational ability, and is unfeasible to implement under the scale of our simulated data or the complexity of our proposed method.
+
+
+## Result
+
+```{r}
+load(here("Data/sim_data.RData"))
+load(here("Data/SimOutput_fGFPCA.RData"))
+
+# other quantities
+mid <- unique(exp_df$bin)
+N <- 500
+M <- length(pred_lst)
+J <- 1000
+
+# code prediction value at observed points as NA
+for(m in 1:length(pred_lst)){
+  pred_lst[[m]]$pred_t200[pred_lst[[m]]$bin <= 200] <- NA
+  pred_lst[[m]]$pred_t400[pred_lst[[m]]$bin <= 400] <- NA
+  pred_lst[[m]]$pred_t600[pred_lst[[m]]$bin <= 600] <- NA
+  pred_lst[[m]]$pred_t800[pred_lst[[m]]$bin <= 800] <- NA
+}
+  
+
+```
+
+
+```{r}
+# true data
+df_true <- sim_data[[1]] %>% select(id, sind_inx, eta_i)
+
+# prediction results used for visualization
+exp_df <- pred_lst[[1]]
+
+# randomly draw four samples for visualization
+rand_id <- sample(exp_df$id, 4)
+
+exp_df %>%
+  left_join(df_true %>% filter(sind_inx %in% mid) %>% rename(bin=sind_inx), by = c("id", "bin")) %>%
+  filter(id %in% rand_id) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_i))+
+  geom_line(aes(x=bin, y = pred_t200, col = "200"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t400, col = "400"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t600, col = "600"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t800, col = "800"), linetype = "dashed", na.rm = T)+
+  facet_wrap(~id, scales = "free_y")
+
+
+```
+
+```{r}
+runtime
+# calculate ISE on binned grid
+ise_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
+colnames(ise_mat) <- c("t200", "t400", "t600", "t800")
+
+for(m in 1:M){
+  # true value at midpoints
+  true_eta <- sim_data[[m]] %>% filter(sind_inx %in% mid) %>% select(id, sind_inx, eta_i) %>% rename(bin=sind_inx)
+  pred_eta <- pred_lst[[m]] %>% select(-eta_hat)
+  pred_eta <- pred_eta %>% left_join(true_eta, by = c("id", "bin"))
+  
+  ise_m <- c(
+    t200 = sum((pred_eta$pred_t200-pred_eta$eta_i)^2, na.rm = T)/N,
+    t400 = sum((pred_eta$pred_t400-pred_eta$eta_i)^2, na.rm = T)/N,
+    t600 = sum((pred_eta$pred_t600-pred_eta$eta_i)^2, na.rm = T)/N,
+    t800 = sum((pred_eta$pred_t800-pred_eta$eta_i)^2, na.rm = T)/N
+  )
+  
+  ise_mat[m, ] <- ise_m
+}
+```
+```{r}
+# calculate AUC on unbinned grid
+auc_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
+colnames(auc_mat) <- c("t200", "t400", "t600", "t800")
+
+for(m in 1:M){
+  # true value as matrix
+  Y_mat <- sim_data[[m]]  %>% select(id, sind_inx, Y) %>% rename(bin=sind_inx) %>% 
+    pivot_wider(names_from = id, values_from = Y) %>%
+    column_to_rownames("bin")
+  
+  # calculate AUC
+  auc_mt <- rep(NA, 4) 
+  for(t in c(200, 400, 600, 800)){
+
+    # predicted value
+    pred_name <- paste("pred_t", t, sep = "")
+    pred_mat <- pred_lst[[m]] %>% select(id, bin, all_of(pred_name)) %>% 
+      pivot_wider(names_from = id, values_from = pred_name) %>%
+      column_to_rownames("bin")
+    pred_full <- sapply(1:N,
+                           function(x){approx(x=mid, y=pred_mat[ , x], xout = 1:J)$y})
+    pred_full <- exp(pred200_full)/(1+exp(pred200_full))
+    row_id <- complete.cases(pred_full)
+    auc_perf <- performance(prediction(pred_full[row_id, ], Y_mat[row_id, ]), "auc")
+    auc_mt[t] <- mean(unlist(auc_perf@y.values))
+  }
+  
+  
+  pred_eta <- pred_lst[[m]] %>% select(-eta_hat)
+  pred_eta <- pred_eta %>% left_join(true_eta, by = c("id", "bin"))
+}
+```
 
 
 
