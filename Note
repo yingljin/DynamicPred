@@ -1,0 +1,11 @@
+
+# WNAR paper
+
+-	Repeat simulation: repeat 10-100 times
+
+-	Set-up:
+a.	Different eigenfunctions: periodicity
+b.	Outcome: binary
+c.	Sample size: start with N=500
+d.	Grid density: start with J=1000
+e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)

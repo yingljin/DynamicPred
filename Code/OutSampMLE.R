@@ -45,6 +45,7 @@ out_samp_dyn_pred <- function(df_new, fpca_fit){
   score_out <- multiroot(f=llh_div, start = rep(0, 4), df_new=df_new, fpca_fit=fpca_fit)$root
   eta_pred_out <- fpca_fit$mu+fpca_fit$efunctions%*%score_out
   
+  
   return(list(eta_pred = eta_pred_out,
               score_out = score_out))
 }
@@ -52,18 +53,18 @@ out_samp_dyn_pred <- function(df_new, fpca_fit){
 
 #### Estimate standard error of MLE ####
 
-# Jacabian matrix of first dirivative of llh
-try <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=195) %>%
-                    select(-eta_i),
-                  fpca_fit = fpca_fit)$score_out
-
-I_mat <- -gradient(f = llh_div, x = try,
-         df_new = df %>% filter(id==1 & sind_inx<=195) %>%
-           select(-eta_i),
-         fpca_fit=fpca_fit)
-
-var <- diag(solve(I_mat))
-sqrt(diag(fpca_fit$efunctions %*% solve(I_mat) %*% t(fpca_fit$efunctions)))
+# # Jacabian matrix of first dirivative of llh
+# try <- out_samp_dyn_pred(df_new = df %>% filter(id==1 & sind_inx<=195) %>%
+#                     select(-eta_i),
+#                   fpca_fit = fpca_fit)$score_out
+# 
+# I_mat <- -gradient(f = llh_div, x = try,
+#          df_new = df %>% filter(id==1 & sind_inx<=195) %>%
+#            select(-eta_i),
+#          fpca_fit=fpca_fit)
+# 
+# var <- diag(solve(I_mat))
+# sqrt(diag(fpca_fit$efunctions %*% solve(I_mat) %*% t(fpca_fit$efunctions)))
 
 # I_mat <- function(xi, df_new, fpca_fit){
 #   
