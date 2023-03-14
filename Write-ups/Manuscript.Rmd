@@ -109,7 +109,7 @@ load(here("Data/sim_data.RData"))
 load(here("Data/SimOutput_fGFPCA.RData"))
 
 # other quantities
-mid <- unique(exp_df$bin)
+mid <- unique(pred_lst[[1]]$bin)
 N <- 500
 M <- length(pred_lst)
 J <- 1000
@@ -184,9 +184,10 @@ for(m in 1:M){
     column_to_rownames("bin")
   
   # calculate AUC
-  auc_mt <- rep(NA, 4) 
-  for(t in c(200, 400, 600, 800)){
-
+  t_vec <- c(200, 400, 600, 800)
+  for(i in seq_along(t_vec)){
+    
+    t <- t_vec[i]
     # predicted value
     pred_name <- paste("pred_t", t, sep = "")
     pred_mat <- pred_lst[[m]] %>% select(id, bin, all_of(pred_name)) %>% 
@@ -194,16 +195,15 @@ for(m in 1:M){
       column_to_rownames("bin")
     pred_full <- sapply(1:N,
                            function(x){approx(x=mid, y=pred_mat[ , x], xout = 1:J)$y})
-    pred_full <- exp(pred200_full)/(1+exp(pred200_full))
+    pred_full <- exp(pred_full)/(1+exp(pred_full))
     row_id <- complete.cases(pred_full)
     auc_perf <- performance(prediction(pred_full[row_id, ], Y_mat[row_id, ]), "auc")
-    auc_mt[t] <- mean(unlist(auc_perf@y.values))
+    auc_mat[m, i] <- mean(unlist(auc_perf@y.values))
   }
   
-  
-  pred_eta <- pred_lst[[m]] %>% select(-eta_hat)
-  pred_eta <- pred_eta %>% left_join(true_eta, by = c("id", "bin"))
 }
+
+auc_mat
 ```
 
 
