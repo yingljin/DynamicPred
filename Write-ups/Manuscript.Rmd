@@ -151,7 +151,7 @@ exp_df %>%
 ```
 
 ```{r}
-runtime
+mean(runtime)
 # calculate ISE on binned grid
 ise_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
 colnames(ise_mat) <- c("t200", "t400", "t600", "t800")
@@ -171,11 +171,17 @@ for(m in 1:M){
   
   ise_mat[m, ] <- ise_m
 }
+
+
 ```
+
+
 ```{r}
 # calculate AUC on unbinned grid
 auc_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
 colnames(auc_mat) <- c("t200", "t400", "t600", "t800")
+
+skip_count <- 0
 
 for(m in 1:M){
   # true value as matrix
@@ -191,19 +197,27 @@ for(m in 1:M){
     # predicted value
     pred_name <- paste("pred_t", t, sep = "")
     pred_mat <- pred_lst[[m]] %>% select(id, bin, all_of(pred_name)) %>% 
-      pivot_wider(names_from = id, values_from = pred_name) %>%
+      pivot_wider(names_from = id, values_from = all_of(pred_name)) %>%
       column_to_rownames("bin")
     pred_full <- sapply(1:N,
                            function(x){approx(x=mid, y=pred_mat[ , x], xout = 1:J)$y})
     pred_full <- exp(pred_full)/(1+exp(pred_full))
     row_id <- complete.cases(pred_full)
-    auc_perf <- performance(prediction(pred_full[row_id, ], Y_mat[row_id, ]), "auc")
-    auc_mat[m, i] <- mean(unlist(auc_perf@y.values))
+    
+    # calculate AUC, skip subjects with no variation in outcome Y
+    auc_lst <- lapply(1:N, function(x){
+      auc_try <- try(performance(prediction(pred_full[row_id, x], Y_mat[row_id, x]), "auc"), 
+                     silent = T)
+      auc_pref <- ifelse(class(auc_try)=="try-error",NA, auc_try@y.values)
+      return(auc_pref)               
+    })
+      
+    auc_mat[m, i] <- mean(unlist(auc_lst), na.rm = T)
+    skip_count <- skip_count+sum(is.na(auc_lst))
   }
   
 }
 
-auc_mat
 ```
 
 

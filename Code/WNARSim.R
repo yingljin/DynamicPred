@@ -27,7 +27,7 @@ load(here("Data/sim_data.RData"))
 J <- 1000 # number of observations points
 N <- 500 # sample size
 K <- 4 # number of eigenfunctions
-M <- 500 # number of simulation
+M <- 50 # number of simulation
 
 # bin data
 bin_w <- 10 # bin width
@@ -42,14 +42,14 @@ source(here("Code/OutSampMLE.R"))
 # result container
 pred_lst <- list()
 score_lst <- list()
-runtime <- rep(NA, 5)
+runtime <- rep(NA, M)
 
 
 
-pb = txtProgressBar(min = 0, max = 5, initial = 0, style = 3) 
+pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 
 
-for(m in 1:5){
+for(m in 1:M){
   
   df <- sim_data[[m]]
   
