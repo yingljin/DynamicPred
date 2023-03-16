@@ -113,7 +113,7 @@ runtime_ref <- rep(NA, M)
 
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 
-for(m in 1:5){
+for(m in 1:M){
   df <- sim_data[[m]]
   
   t1 <- Sys.time()
@@ -155,6 +155,8 @@ for(m in 1:5){
   
 }
 
+save(pred_lst_ref, runtime_ref, file = here("Data/SimOutput_GLMMadaptive.RData"))
+
 #### Plots #####
 
 par(mfrow=c(2, 2))
@@ -165,11 +167,14 @@ plot(mid, fpca_mod$efunctions[,4])
 
 
 
-pred_lst[[1]] %>% filter(id==5) %>% 
-  left_join(df %>% filter(id==5) %>% filter(sind_inx %in% mid) %>% select(bin, eta_i)) %>%
+pred_lst_ref[[1]] %>% filter(id==5) %>%
+  left_join(df %>% filter(id==5) %>%  select(sind, eta_i)) %>%
   ggplot()+
-  geom_line(aes(x=bin, y=eta_i))+
-  geom_line(aes(x=bin, y = pred_t200, col = "200"), linetype = "dashed")+
-  geom_line(aes(x=bin, y = pred_t400, col = "400"), linetype = "dashed")+
-  geom_line(aes(x=bin, y = pred_t600, col = "600"), linetype = "dashed")+
-  geom_line(aes(x=bin, y = pred_t800, col = "800"), linetype = "dashed")
+  geom_line(aes(x=sind, y=eta_i))+
+  geom_line(aes(x=sind, y = pred_t200, col = "200"), linetype = "dashed")+
+  geom_line(aes(x=sind, y = pred_t400, col = "400"), linetype = "dashed")+
+  geom_line(aes(x=sind, y = pred_t600, col = "600"), linetype = "dashed")+
+  geom_line(aes(x=sind, y = pred_t800, col = "800"), linetype = "dashed")
+
+
+mean(runtime_ref)
