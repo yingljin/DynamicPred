@@ -10,6 +10,7 @@ library(tidyverse)
 library(refund)
 library(lme4)
 library(ROCR)
+library(GLMMadaptive)
 # library(ggpubr)
 # library(gridExtra)
 # library(kableExtra)
@@ -106,30 +107,52 @@ save(pred_lst, score_lst, runtime, file = here("Data/SimOutput_fGFPCA.RData"))
 #### GLMMadaptive ####
 
 pred_lst_ref <- list()
-runtime_ref <- rep(NA, 5)
+runtime_ref <- rep(NA, M)
 
 
 
-pb = txtProgressBar(min = 0, max = 5, initial = 0, style = 3) 
+pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 
 for(m in 1:5){
   df <- sim_data[[m]]
   
+  t1 <- Sys.time()
   # GLMM adaptive model
   adglmm <- mixed_model(Y ~ sind, random = ~ sind | id, data =  df, family = binomial())
   
   # container
-  
-  
+  df_est_latent <- df
+  df_est_latent[, 'pred_t200'] <- df_est_latent[, 'pred_t400'] <- df_est_latent[, 'pred_t600'] <- df_est_latent[, 'pred_t800'] <- NA 
   
   # time up to t
-  pred_t200 <- predict(adglmm, newdata = df %>% filter(sind_inx <= t200),
+  pred_t200 <- predict(adglmm, newdata = df %>% filter(sind_inx <= 200),
                         newdata2 =  df %>% filter(sind_inx > 200), type = "subject_specific", type_pred = "link",
                           se.fit = TRUE, return_newdata = TRUE)
-  preds_adglmm$newdata2 %>% select(id, sind_inx, pred) %>% 
-    filter(sind_inx <= max(mid)) %>% 
-    pivot_wider(names_from = id, values_from = pred) %>% 
-    column_to_rownames("sind_inx") %>% as.matrix()
+  df_est_latent$pred_t200[df_est_latent$sind_inx>200] <- pred_t200$newdata2$pred
+  
+  pred_t400 <- predict(adglmm, newdata = df %>% filter(sind_inx <= 400),
+                       newdata2 =  df %>% filter(sind_inx > 400), type = "subject_specific", type_pred = "link",
+                       se.fit = TRUE, return_newdata = TRUE)
+  df_est_latent$pred_t400[df_est_latent$sind_inx>400] <- pred_t400$newdata2$pred
+  
+  pred_t600 <- predict(adglmm, newdata = df %>% filter(sind_inx <= 600),
+                       newdata2 =  df %>% filter(sind_inx > 600), type = "subject_specific", type_pred = "link",
+                       se.fit = TRUE, return_newdata = TRUE)
+  df_est_latent$pred_t600[df_est_latent$sind_inx>600] <- pred_t600$newdata2$pred
+  
+  pred_t800 <- predict(adglmm, newdata = df %>% filter(sind_inx <= 800),
+                       newdata2 =  df %>% filter(sind_inx > 800), type = "subject_specific", type_pred = "link",
+                       se.fit = TRUE, return_newdata = TRUE)
+  df_est_latent$pred_t800[df_est_latent$sind_inx>800] <- pred_t800$newdata2$pred
+  
+  t2 <- Sys.time()
+  
+  
+  pred_lst_ref[[m]] <- df_est_latent
+  runtime_ref[m] <- t2-t1
+  
+  setTxtProgressBar(pb, m)
+  
 }
 
 #### Plots #####
