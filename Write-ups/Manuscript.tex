@@ -77,6 +77,20 @@
 \newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{#1}\break}
 \newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
 \usepackage{setspace}\doublespacing
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
 \ifLuaTeX
   \usepackage{selnolig}  % disable illegal ligatures
 \fi
@@ -96,7 +110,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{March 16, 2023}
+\date{March 17, 2023}
 
 \begin{document}
 \maketitle
@@ -291,13 +305,10 @@ grid at midpoints of each unobserved bin. If the entire functional
 domian has S bins, but we have observations up to the mth bin, then ISE
 is defined as
 \(\frac{1}{N}\sum_{i=1}^N\sum_{s=m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2\).
-
 The second metric, AUC, focuses on evaluation of prediction of the
 binary outcome. Since the binary outcomes are generated on the original,
 un-binned grid, we evaluated AUC on this grid as well and estimated
-values of latent functions between bins with linear interpolation. Just
-like ISE, the AUC report is also the average value across the whole
-sample.
+values of latent functions between bins with linear interpolation.
 
 As a reference method, we compare our method to Generalized Linear Mixed
 Models using Adaptive Gaussian Quadrature (GLMMadaptive). This is one of
@@ -312,24 +323,69 @@ dimension of spline basis is also restricted by computational ability,
 and is unfeasible to implement under the scale of our simulated data or
 the complexity of our proposed method.
 
-\hypertarget{result}{%
-\subsection{Result}\label{result}}
+The average ISE and AUC across all simulation is presented in Table 1,
+and Figure 1 presents the predicted function curves of four
+randomly-drawn subjects from the first simulation. The prediction is
+conditioning on different length of observed track (specifically, with
+observations up to t = 200, 400, 600, 800 respectively), and evaluation
+is made on equal-length time windows on the unobserved tracks following
+the maximum observation time. As Table 1 reveals, the fGFPCA
+outperformed GLMMadaptive under every scenario, which was expected since
+GLMMadaptive can only accomodate simple model structures. In addition,
+fGFPCA also takes less computation time. For one simulated dataset,
+fGFPCA spent 4.94 minutes on model fitting and out-of-sample prediction,
+while GLMMadaptive took 5.11 minutes.
 
-\includegraphics{Manuscript_files/figure-latex/unnamed-chunk-2-1.pdf}
+Because of the flexibility of our proposed model framework, the accuracy
+of prediction at specific time points would improve with more observed
+data. This is revealed in Table 1 as ISE decreases and AUC increases
+with maximum observed time (left-to-right), also in Figure 1 as
+predicted curves get closer with longer observed track. However the same
+tendency is not observed with GLMMadaptive models, as a result of
+restricted model flexibility. A linear model that fits well to a
+specific part of latent function can fit very badly to the following
+parts, especially when the underlying latent function has cyclic
+patterns. Therefore, more observations do not necessarily make the model
+more predictive.
 
-\begin{verbatim}
-## [1] 4.943948
-\end{verbatim}
+\begin{figure}
+\centering
+\includegraphics{Manuscript_files/figure-latex/Figure-1.pdf}
+\caption{Predicted track of four randomly selected subjects. The grey
+dash line indicates the true latent continuous function. The dashed
+lines indicated predicted latent function tracks, and color indicates
+different observations time.}
+\end{figure}
 
-\begin{verbatim}
-##      t200      t400      t600      t800 
-## 67.831449 22.765903  3.545369  1.303170
-\end{verbatim}
+\begin{table}
 
-\begin{verbatim}
-##      t200      t400      t600      t800 
-## 0.6865623 0.7049480 0.6934441 0.6223052
-\end{verbatim}
+\caption{\label{tab:format table}Predictive performance of fGFPCA and GLMM adaptive on the simulated datasets. ISE and AUC are average values across all 50 simulations.}
+\centering
+\begin{tabular}[t]{llccccccc}
+\toprule
+\multicolumn{1}{c}{ } & \multicolumn{8}{c}{Maximum observed time} \\
+\cmidrule(l{3pt}r{3pt}){2-9}
+\multicolumn{1}{c}{ } & \multicolumn{4}{c}{fGFPCA} & \multicolumn{4}{c}{GLMMadaptive} \\
+\cmidrule(l{3pt}r{3pt}){2-5} \cmidrule(l{3pt}r{3pt}){6-9}
+  & 200 & 400 & 600 & 800 & 200 & 400 & 600 & 800\\
+\midrule
+\addlinespace[0.3em]
+\multicolumn{9}{l}{\textbf{Prediction time window}}\\
+\addlinespace[0.3em]
+\multicolumn{9}{l}{\textbf{ISE}}\\
+\hspace{1em}\hspace{1em}(200, 400] & 15.29 &  &  &  & 38.20 &  &  & \\
+\hspace{1em}\hspace{1em}(400, 600] & 18.68 & 8.53 &  &  & 28.59 & 26.46 &  & \\
+\hspace{1em}\hspace{1em}(600, 800] & 22.53 & 5.51 & 1.65 &  & 31.32 & 27.97 & 27.40 & \\
+\hspace{1em}\hspace{1em}(800, 1000] & 11.34 & 8.72 & 1.90 & 1.30 & 55.19 & 46.89 & 58.57 & 59.25\\
+\addlinespace[0.3em]
+\multicolumn{9}{l}{\textbf{AUC}}\\
+\hspace{1em}\hspace{1em}(200, 400] & 0.74 &  &  &  & 0.59 &  &  & \\
+\hspace{1em}\hspace{1em}(400, 600] & 0.66 & 0.73 &  &  & 0.52 & 0.59 &  & \\
+\hspace{1em}\hspace{1em}(600, 800] & 0.71 & 0.79 & 0.80 &  & 0.67 & 0.70 & 0.69 & \\
+\hspace{1em}\hspace{1em}(800, 1000] & 0.74 & 0.75 & 0.78 & 0.78 & 0.52 & 0.56 & 0.53 & 0.57\\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \hypertarget{data-application}{%
 \section{Data application}\label{data-application}}

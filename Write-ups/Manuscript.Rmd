@@ -28,10 +28,18 @@ header-includes:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
+theme_set(theme_minimal())
 library(here)
 library(ROCR)
+library(kableExtra)
+library(knitr)
+options(knitr.kable.NA = "")
 
 set.seed(314)
+
+load(here("Data/sim_data.RData"))
+load(here("Data/SimOutput_fGFPCA.RData"))
+load(here("Data/SimOutput_GLMMadaptive.RData"))
 ```
 
 
@@ -95,18 +103,16 @@ Y_i(t) & \sim Binomial(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
 
 In this simulation, we set $f_0(t) = 0$. $\xi_{ik}$ are mutually independent normal random variables $\xi_{ik}\sim N(0, \gamma_k)$. Here we set the values of $\gamma_k$ to be $0.5^{k-1}$, $k \in (1,..., 4)$. In addition, for simplicity of presentation, we generate data on a regular grid, which means observations points are equally distributed across $[0, 1]$ and are the same for all subjects. 
 
-We use two metrics to evaluate the out-of-sample predictive performance: integrated squared error (ISE) and Area-Under-the-Receiver-Operator-Curve (AUC). ISE assess the prediction accucay of latent continuous function. It is evaluated on the binned grid at midpoints of each unobserved bin. If the entire functional domian has S bins, but we have observations up to the mth bin, then ISE is defined as $\frac{1}{N}\sum_{i=1}^N\sum_{s=m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2$.
-
-The second metric, AUC, focuses on evaluation of prediction of the binary outcome. Since the binary outcomes are generated on the original, un-binned grid, we evaluated AUC on this grid as well and estimated values of latent functions between bins with linear interpolation. Just like ISE, the AUC report is also the average value across the whole sample. 
+We use two metrics to evaluate the out-of-sample predictive performance: integrated squared error (ISE) and Area-Under-the-Receiver-Operator-Curve (AUC). ISE assess the prediction accucay of latent continuous function. It is evaluated on the binned grid at midpoints of each unobserved bin. If the entire functional domian has S bins, but we have observations up to the mth bin, then ISE is defined as $\frac{1}{N}\sum_{i=1}^N\sum_{s=m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2$. The second metric, AUC, focuses on evaluation of prediction of the binary outcome. Since the binary outcomes are generated on the original, un-binned grid, we evaluated AUC on this grid as well and estimated values of latent functions between bins with linear interpolation. 
 
 As a reference method, we compare our method to Generalized Linear Mixed Models using Adaptive Gaussian Quadrature (GLMMadaptive). This is one of the fastest existing method developed for dynamic prediction of repeated generalized outcomes. Just like many mixed models, this method is very limited in terms of flexibility. For example, the model used for prediction of our simulated datset would simply be an linear model with one covariate indicating observation time: $g(E(Y_i)) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$. While the flexibility of this mixed model can be increased using spline functions, the dimension of spline basis is also restricted by computational ability, and is unfeasible to implement under the scale of our simulated data or the complexity of our proposed method.
 
+The average ISE and AUC across all simulation is presented in Table 1, and Figure 1 presents the predicted function curves of four randomly-drawn subjects from the first simulation. The prediction is conditioning on different length of observed track (specifically, with observations up to t = 200, 400, 600, 800 respectively), and evaluation is made on equal-length time windows on the unobserved tracks following the maximum observation time. As Table 1 reveals, the fGFPCA outperformed GLMMadaptive under every scenario, which was expected since GLMMadaptive can only accomodate simple model structures. In addition, fGFPCA also takes less computation time. For one simulated dataset, fGFPCA spent `r round(mean(runtime),2)` minutes on model fitting and out-of-sample prediction, while GLMMadaptive took `r round(mean(runtime_ref),2)` minutes. 
 
-## Result
+Because of the flexibility of our proposed model framework, the accuracy of prediction at specific time points would improve with more observed data. This is revealed in Table 1 as ISE decreases and AUC increases with maximum observed time (left-to-right), also in Figure 1 as predicted curves get closer with longer observed track. However the same tendency is not observed with GLMMadaptive models, as a result of restricted model flexibility. A linear model that fits well to a specific part of latent function can fit very badly to the following parts, especially when the underlying latent function has cyclic patterns. Therefore, more observations do not necessarily make the model more predictive. 
+
 
 ```{r}
-load(here("Data/sim_data.RData"))
-load(here("Data/SimOutput_fGFPCA.RData"))
 
 # other quantities
 mid <- unique(pred_lst[[1]]$bin)
@@ -114,6 +120,7 @@ N <- 500
 M <- length(pred_lst)
 J <- 1000
 
+# for fGFPCA
 # code prediction value at observed points as NA
 for(m in 1:length(pred_lst)){
   pred_lst[[m]]$pred_t200[pred_lst[[m]]$bin <= 200] <- NA
@@ -121,169 +128,224 @@ for(m in 1:length(pred_lst)){
   pred_lst[[m]]$pred_t600[pred_lst[[m]]$bin <= 600] <- NA
   pred_lst[[m]]$pred_t800[pred_lst[[m]]$bin <= 800] <- NA
 }
-  
 
+# for GLMM adaptive
+# add in observation time index
+for(m in 1:length(pred_lst_ref)){
+  pred_lst_ref[[m]]$sind_inx <- rep(1:J, N)
+}
 ```
 
 
-```{r}
+```{r Figure, fig.cap="Predicted track of four randomly selected subjects. The grey dash line indicates the true latent continuous function. The dashed lines indicated predicted latent function tracks, and color indicates different observations time."}
+# figure of fGFPCA prediction
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
 # true data
-df_true <- sim_data[[1]] %>% select(id, sind_inx, eta_i)
+df_true_sim1 <- sim_data[[1]] %>% select(id, sind_inx, eta_i)
 
 # prediction results used for visualization
-exp_df <- pred_lst[[1]]
+exp_df_sim1 <- pred_lst[[1]]
 
 # randomly draw four samples for visualization
-rand_id <- sample(exp_df$id, 4)
+rand_id <- sample(exp_df_sim1$id, 4)
 
-exp_df %>%
-  left_join(df_true %>% filter(sind_inx %in% mid) %>% rename(bin=sind_inx), by = c("id", "bin")) %>%
+exp_df_sim1 %>%
+  left_join(df_true_sim1 %>% filter(sind_inx %in% mid) %>% rename(bin=sind_inx), by = c("id", "bin")) %>%
   filter(id %in% rand_id) %>%
   ggplot()+
-  geom_line(aes(x=bin, y=eta_i))+
-  geom_line(aes(x=bin, y = pred_t200, col = "200"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=bin, y = pred_t400, col = "400"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=bin, y = pred_t600, col = "600"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=bin, y = pred_t800, col = "800"), linetype = "dashed", na.rm = T)+
-  facet_wrap(~id, scales = "free_y")
-
-
+  geom_line(aes(x=bin, y=eta_i, col = "True"))+
+  geom_line(aes(x=bin, y = pred_t200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t400, col = "Up to 400"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t600, col = "Up to 600"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t800, col= "Up to 800"), linetype = "dashed", na.rm = T)+
+  facet_wrap(~id, scales = "free_y")+
+  labs(y = "Latent function", x = "Bin", colour= "Observed time")+
+  scale_color_manual(values=cbPalette)+
+  scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000))
 ```
 
-```{r}
-mean(runtime)
+
+```{r ISE_fGFPCA}
 # calculate ISE on binned grid
-ise_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
-colnames(ise_mat) <- c("t200", "t400", "t600", "t800")
+ise_mat <- array(NA, dim = c(5, 4, M)) # dimensions are: predicted time, max obs time, simulation
 
 for(m in 1:M){
+  
   # true value at midpoints
   true_eta <- sim_data[[m]] %>% filter(sind_inx %in% mid) %>% select(id, sind_inx, eta_i) %>% rename(bin=sind_inx)
   pred_eta <- pred_lst[[m]] %>% select(-eta_hat)
   pred_eta <- pred_eta %>% left_join(true_eta, by = c("id", "bin"))
   
-  ise_m <- c(
-    t200 = sum((pred_eta$pred_t200-pred_eta$eta_i)^2, na.rm = T)/N,
-    t400 = sum((pred_eta$pred_t400-pred_eta$eta_i)^2, na.rm = T)/N,
-    t600 = sum((pred_eta$pred_t600-pred_eta$eta_i)^2, na.rm = T)/N,
-    t800 = sum((pred_eta$pred_t800-pred_eta$eta_i)^2, na.rm = T)/N
-  )
+  # split unobserved time into intervals of length 200
+  # [0, 200], (200, 400], (400, 600], (600, 800], (800, 1000]
+  pred_eta$bin_cat <- cut(pred_eta$bin, breaks=c(0, 200, 400, 600, 800, 1000), include.lowest = T)
   
-  ise_mat[m, ] <- ise_m
+  # SE at each observed time
+  pred_eta <- pred_eta %>% mutate(ise_t200 = (pred_t200-eta_i)^2,
+                                  ise_t400 = (pred_t400-eta_i)^2,
+                                  ise_t600 = (pred_t600-eta_i)^2,
+                                  ise_t800 = (pred_t800-eta_i)^2)
+  
+  # subject-average SE
+  ise_mat[, , m] <- pred_eta %>% group_by(bin_cat) %>% 
+    summarize_at(vars(starts_with("ise")), .fun=function(x)(sum(x)/N)) %>%select(-bin_cat) %>% as.matrix()
 }
 
-colMeans(ise_mat)
+ave_ise_mat <- apply(ise_mat, MARGIN = c(1, 2), mean)[-1, ]
+colnames(ave_ise_mat) <- c("200", "400", "600", "800")
+rownames(ave_ise_mat) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+
+
 ```
 
-```{r, eval=FALSE}
+```{r, ISE_GLMMadaptive}
 # calculate ISE on binned grid
-ise_ref_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
-colnames(ise_ref_mat) <- c("t200", "t400", "t600", "t800")
+ise_mat_ref <- array(NA, dim = c(5, 4, M)) # dimensions are: predicted time, max obs time, simulation
 
 for(m in 1:M){
+  
   # true value at midpoints
-  pred_eta <- pred_lst_ref[[m]]
+  pred_eta <- pred_lst_ref[[m]] %>% filter(sind_inx %in% mid)
   
-  ise_m <- c(
-    t200 = sum((pred_eta$pred_t200-pred_eta$eta_i)^2, na.rm = T)/N,
-    t400 = sum((pred_eta$pred_t400-pred_eta$eta_i)^2, na.rm = T)/N,
-    t600 = sum((pred_eta$pred_t600-pred_eta$eta_i)^2, na.rm = T)/N,
-    t800 = sum((pred_eta$pred_t800-pred_eta$eta_i)^2, na.rm = T)/N
-  )
+  # split unobserved time into intervals of length 200
+  # [0, 200], (200, 400], (400, 600], (600, 800], (800, 1000]
+  pred_eta$bin_cat <- cut(pred_eta$sind_inx, breaks=c(0, 200, 400, 600, 800, 1000), include.lowest = T)
   
-  ise_ref_mat[m, ] <- ise_m
+  # SE at each observed time
+  pred_eta <- pred_eta %>% mutate(ise_t200 = (pred_t200-eta_i)^2,
+                                  ise_t400 = (pred_t400-eta_i)^2,
+                                  ise_t600 = (pred_t600-eta_i)^2,
+                                  ise_t800 = (pred_t800-eta_i)^2)
+  
+  # subject-average SE
+  ise_mat_ref[, , m] <- pred_eta %>% group_by(bin_cat) %>% 
+    summarize_at(vars(starts_with("ise")), .fun=function(x)(sum(x)/N)) %>%select(-bin_cat) %>% as.matrix()
+  
 }
 
-colMeans(ise_ref_mat)
+ave_ise_mat_ref <- apply(ise_mat_ref, MARGIN = c(1, 2), mean)[-1, ]
+colnames(ave_ise_mat_ref) <- c("200", "400", "600", "800")
+rownames(ave_ise_mat_ref) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+
+# cbind(ave_ise_mat, ave_ise_mat_ref)
 ```
 
 
-```{r}
-# calculate AUC on unbinned grid
-auc_mat <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
-colnames(auc_mat) <- c("t200", "t400", "t600", "t800")
+```{r AUC_fGFPCA, cache=TRUE}
+# maximum observations time
+t_vec <- c(200, 400, 600, 800)
 
-skip_count <- 0
+# calculate AUC on unbinned grid
+auc_mat <- array(NA, dim = c(4, 4, M)) # row index iteration, col index max observation time
 
 for(m in 1:M){
-  # true value as matrix
-  Y_mat <- sim_data[[m]]  %>% select(id, sind_inx, Y) %>% rename(bin=sind_inx) %>% 
-    pivot_wider(names_from = id, values_from = Y) %>%
-    column_to_rownames("bin")
   
-  # calculate AUC
-  t_vec <- c(200, 400, 600, 800)
-  for(i in seq_along(t_vec)){
-    
-    t <- t_vec[i]
-    # predicted value
-    pred_name <- paste("pred_t", t, sep = "")
-    pred_mat <- pred_lst[[m]] %>% select(id, bin, all_of(pred_name)) %>% 
-      pivot_wider(names_from = id, values_from = all_of(pred_name)) %>%
-      column_to_rownames("bin")
-    pred_full <- sapply(1:N,
-                           function(x){approx(x=mid, y=pred_mat[ , x], xout = 1:J)$y})
-    pred_full <- exp(pred_full)/(1+exp(pred_full))
-    row_id <- complete.cases(pred_full)
-    
-    # calculate AUC, skip subjects with no variation in outcome Y
-    auc_lst <- lapply(1:N, function(x){
-      auc_try <- try(performance(prediction(pred_full[row_id, x], Y_mat[row_id, x]), "auc"), 
-                     silent = T)
-      auc_pref <- ifelse(class(auc_try)=="try-error",NA, auc_try@y.values)
-      return(auc_pref)               
-    })
-      
-    auc_mat[m, i] <- mean(unlist(auc_lst), na.rm = T)
-    skip_count <- skip_count+sum(is.na(auc_lst))
+  Y_df <- sim_data[[m]]
+  eta_pred <- pred_lst[[m]]
+ 
+  # use interpolation to extend prediction to the unbinned grid
+  for(i in 1:N){
+   Y_df$pred_200[Y_df$id==i] <- approx(x=eta_pred$bin[eta_pred$id==i], y=eta_pred$pred_t200[eta_pred$id==i], xout = 1:J)$y
+   Y_df$pred_400[Y_df$id==i] <- approx(x=eta_pred$bin[eta_pred$id==i], y=eta_pred$pred_t400[eta_pred$id==i], xout = 1:J)$y
+   Y_df$pred_600[Y_df$id==i] <- approx(x=eta_pred$bin[eta_pred$id==i], y=eta_pred$pred_t600[eta_pred$id==i], xout = 1:J)$y
+   Y_df$pred_800[Y_df$id==i] <- approx(x=eta_pred$bin[eta_pred$id==i], y=eta_pred$pred_t800[eta_pred$id==i], xout = 1:J)$y
   }
   
-}
+  # split unobserved time into intervals of length 200
+  # [0, 200], (200, 400], (400, 600], (600, 800], (800, 1000]
+  Y_df$bin_cat <- cut(Y_df$sind_inx, breaks=c(0, 200, 400, 600, 800, 1000), include.lowest = T)
+  Y_df_lst <- split(Y_df, f = Y_df$bin_cat)
+  Y_df_lst <- Y_df_lst[-1]
+  
+  for(j in seq_along(t_vec)){
+    
+    t <- t_vec[j]
+    pred_name <- paste("pred_", t, sep = "")
+    
+    # calculate AUC
+    auc_lst <- lapply(Y_df_lst[j:4], 
+                       function(x){
+                         row_id <- !is.na(x[, pred_name])
+                         this_eta <- x[row_id, pred_name]
+                         this_Y <- x[row_id, "Y"]
+                         auc_pref <- performance(prediction(this_eta, this_Y), "auc")
+                         return(auc_pref@y.values)
+                })
+      
+    auc_vec <- c(rep(NA, 4-length(auc_lst)), unlist(auc_lst))
+    auc_mat[ , j, m] <- auc_vec
 
-colMeans(auc_mat)
+}}
+
+
+ave_auc_mat <- apply(auc_mat, MARGIN = c(1, 2), mean)
+colnames(ave_auc_mat) <- c("200", "400", "600", "800")
+rownames(ave_auc_mat) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+
 ```
 
-
-```{r, eval=FALSE}
+```{r AUC_GLMMadaptive}
 # calculate AUC on unbinned grid
-auc_mat_ref <- matrix(NA, nrow = M, ncol = 4) # row index iteration, col index max observation time
-colnames(auc_mat_ref) <- c("t200", "t400", "t600", "t800")
-
-skip_count <- 0
+auc_mat_ref <- array(NA, dim = c(4, 4, M)) # row index iteration, col index max observation time
 
 for(m in 1:M){
-  # true value as matrix
-  Y_mat <- sim_data[[m]]  %>% select(id, sind_inx, Y) %>% 
-    pivot_wider(names_from = id, values_from = Y) %>%
-    column_to_rownames("sind_inx")
   
-  # calculate AUC
-  t_vec <- c(200, 400, 600, 800)
-  for(i in seq_along(t_vec)){
+  Y_df <- sim_data[[m]]
+  eta_pred <- pred_lst_ref[[m]]
+  
+  Y_df <- Y_df %>% left_join(eta_pred %>% select(id, sind_inx, starts_with("pred_")), by = c("id", "sind_inx"))
+ 
+  # split unobserved time into intervals of length 200
+  # [0, 200], (200, 400], (400, 600], (600, 800], (800, 1000]
+  Y_df$bin_cat <- cut(Y_df$sind_inx, breaks=c(0, 200, 400, 600, 800, 1000), include.lowest = T)
+  Y_df_lst <- split(Y_df, f = Y_df$bin_cat)
+  Y_df_lst <- Y_df_lst[-1]
+  
+  for(j in seq_along(t_vec)){
     
-    t <- t_vec[i]
-    # predicted value
+    t <- t_vec[j]
     pred_name <- paste("pred_t", t, sep = "")
-    pred_mat <- pred_lst_ref[[m]] %>% select(id, sind, all_of(pred_name)) %>% 
-      pivot_wider(names_from = id, values_from = all_of(pred_name)) %>%
-      column_to_rownames("sind")
-    pred_mat <- exp(pred_mat)/(1+exp(pred_mat))
-    row_id <- complete.cases(pred_mat)
     
-    # calculate AUC, skip subjects with no variation in outcome Y
-    auc_lst <- lapply(1:N, function(x){
-      auc_try <- try(performance(prediction(pred_mat[row_id, x], Y_mat[row_id, x]), "auc"), 
-                     silent = T)
-      auc_pref <- ifelse(class(auc_try)=="try-error",NA, auc_try@y.values)
-      return(auc_pref)               
-    })
+    # calculate AUC
+    auc_lst <- lapply(Y_df_lst[j:4], 
+                       function(x){
+                         row_id <- !is.na(x[, pred_name])
+                         this_eta <- x[row_id, pred_name]
+                         this_Y <- x[row_id, "Y"]
+                         auc_pref <- performance(prediction(this_eta, this_Y), "auc")
+                         return(auc_pref@y.values)
+                })
       
-    auc_mat[m, i] <- mean(unlist(auc_lst), na.rm = T)
-    skip_count <- skip_count+sum(is.na(auc_lst))
+    auc_vec <- c(rep(NA, 4-length(auc_lst)), unlist(auc_lst))
+    auc_mat_ref[ , j, m] <- auc_vec
+
   }
-  
 }
 
+
+
+ave_auc_mat_ref <- apply(auc_mat_ref, MARGIN = c(1, 2), mean)
+colnames(ave_auc_mat_ref) <- c("200", "400", "600", "800")
+rownames(ave_auc_mat_ref) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+
+
+```
+
+```{r format table}
+ise_tb <- cbind(ave_ise_mat, ave_ise_mat_ref)
+auc_tb <- cbind(ave_auc_mat, ave_auc_mat_ref)
+
+
+rbind(ise_tb, auc_tb) %>%
+  kable(booktabs = T, digit=2,
+        caption = "Predictive performance of fGFPCA and GLMM adaptive on the simulated datasets. ISE and AUC are average values across all 50 simulations.",
+        align = "lcccccccc") %>%
+  kable_styling() %>%
+  add_header_above(c(" " = 1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" " = 1, "Maximum observed time" = 8)) %>% 
+  group_rows(index = c("Prediction time window" = 8)) %>%
+  group_rows(index = c("ISE" = 4, "AUC" = 4)) 
 ```
 
 
