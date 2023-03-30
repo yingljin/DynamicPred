@@ -19,7 +19,8 @@ linkcolor: blue
 csl: ASA.cls
 header-includes:
   - \usepackage{setspace}\doublespacing
-
+  - \usepackage[utf8]{inputenc}
+  - \usepackage[T1]{fontenc}
 ---
 <!-- Abstract:  -->
 <!-- ================================================================================================================================= -->
@@ -33,28 +34,34 @@ library(here)
 library(ROCR)
 library(kableExtra)
 library(knitr)
+library(ggpubr)
 options(knitr.kable.NA = "")
 
 set.seed(314)
 
+# simulation
 load(here("Data/sim_data.RData"))
 load(here("Data/SimOutput_fGFPCA.RData"))
 load(here("Data/SimOutput_GLMMadaptive.RData"))
+
+# data application
+df_appl <- read.csv(here("Data/Daily_Weigh_ins.csv"))
+load(here("Data/ApplOutput_fGFPCA.RData"))
+load(here("Data/ApplOutput_GLMMadaptive.RData"))
+
 ```
 
 
 Introduction
 =================================================================================================================================
 
-<!-- -	Overview of dynamic prediction methods -->
-
 Biomedical investigators are often interested in predicting future observations of subjects based on their historical data, typically referred to as dynamic prediction. Traditionally, this type of data has been modeled using marginal models (generalized estimating equations) or conditional models (mixed effect models) [@liang1986; @Laird1982; @lindstrom1990; @davidian2003], and predictions are made based on the correlation between repeated measures from the same subject, and/or covariates that can be either fixed or time-varying. However, these methods are limited in terms of flexibility of correlation structure and the ability to handle out-of-sample prediction. When sample size is large or the density of repeated measures is high, they also tend to cause severe computational burden [@GLMMadaptive]. 
 
-To address these problems, one may turn to functional mixed effect models instead when measures are dense across the domain. Such methods accommodate more flexible correlation structure by modeling subject-specific random effects as a function, and non-parametric smoothing [@Scheipl2014] can be incorporated to speed up the computation, such as spline basis functions or eigenfunctions from functional principal component analysis (fPCA). The introduction of basis functions also makes out-of-sample prediction more straightforward. Instead of estimating subject-specific random effects of new observations, we can simply estimate coefficients/loadings on the basis function used for smoothing. Existing research on dynamic prediction with functional data analysis methods has been focusing on continuous/Gaussian outcomes, modelling subject-specific random effects with FPCA [@chiou2012; @goldberg2014; @shang2017]. @kraus2015 has used this approach to predict missing observations in partially observed function tracks, and @delaigo2016 achieved similar goals using Markov Chains. While methods mentioned above used only partial observations for prediction with an intercept-only model, @leroux2016 proposed Functional Concurrent Regression (FCR) framework which can incorporate the effect of subject-specific predictors. However, little extension was made on prediction of non-Gaussian functions, such as binary and count outcomes.
+To address these problems, one may turn to functional mixed effect models instead when measures are dense across the domain of measures. Such methods accommodate more flexible correlation structure by modeling subject-specific random effects as a function, and non-parametric smoothing [@Scheipl2014] can be incorporated to speed up the computation, such as spline basis functions or eigenfunctions from functional principal component analysis (FPCA). The introduction of basis functions also makes out-of-sample prediction more straightforward. Instead of estimating subject-specific random effects of new observations, we can simply estimate coefficients/loadings on the basis function used for smoothing. Existing research on dynamic prediction with functional data analysis methods has been focusing on continuous/Gaussian outcomes, modelling subject-specific random effects with FPCA [@chiou2012; @goldberg2014; @shang2017]. @kraus2015 has used this approach to predict missing observations in partially observed function tracks, and @delaigo2016 achieved similar goals using Markov Chains. While methods mentioned above used only partial observations for prediction with an intercept-only model, @leroux2016 proposed Functional Concurrent Regression (FCR) framework which can incorporate the effect of subject-specific predictors. 
 
 Unfortunately, fewer papers have focused on its extension to non-Gaussian data, such as series of binary or count outcomes. Existing methods also tend to be very computationally intensive. For example, @chen2013 proposed approaches to fit marginal functional models that is compatible to multi-level, generalized outcomes. @goldsmith2015 established a model framework that takes into account the fixed effect of time-invariant covariates, with parameters estimated with Bayesian method in *Stan*. @gertheiss2016 identified bias introduced by directly applying FPCA methods to generalized functions, and proposed to address this problem using a two-stage, joint estimation strategy. @linde2019 used an adapted Bayesian variational algorithm for FPCA of binary and count data. In terms of implementation, @wrobel2019 proposed a fast, efficient way to fit GFPCA on binary data using EM algorithm, accompanied by the an open source R package *registr*. 
 
-In this paper, we aim to develop a fast, scalable method for dynamic prediction of discrete function tracks based on functional mixed effect model with fPCA smoothing. Section 2 presents the procedure of the proposed method. In Section 3, we illustrate the performance and efficiency of our proposed method in a simulation study. In Section 4, we apply this method to a real-world dataset. Section 5 presents a discussion of davantages and limitation of the proposed method. 
+In this paper, we aim to develop a fast, scalable method for dynamic prediction of discrete function tracks based on functional mixed effect model with FPCA smoothing. Section 2 presents the procedure of the proposed method. In Section 3, we illustrate the performance and efficiency of our proposed method in a simulation study. In Section 4, we apply this method to a real-world dataset. Section 5 presents a discussion of advantages and limitation of the proposed method. 
 
 
 
@@ -68,52 +75,54 @@ g[E(Y_i(t))] = \eta_i(t) = \beta_0(t)+b_i(t)
 $$
 
 
-where g is a appropriate link function, $\beta_0(t)$ is the population mean of latent function, and $b_i(t)$ is a subjects-level random effect function follows a zero-mean Gaussian process. 
+where g is an appropriate link function, $\beta_0(t)$ is the population mean of latent function, and $b_i(t)$ is a subjects-level random effect function following a zero-mean Gaussian process. 
 
-While $b_i(t)$ is not observed, it can be approximated under the FPCA framework $b_i(t)=\sum_{k=1}^K\xi_{ik}\phi_{ik}(t)+\epsilon_i(t)$. Here $\phi_{ik}(t)$ is a set of orthogonal eigenfunctions that explains the most variation in $b_i(t)$, and $\xi_{ik}$ are subject-specific PC scores (or loadings) on each eigenfunction. Additionally, $\xi_{ik}$ are mutually independent obver both subject ($i$) and eigenfunctions ($k$). That is, each $\xi_{ik}$ follows normal distribution $N(0, \lambda_k)$ where $\lambda_k$ is the kth eigenvalues: $\int \phi_k^2(t)dt=\lambda_k$. $\epsilon_i(t)$ here is a residual function that accounts for the variation not explained by the first K eigenfunctions from FPCA. We assume it follows a zero-mean Gaussian process. At a specific point t, $\epsilon_i(t) \sim N(0, \sigma^2)$.
+According to the Karhunen-Loève theorem, the unobserved random effect function $b_i(t)$ can be represented as the linear combination of a infinite set of orthogonal functions: $b_i(t)=\sum_{k=1}^{\infty}\xi_{ik}\phi_{k}(t)$. We approximate this function by a finite set of $\phi_{k}(t)$, such that $b_i(t)=\sum_{k=1}^{K}\xi_{ik}\phi_{k}(t)+\epsilon_i(t)$, where $\epsilon_i(t)$ indicates random noise introduced by this approximation, following a zero-mean Gaussian process. At each specific point t, $\epsilon_i(t) \sim N(0, \sigma^2)$.
 
-Based on the problem set up above, we propose the following algorithm for PFCA on the unobserved latent process $\eta_i(t)$:
+In practice, this approximation could be implemented through an FPCA procedure on $\eta_i(t)$. In this case $\phi_{k}(t),\ k \in \{1,...,K\}$ are the first K eigenfunctions that explain the most variation in $\eta_i(t)$, and $\xi_{ik}$ are subject-specific PC scores (or loadings) on each eigenfunction. Additionally, $\xi_{ik}$ are mutually independent over both subject ($i$) and eigenfunctions ($k$). That is, each $\xi_{ik}$ follows normal distribution $N(0, \lambda_k)$ where $\lambda_k$ is the kth eigenvalues.
+
+
+**Fast Generalized FPCA** Based on the problem set up above, we propose the following algorithm for fast, generalizable implementation of FPCA (fGFPCA) on the unobserved latent process $\eta_i(t)$:
 
 1. Bin the observed outcomes in to small, non-overlapping, equal length intervals. We hereafter index the bins by their midpoints $s$. 
-2. Fit a local Generalized Mixed Model at every bin. Specifically, at bin $s$, we fit $g[E(Y_i(t))] = \beta_0(s)+b_i(s)$ for all $t$ in bin $s$. From this series of models we can get estiamtes of population mean $\hat{\beta}_0(s)$ and subject-level random effect $\hat{b}_i(s)$, thus estimate of the individual latent functions at every bin: $\hat{\eta}_i(s) = \hat{\beta}_0(s)+\hat{b}_i(s)$. 
-3. Fit FPCA on the estimated latent functions $\hat{\eta}_i(s)$, and obtain estimates of basis functions $\boldsymbol{\Phi} = \{\phi_1(s), ...,\phi_k(s)\}$, eigenvalues $\hat{\lambda}_1...\hat{\lambda}_k$, population mean $\hat{\beta}_0(s)$ and residual variance $\hat{\sigma}^2$. 
-4. With components extracted above, calculate the maximum likelihood estimate (MLE) of the subject-specific PC scores $\hat{\xi}_{ik}$ of new samples based on their partially observed data. Then the value of latent functions at unobserved points can be estimated as $\hat{\eta_i}(s)=\hat{\beta}_0(s)+\sum_{k=1}^K\hat{\xi}_{ik}{\phi}_k(s)$
-
-Following the algorithm above, predictions of individual latent functions are made on the binned grid based on partially observed non-Gaussian functions tracks of new subjects. Since the bins are set up to be small in length, the binned grid would still be dense enough. However, in situations where we need predictions on the original, un-binned grid instead, linear interpolation turns out to be a fast, convenient way with good performance for prediction at points between bins. 
-
-Precision of prediction, usually quantified by the variance of prediction error $Var(\hat{\eta_i}(s)-\eta_i(s))$, is also straightforward under this framework. In step 4 we calculated the MLE of $\hat{\xi}_{ik}$. Based on likelihood theory, its variance can be estimated with observed information ${I}(\hat{\xi}_{ik})$, which is essentially the second derivative of likelihood at  $\hat{\xi}_{ik}$. Therefore, the variation of prediction interval is:
-
-$$Var(\hat{\eta_i}(s)-\eta_i(s))=\boldsymbol{\Phi}(s)I(\hat{\boldsymbol{\xi}}_i)\boldsymbol{\Phi}^T(s)+\hat{\sigma_{\epsilon}}^2$$
-Where $\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))$ and $\hat{\boldsymbol{\xi}}_i=(\hat{\xi}_{i1}, ...,\hat{\xi}_{iK})$.
+2. Fit a local Generalized Mixed Model at every bin. Specifically, at bin $s$, we fit $g[E(Y_i(t))] = \beta_0(s)+b_i(s)$ for all $t$ in bin $s$. From this series of models we can estimate the individual latent functions at every bin: $\hat{\eta}_i(s) = \hat{\beta}_0(s)+\hat{b}_i(s)$. 
+3. Fit FPCA on the estimated latent functions: $\hat{\eta}_i(s) = f_0(s)+\sum_{k=1}^K\xi_{ik}\phi_{k}(s)+\epsilon_i(s)$, and obtain estimates of basis functions $\boldsymbol{\Phi} = \{\phi_1(s), ...,\phi_k(s)\}$, eigenvalues $\hat{\lambda}_1...\hat{\lambda}_k$, mean function $\hat{f}_0(s)$ and residual variance $\hat{\sigma}^2$. 
 
 
-<!-- -	Need better notation system -->
-<!-- - Change to general exponential family -->
+**Dynamic prediction** Now assume we have a new observations with partially observed outcome $Y_{new}(t)$, $t\leq t_m$. The maximum observed point is $t_m$, which is a point along the functional domain and belongs to bin $s_m$ on the binned grid from step 1 above. With components extracted from the FPCA model in step 3, we will be able to make predictions on the future, unobserved bins. Specifically, with the partially observed binary function $Y_{new}(t)$, we will be able to calculate the maximum likelihood estimate (MLE) of the subject-specific PC scores $\hat{\xi}_{ik}$. Then the value of latent functions at unobserved points can be estimated as $\hat{\eta_i}(s)=\hat{f}_0(s)+\sum_{k=1}^K\hat{\xi}_{ik}{\phi}_k(s)$
+
+Following the algorithm above, predictions of individual latent functions are made on the binned grid based on partially observed non-Gaussian functions tracks of new subjects. Since the bins are set up to be small in length, the binned grid would still be dense. However, in situations where predictions on the original, un-binned grid is needed, linear interpolation turns out to be a fast, convenient way with good performance for prediction at points between bins. 
+
+<!-- Precision of prediction, usually quantified by the variance of prediction error $Var(\hat{\eta_i}(s)-\eta_i(s))$, is also straightforward under this framework. In step 4 we calculated the MLE of $\hat{\xi}_{ik}$. Based on likelihood theory, its variance can be estimated with observed information ${I}(\hat{\xi}_{ik})$, which is essentially the second derivative of likelihood at  $\hat{\xi}_{ik}$. Therefore, the variation of prediction interval is: -->
+
+<!-- $$Var(\hat{\eta_i}(s)-\eta_i(s))=\boldsymbol{\Phi}(s)I(\hat{\boldsymbol{\xi}}_i)\boldsymbol{\Phi}^T(s)+\hat{\sigma_{\epsilon}}^2$$ -->
+<!-- Where $\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))$ and $\hat{\boldsymbol{\xi}}_i=(\hat{\xi}_{i1}, ...,\hat{\xi}_{iK})$. -->
+
+
 <!-- - Add section of de-bias score: conditional on subject. Need repeat simulation to demonstrate -->
 
 Simulation
 =================================================================================================================================
 
-In this section, we illustrate the predictive performance and computational efficiency of the proposed method through a simulation study. We simulated 50 datasets, each with 500 subjects. For every subject, we generate 1000 binary outcomes $Y_i(t) \in (0, 1)$ across functional domain $t \in [0, 1]$, where the distribution of outcome is characterized by a continuous latent function. The data generation mechanism can be expressed as follows: 
+In this section, we illustrate the predictive performance and computational efficiency of the proposed method through a simulation study. We simulated 50 datasets, each with 500 subjects. For every subject, we generate 1000 binary outcomes $Y_i(t) \in \{0, 1\}$ across functional domain $t \in [0, 1000]$, where the distribution of outcome is characterized by a continuous latent function. The data generation mechanism can be expressed as follows: 
 
 $$\begin{aligned}
 Y_i(t) & \sim Binomial(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
-\eta_i(t) &= f_0(t)+ \xi_{i1}sin(2\pi t)+\xi_{i2}cos(2\pi t)+\xi_{i3}sin(4\pi t)+\xi_{i4}cos(4\pi t)
+\eta_i(t) &= f_0(t)+ \xi_{i1}\sqrt{2}sin(2\pi t)+\xi_{i2}\sqrt{2}cos(2\pi t)+\xi_{i3}\sqrt{2}sin(4\pi t)+\xi_{i4}\sqrt{2}cos(4\pi t)
 \end{aligned}$$
 
-In this simulation, we set $f_0(t) = 0$. $\xi_{ik}$ are mutually independent normal random variables $\xi_{ik}\sim N(0, \gamma_k)$. Here we set the values of $\gamma_k$ to be $0.5^{k-1}$, $k \in (1,..., 4)$. In addition, for simplicity of presentation, we generate data on a regular grid, which means observations points are equally distributed across $[0, 1]$ and are the same for all subjects. 
+In this simulation, we set $f_0(t) = 0$. $\xi_{ik}$ are mutually independent normal random variables $\xi_{ik}\sim N(0, \gamma_k)$. Here we set the values of $\gamma_k$ to be $0.5^{k-1}$, $k \in (1,..., 4)$. In addition, for simplicity of presentation, we generate data on a regular grid, which means observations points are equally distributed across $[0, 1000]$ and are the same for all subjects. 
 
-We use two metrics to evaluate the out-of-sample predictive performance: integrated squared error (ISE) and Area-Under-the-Receiver-Operator-Curve (AUC). ISE assess the prediction accucay of latent continuous function. It is evaluated on the binned grid at midpoints of each unobserved bin. If the entire functional domian has S bins, but we have observations up to the mth bin, then ISE is defined as $\frac{1}{N}\sum_{i=1}^N\sum_{s=m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2$. The second metric, AUC, focuses on evaluation of prediction of the binary outcome. Since the binary outcomes are generated on the original, un-binned grid, we evaluated AUC on this grid as well and estimated values of latent functions between bins with linear interpolation. 
+We use two metrics to evaluate the out-of-sample predictive performance: integrated squared error (ISE) and Area-Under-the-Receiver-Operator-Curve (AUC). ISE assess the prediction accuracy of latent continuous function. It is evaluated on the binned grid at midpoints of each unobserved bin. If the entire functional domain has S bins, but we have observations up to the mth bin, then ISE is defined as $\frac{1}{N}\sum_{i=1}^N\sum_{s=s_m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2$. The second metric, AUC, focuses on evaluation of prediction of the binary outcome. Since the binary outcomes are generated on the original, un-binned grid, we evaluated AUC on this grid and estimated values of latent functions between bins with linear interpolation. 
 
 As a reference method, we compare our method to Generalized Linear Mixed Models using Adaptive Gaussian Quadrature (GLMMadaptive). This is one of the fastest existing method developed for dynamic prediction of repeated generalized outcomes. Just like many mixed models, this method is very limited in terms of flexibility. For example, the model used for prediction of our simulated datset would simply be an linear model with one covariate indicating observation time: $g(E(Y_i)) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$. While the flexibility of this mixed model can be increased using spline functions, the dimension of spline basis is also restricted by computational ability, and is unfeasible to implement under the scale of our simulated data or the complexity of our proposed method.
 
-The average ISE and AUC across all simulation is presented in Table 1, and Figure 1 presents the predicted function curves of four randomly-drawn subjects from the first simulation. The prediction is conditioning on different length of observed track (specifically, with observations up to t = 200, 400, 600, 800 respectively), and evaluation is made on equal-length time windows on the unobserved tracks following the maximum observation time. As Table 1 reveals, the fGFPCA outperformed GLMMadaptive under every scenario, which was expected since GLMMadaptive can only accomodate simple model structures. In addition, fGFPCA also takes less computation time. For one simulated dataset, fGFPCA spent `r round(mean(runtime),2)` minutes on model fitting and out-of-sample prediction, while GLMMadaptive took `r round(mean(runtime_ref),2)` minutes. 
+The average ISE and AUC across all simulation is presented in Table 1, and Figure 1 presents the predicted function curves of four randomly-drawn subjects from the first simulation. The prediction is conditioning on different length of observed track (specifically, with observations up to t = 200, 400, 600, 800 respectively), and evaluation is made on equal-length time windows on the unobserved tracks following the maximum observation time. As Table 1 reveals, our proposed method (fGFPCA) outperformed GLMMadaptive under every scenario, which was expected since GLMMadaptive can only accommodate simple model structures. In addition, fGFPCA also took less computation time. For one simulated dataset, fGFPCA spent `r round(mean(runtime),2)` minutes on model fitting and out-of-sample prediction, while GLMMadaptive took `r round(mean(runtime_ref),2)` minutes. 
 
 Because of the flexibility of our proposed model framework, the accuracy of prediction at specific time points would improve with more observed data. This is revealed in Table 1 as ISE decreases and AUC increases with maximum observed time (left-to-right), also in Figure 1 as predicted curves get closer with longer observed track. However the same tendency is not observed with GLMMadaptive models, as a result of restricted model flexibility. A linear model that fits well to a specific part of latent function can fit very badly to the following parts, especially when the underlying latent function has cyclic patterns. Therefore, more observations do not necessarily make the model more predictive. 
 
 
 ```{r}
-
 # other quantities
 mid <- unique(pred_lst[[1]]$bin)
 N <- 500
@@ -137,7 +146,7 @@ for(m in 1:length(pred_lst_ref)){
 ```
 
 
-```{r Figure, fig.cap="Predicted track of four randomly selected subjects. The grey dash line indicates the true latent continuous function. The dashed lines indicated predicted latent function tracks, and color indicates different observations time."}
+```{r Figure, fig.cap="Predicted track of four randomly selected subjects from one simulated dataset. The grey solid line indicates the true latent continuous function. The dashed lines indicated predicted latent function tracks, and color indicates different observation time.", fig.height=6, fig.width=12}
 # figure of fGFPCA prediction
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
@@ -147,10 +156,13 @@ df_true_sim1 <- sim_data[[1]] %>% select(id, sind_inx, eta_i)
 # prediction results used for visualization
 exp_df_sim1 <- pred_lst[[1]]
 
+exp_df_sim1_ref <- pred_lst_ref[[1]]
+
 # randomly draw four samples for visualization
 rand_id <- sample(exp_df_sim1$id, 4)
 
-exp_df_sim1 %>%
+# fGFPCA
+fig1a <- exp_df_sim1 %>%
   left_join(df_true_sim1 %>% filter(sind_inx %in% mid) %>% rename(bin=sind_inx), by = c("id", "bin")) %>%
   filter(id %in% rand_id) %>%
   ggplot()+
@@ -160,9 +172,28 @@ exp_df_sim1 %>%
   geom_line(aes(x=bin, y = pred_t600, col = "Up to 600"), linetype = "dashed", na.rm = T)+
   geom_line(aes(x=bin, y = pred_t800, col= "Up to 800"), linetype = "dashed", na.rm = T)+
   facet_wrap(~id, scales = "free_y")+
-  labs(y = "Latent function", x = "Bin", colour= "Observed time")+
+  labs(y = "Latent function", x = "Bin", colour= "Observed time", title = "fGFPCA")+
   scale_color_manual(values=cbPalette)+
   scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000))
+
+# GLMMadaptive
+fig1b <- exp_df_sim1_ref %>%
+  filter(sind_inx %in% mid) %>%
+  filter(id %in% rand_id) %>%
+  ggplot()+
+  geom_line(aes(x=sind_inx, y=eta_i, col = "True"))+
+  geom_line(aes(x=sind_inx, y = pred_t200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t400, col = "Up to 400"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t600, col = "Up to 600"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t800, col= "Up to 800"), linetype = "dashed", na.rm = T)+
+  facet_wrap(~id, scales = "free_y")+
+  labs(y = "Latent function", x = "Bin", colour= "Observed time", title = "GLMMadaptive")+
+  scale_color_manual(values=cbPalette)+
+  scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000))
+
+ggarrange(fig1a, fig1b, nrow = 1, common.legend = T)
+
+
 ```
 
 
@@ -362,6 +393,168 @@ rbind(ise_tb, auc_tb) %>%
 Data application
 =================================================================================================================================
 
+
+```{r}
+# data clean
+mid2 <- unique(df_est_latent$bin)
+N2 <- max(df_est_latent$id)
+J2 <- 400
+
+# for fGFPCA
+# code prediction value at observed points as NA
+df_est_latent$pred_t100[df_est_latent$bin <= 100] <- NA
+df_est_latent$pred_t200[df_est_latent$bin <= 200] <- NA
+df_est_latent$pred_t300[df_est_latent$bin <= 300] <- NA
+
+
+# for GLMM adaptive
+# add in observation time index
+for(m in 1:length(pred_lst_ref)){
+  pred_lst_ref[[m]]$sind_inx <- rep(1:J, N)
+}
+```
+
+```{r AUC_fGFPCA_Appl, cache=TRUE}
+# maximum observations time
+t_vec2 <- c(100, 200, 300)
+
+# calculate AUC on unbinned grid
+auc_mat2 <- matrix(NA, nrow = 3, ncol = 3) # row index iteration, col index max observation time
+
+# result container for interpolation
+Y_df2 <- df_appl %>% select(participant_id, starts_with("day")) %>% 
+  pivot_longer(2:401, values_to = "Y", names_to = "sind_inx") %>%
+  mutate(sind_inx = gsub("day_", "", sind_inx)) %>%
+  mutate(sind_inx = as.numeric(sind_inx)) %>%
+  rename("id" = "participant_id")
+Y_df2$pred_100 <- Y_df2$pred_200 <- Y_df2$pred_300 <- NA
+
+  # use interpolation to extend prediction to the unbinned grid
+for(i in 1:N2){
+   Y_df2$pred_100[Y_df2$id==i] <- approx(x=df_est_latent$bin[df_est_latent$id==i], 
+                                         y=df_est_latent$pred_t100[df_est_latent$id==i], 
+                                         xout = 1:J2)$y
+   Y_df2$pred_200[Y_df2$id==i] <- approx(x=df_est_latent$bin[df_est_latent$id==i], 
+                                         y=df_est_latent$pred_t200[df_est_latent$id==i], 
+                                         xout = 1:J2)$y
+   Y_df2$pred_300[Y_df2$id==i] <- approx(x=df_est_latent$bin[df_est_latent$id==i], 
+                                         y=df_est_latent$pred_t300[df_est_latent$id==i], 
+                                         xout = 1:J2)$y
+  }
+  
+# split unobserved time into intervals of length 100
+Y_df2$bin_cat <- cut(Y_df2$sind_inx, breaks=c(0, 100, 200, 300, 400), include.lowest = T)
+Y_df_lst2 <- split(Y_df2, f = Y_df2$bin_cat)
+Y_df_lst2 <- Y_df_lst2[-1]
+  
+for(j in seq_along(t_vec2)){
+    
+    t <- t_vec2[j]
+    pred_name <- paste("pred_", t, sep = "")
+    
+    # calculate AUC
+    auc_lst <- lapply(Y_df_lst2[j:3], 
+                       function(x){
+                         row_id <- !is.na(x[, pred_name])
+                         this_eta <- x[row_id, pred_name]
+                         this_Y <- x[row_id, "Y"]
+                         auc_pref <- performance(prediction(this_eta, this_Y), "auc")
+                         return(auc_pref@y.values)
+                })
+      
+    auc_vec <- c(rep(NA, 3-length(auc_lst)), unlist(auc_lst))
+    auc_mat2[ , j] <- auc_vec
+
+}
+
+
+colnames(auc_mat2) <- c("100", "200", "300")
+rownames(auc_mat2) <- c("(100, 200]", "(200, 300]", "(300, 400]")
+
+```
+
+```{r AUC_GLMMadaptive_Appl}
+# calculate AUC on unbinned grid
+auc_mat_ref2 <- matrix(NA, nrow = 3, ncol = 3)  # row index iteration, col index max observation time
+
+# split unobserved time into intervals of length 100
+df_est_latent_ref$bin_cat <- cut(df_est_latent_ref$sind_inx, 
+                                 breaks=c(0, 100, 200, 300, 400), include.lowest = T)
+Y_df_lst2_ref <- split(df_est_latent_ref, f = df_est_latent_ref$bin_cat)
+Y_df_lst2_ref <- Y_df_lst2_ref[-1]
+  
+for(j in seq_along(t_vec2)){
+    
+    t <- t_vec2[j]
+    pred_name <- paste("pred_t", t, sep = "")
+    
+    # calculate AUC
+    auc_lst <- lapply(Y_df_lst2_ref[j:3], 
+                       function(x){
+                         row_id <- !is.na(x[, pred_name])
+                         this_eta <- x[row_id, pred_name]
+                         this_Y <- x[row_id, "Y"]
+                         auc_pref <- performance(prediction(this_eta, this_Y), "auc")
+                         return(auc_pref@y.values)
+                })
+      
+    auc_vec <- c(rep(NA, 3-length(auc_lst)), unlist(auc_lst))
+    auc_mat_ref2[ , j] <- auc_vec
+
+  }
+
+
+colnames(auc_mat_ref2) <- c("100", "200", "300")
+rownames(auc_mat_ref2) <- c("(100, 200]", "(200, 300]", "(300, 400]")
+
+
+```
+
+
+```{r, Figure_appl, fig.cap="Predicted track of four randomly selected subjects from the daily weigh-in dataset. The grey solid line indicates the true latent continuous function. The dashed lines indicated predicted latent function tracks, and color indicates different observation time.", fig.height=6, fig.width=12}
+rand_id2 <- sample(N2, 4)
+fig2a <- Y_df2 %>%
+  filter(id %in% rand_id2) %>%
+  mutate_at(vars(pred_100, pred_200, pred_300), function(x)exp(x)/(1+exp(x))) %>%
+  ggplot()+
+  geom_point(aes(x=sind_inx, y=Y, col = "True outcome"), size = 0.5)+
+  geom_line(aes(x=sind_inx, y = pred_100, col = "Up to 100"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_300, col = "Up to 300"), linetype = "dashed", na.rm = T)+
+  facet_wrap(~id, scales = "free_y")+
+  labs(y = "Predicted latent function on probability scale", x = "Bin", 
+       colour= "Observed time", title = "fGFPCA")+
+  scale_color_manual(values=cbPalette)+
+  scale_x_continuous(breaks = c(0, 100, 200, 300, 400))
+
+fig2b <- df_est_latent_ref %>%
+  filter(id %in% rand_id2) %>%
+  mutate_at(vars(pred_t100, pred_t200, pred_t300), function(x)exp(x)/(1+exp(x))) %>%
+  ggplot()+
+  geom_point(aes(x=sind_inx, y=Y, col = "True outcome"), size = 0.5)+
+  geom_line(aes(x=sind_inx, y = pred_t100, col = "Up to 100"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t300, col = "Up to 300"), linetype = "dashed", na.rm = T)+
+  facet_wrap(~id, scales = "free_y")+
+  labs(y = "Predicted latent function on probability scale", x = "Bin", 
+       colour= "Observed time", title = "GLMMadaptive")+
+  scale_color_manual(values=cbPalette)+
+  scale_x_continuous(breaks = c(0, 100, 200, 300, 400))
+
+ggarrange(fig2a, fig2b, nrow = 1, common.legend = T)
+```
+
+```{r}
+cbind(auc_mat2, auc_mat_ref2) %>%
+  kable(booktabs = T, digit=2,
+        caption = "AUC of fGFPCA and GLMM adaptive on the daily weigh-in dataset",
+        align = "lcccccccc") %>%
+  kable_styling() %>%
+  add_header_above(c(" " = 1, "fGFPCA" = 3, "GLMMadaptive" = 3)) %>%
+  add_header_above(c(" " = 1, "Maximum observed time" = 6)) %>% 
+  group_rows(index = c("Prediction time window" = 3))
+
+```
 Discussion
 =================================================================================================================================
 -	Grid 

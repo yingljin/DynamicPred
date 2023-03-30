@@ -77,6 +77,8 @@
 \newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{#1}\break}
 \newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
 \usepackage{setspace}\doublespacing
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
@@ -110,7 +112,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{March 17, 2023}
+\date{March 30, 2023}
 
 \begin{document}
 \maketitle
@@ -137,13 +139,13 @@ cause severe computational burden
 (\protect\hyperlink{ref-GLMMadaptive}{Rizopoulos 2022}).
 
 To address these problems, one may turn to functional mixed effect
-models instead when measures are dense across the domain. Such methods
-accommodate more flexible correlation structure by modeling
+models instead when measures are dense across the domain of measures.
+Such methods accommodate more flexible correlation structure by modeling
 subject-specific random effects as a function, and non-parametric
 smoothing (\protect\hyperlink{ref-Scheipl2014}{Scheipl et al. 2014}) can
 be incorporated to speed up the computation, such as spline basis
 functions or eigenfunctions from functional principal component analysis
-(fPCA). The introduction of basis functions also makes out-of-sample
+(FPCA). The introduction of basis functions also makes out-of-sample
 prediction more straightforward. Instead of estimating subject-specific
 random effects of new observations, we can simply estimate
 coefficients/loadings on the basis function used for smoothing. Existing
@@ -160,9 +162,7 @@ similar goals using Markov Chains. While methods mentioned above used
 only partial observations for prediction with an intercept-only model,
 Leroux et al. (\protect\hyperlink{ref-leroux2016}{2018}) proposed
 Functional Concurrent Regression (FCR) framework which can incorporate
-the effect of subject-specific predictors. However, little extension was
-made on prediction of non-Gaussian functions, such as binary and count
-outcomes.
+the effect of subject-specific predictors.
 
 Unfortunately, fewer papers have focused on its extension to
 non-Gaussian data, such as series of binary or count outcomes. Existing
@@ -185,11 +185,11 @@ algorithm, accompanied by the an open source R package \emph{registr}.
 
 In this paper, we aim to develop a fast, scalable method for dynamic
 prediction of discrete function tracks based on functional mixed effect
-model with fPCA smoothing. Section 2 presents the procedure of the
+model with FPCA smoothing. Section 2 presents the procedure of the
 proposed method. In Section 3, we illustrate the performance and
 efficiency of our proposed method in a simulation study. In Section 4,
 we apply this method to a real-world dataset. Section 5 presents a
-discussion of davantages and limitation of the proposed method.
+discussion of advantages and limitation of the proposed method.
 
 \hypertarget{method}{%
 \section{Method}\label{method}}
@@ -205,26 +205,33 @@ follows a exponential family distribution such that:
 g[E(Y_i(t))] = \eta_i(t) = \beta_0(t)+b_i(t)
 \]
 
-where g is a appropriate link function, \(\beta_0(t)\) is the population
-mean of latent function, and \(b_i(t)\) is a subjects-level random
-effect function follows a zero-mean Gaussian process.
+where g is an appropriate link function, \(\beta_0(t)\) is the
+population mean of latent function, and \(b_i(t)\) is a subjects-level
+random effect function following a zero-mean Gaussian process.
 
-While \(b_i(t)\) is not observed, it can be approximated under the FPCA
-framework \(b_i(t)=\sum_{k=1}^K\xi_{ik}\phi_{ik}(t)+\epsilon_i(t)\).
-Here \(\phi_{ik}(t)\) is a set of orthogonal eigenfunctions that
-explains the most variation in \(b_i(t)\), and \(\xi_{ik}\) are
+According to the Karhunen-Loève theorem, the unobserved random effect
+function \(b_i(t)\) can be represented as the linear combination of a
+infinite set of orthogonal functions:
+\(b_i(t)=\sum_{k=1}^{\infty}\xi_{ik}\phi_{k}(t)\). We approximate this
+function by a finite set of \(\phi_{k}(t)\), such that
+\(b_i(t)=\sum_{k=1}^{K}\xi_{ik}\phi_{k}(t)+\epsilon_i(t)\), where
+\(\epsilon_i(t)\) indicates random noise introduced by this
+approximation, following a zero-mean Gaussian process. At each specific
+point t, \(\epsilon_i(t) \sim N(0, \sigma^2)\).
+
+In practice, this approximation could be implemented through an FPCA
+procedure on \(\eta_i(t)\). In this case
+\(\phi_{k}(t),\ k \in \{1,...,K\}\) are the first K eigenfunctions that
+explain the most variation in \(\eta_i(t)\), and \(\xi_{ik}\) are
 subject-specific PC scores (or loadings) on each eigenfunction.
-Additionally, \(\xi_{ik}\) are mutually independent obver both subject
+Additionally, \(\xi_{ik}\) are mutually independent over both subject
 (\(i\)) and eigenfunctions (\(k\)). That is, each \(\xi_{ik}\) follows
 normal distribution \(N(0, \lambda_k)\) where \(\lambda_k\) is the kth
-eigenvalues: \(\int \phi_k^2(t)dt=\lambda_k\). \(\epsilon_i(t)\) here is
-a residual function that accounts for the variation not explained by the
-first K eigenfunctions from FPCA. We assume it follows a zero-mean
-Gaussian process. At a specific point t,
-\(\epsilon_i(t) \sim N(0, \sigma^2)\).
+eigenvalues.
 
-Based on the problem set up above, we propose the following algorithm
-for PFCA on the unobserved latent process \(\eta_i(t)\):
+\textbf{Fast Generalized FPCA} Based on the problem set up above, we
+propose the following algorithm for fast, generalizable implementation
+of FPCA (fGFPCA) on the unobserved latent process \(\eta_i(t)\):
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -235,44 +242,37 @@ for PFCA on the unobserved latent process \(\eta_i(t)\):
 \item
   Fit a local Generalized Mixed Model at every bin. Specifically, at bin
   \(s\), we fit \(g[E(Y_i(t))] = \beta_0(s)+b_i(s)\) for all \(t\) in
-  bin \(s\). From this series of models we can get estiamtes of
-  population mean \(\hat{\beta}_0(s)\) and subject-level random effect
-  \(\hat{b}_i(s)\), thus estimate of the individual latent functions at
-  every bin: \(\hat{\eta}_i(s) = \hat{\beta}_0(s)+\hat{b}_i(s)\).
+  bin \(s\). From this series of models we can estimate the individual
+  latent functions at every bin:
+  \(\hat{\eta}_i(s) = \hat{\beta}_0(s)+\hat{b}_i(s)\).
 \item
-  Fit FPCA on the estimated latent functions \(\hat{\eta}_i(s)\), and
-  obtain estimates of basis functions
+  Fit FPCA on the estimated latent functions:
+  \(\hat{\eta}_i(s) = f_0(s)+\sum_{k=1}^K\xi_{ik}\phi_{k}(s)+\epsilon_i(s)\),
+  and obtain estimates of basis functions
   \(\boldsymbol{\Phi} = \{\phi_1(s), ...,\phi_k(s)\}\), eigenvalues
-  \(\hat{\lambda}_1...\hat{\lambda}_k\), population mean
-  \(\hat{\beta}_0(s)\) and residual variance \(\hat{\sigma}^2\).
-\item
-  With components extracted above, calculate the maximum likelihood
-  estimate (MLE) of the subject-specific PC scores \(\hat{\xi}_{ik}\) of
-  new samples based on their partially observed data. Then the value of
-  latent functions at unobserved points can be estimated as
-  \(\hat{\eta_i}(s)=\hat{\beta}_0(s)+\sum_{k=1}^K\hat{\xi}_{ik}{\phi}_k(s)\)
+  \(\hat{\lambda}_1...\hat{\lambda}_k\), mean function \(\hat{f}_0(s)\)
+  and residual variance \(\hat{\sigma}^2\).
 \end{enumerate}
+
+\textbf{Dynamic prediction} Now assume we have a new observations with
+partially observed outcome \(Y_{new}(t)\), \(t\leq t_m\). The maximum
+observed point is \(t_m\), which is a point along the functional domain
+and belongs to bin \(s_m\) on the binned grid from step 1 above. With
+components extracted from the FPCA model in step 3, we will be able to
+make predictions on the future, unobserved bins. Specifically, with the
+partially observed binary function \(Y_{new}(t)\), we will be able to
+calculate the maximum likelihood estimate (MLE) of the subject-specific
+PC scores \(\hat{\xi}_{ik}\). Then the value of latent functions at
+unobserved points can be estimated as
+\(\hat{\eta_i}(s)=\hat{f}_0(s)+\sum_{k=1}^K\hat{\xi}_{ik}{\phi}_k(s)\)
 
 Following the algorithm above, predictions of individual latent
 functions are made on the binned grid based on partially observed
 non-Gaussian functions tracks of new subjects. Since the bins are set up
-to be small in length, the binned grid would still be dense enough.
-However, in situations where we need predictions on the original,
-un-binned grid instead, linear interpolation turns out to be a fast,
-convenient way with good performance for prediction at points between
-bins.
-
-Precision of prediction, usually quantified by the variance of
-prediction error \(Var(\hat{\eta_i}(s)-\eta_i(s))\), is also
-straightforward under this framework. In step 4 we calculated the MLE of
-\(\hat{\xi}_{ik}\). Based on likelihood theory, its variance can be
-estimated with observed information \({I}(\hat{\xi}_{ik})\), which is
-essentially the second derivative of likelihood at \(\hat{\xi}_{ik}\).
-Therefore, the variation of prediction interval is:
-
-\[Var(\hat{\eta_i}(s)-\eta_i(s))=\boldsymbol{\Phi}(s)I(\hat{\boldsymbol{\xi}}_i)\boldsymbol{\Phi}^T(s)+\hat{\sigma_{\epsilon}}^2\]
-Where \(\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))\) and
-\(\hat{\boldsymbol{\xi}}_i=(\hat{\xi}_{i1}, ...,\hat{\xi}_{iK})\).
+to be small in length, the binned grid would still be dense. However, in
+situations where predictions on the original, un-binned grid is needed,
+linear interpolation turns out to be a fast, convenient way with good
+performance for prediction at points between bins.
 
 \hypertarget{simulation}{%
 \section{Simulation}\label{simulation}}
@@ -280,14 +280,14 @@ Where \(\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))\) and
 In this section, we illustrate the predictive performance and
 computational efficiency of the proposed method through a simulation
 study. We simulated 50 datasets, each with 500 subjects. For every
-subject, we generate 1000 binary outcomes \(Y_i(t) \in (0, 1)\) across
-functional domain \(t \in [0, 1]\), where the distribution of outcome is
-characterized by a continuous latent function. The data generation
+subject, we generate 1000 binary outcomes \(Y_i(t) \in \{0, 1\}\) across
+functional domain \(t \in [0, 1000]\), where the distribution of outcome
+is characterized by a continuous latent function. The data generation
 mechanism can be expressed as follows:
 
 \[\begin{aligned}
 Y_i(t) & \sim Binomial(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
-\eta_i(t) &= f_0(t)+ \xi_{i1}sin(2\pi t)+\xi_{i2}cos(2\pi t)+\xi_{i3}sin(4\pi t)+\xi_{i4}cos(4\pi t)
+\eta_i(t) &= f_0(t)+ \xi_{i1}\sqrt{2}sin(2\pi t)+\xi_{i2}\sqrt{2}cos(2\pi t)+\xi_{i3}\sqrt{2}sin(4\pi t)+\xi_{i4}\sqrt{2}cos(4\pi t)
 \end{aligned}\]
 
 In this simulation, we set \(f_0(t) = 0\). \(\xi_{ik}\) are mutually
@@ -295,20 +295,21 @@ independent normal random variables \(\xi_{ik}\sim N(0, \gamma_k)\).
 Here we set the values of \(\gamma_k\) to be \(0.5^{k-1}\),
 \(k \in (1,..., 4)\). In addition, for simplicity of presentation, we
 generate data on a regular grid, which means observations points are
-equally distributed across \([0, 1]\) and are the same for all subjects.
+equally distributed across \([0, 1000]\) and are the same for all
+subjects.
 
 We use two metrics to evaluate the out-of-sample predictive performance:
 integrated squared error (ISE) and
 Area-Under-the-Receiver-Operator-Curve (AUC). ISE assess the prediction
-accucay of latent continuous function. It is evaluated on the binned
+accuracy of latent continuous function. It is evaluated on the binned
 grid at midpoints of each unobserved bin. If the entire functional
-domian has S bins, but we have observations up to the mth bin, then ISE
+domain has S bins, but we have observations up to the mth bin, then ISE
 is defined as
-\(\frac{1}{N}\sum_{i=1}^N\sum_{s=m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2\).
+\(\frac{1}{N}\sum_{i=1}^N\sum_{s=s_m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2\).
 The second metric, AUC, focuses on evaluation of prediction of the
 binary outcome. Since the binary outcomes are generated on the original,
-un-binned grid, we evaluated AUC on this grid as well and estimated
-values of latent functions between bins with linear interpolation.
+un-binned grid, we evaluated AUC on this grid and estimated values of
+latent functions between bins with linear interpolation.
 
 As a reference method, we compare our method to Generalized Linear Mixed
 Models using Adaptive Gaussian Quadrature (GLMMadaptive). This is one of
@@ -329,12 +330,12 @@ randomly-drawn subjects from the first simulation. The prediction is
 conditioning on different length of observed track (specifically, with
 observations up to t = 200, 400, 600, 800 respectively), and evaluation
 is made on equal-length time windows on the unobserved tracks following
-the maximum observation time. As Table 1 reveals, the fGFPCA
-outperformed GLMMadaptive under every scenario, which was expected since
-GLMMadaptive can only accomodate simple model structures. In addition,
-fGFPCA also takes less computation time. For one simulated dataset,
-fGFPCA spent 4.94 minutes on model fitting and out-of-sample prediction,
-while GLMMadaptive took 5.11 minutes.
+the maximum observation time. As Table 1 reveals, our proposed method
+(fGFPCA) outperformed GLMMadaptive under every scenario, which was
+expected since GLMMadaptive can only accommodate simple model
+structures. In addition, fGFPCA also took less computation time. For one
+simulated dataset, fGFPCA spent 4.94 minutes on model fitting and
+out-of-sample prediction, while GLMMadaptive took 5.11 minutes.
 
 Because of the flexibility of our proposed model framework, the accuracy
 of prediction at specific time points would improve with more observed
@@ -351,10 +352,10 @@ more predictive.
 \begin{figure}
 \centering
 \includegraphics{Manuscript_files/figure-latex/Figure-1.pdf}
-\caption{Predicted track of four randomly selected subjects. The grey
-dash line indicates the true latent continuous function. The dashed
-lines indicated predicted latent function tracks, and color indicates
-different observations time.}
+\caption{Predicted track of four randomly selected subjects from one
+simulated dataset. The grey solid line indicates the true latent
+continuous function. The dashed lines indicated predicted latent
+function tracks, and color indicates different observation time.}
 \end{figure}
 
 \begin{table}
@@ -389,6 +390,36 @@ different observations time.}
 
 \hypertarget{data-application}{%
 \section{Data application}\label{data-application}}
+
+\begin{figure}
+\centering
+\includegraphics{Manuscript_files/figure-latex/Figure_appl-1.pdf}
+\caption{Predicted track of four randomly selected subjects from the
+daily weigh-in dataset. The grey solid line indicates the true latent
+continuous function. The dashed lines indicated predicted latent
+function tracks, and color indicates different observation time.}
+\end{figure}
+
+\begin{table}
+
+\caption{\label{tab:unnamed-chunk-3}AUC of fGFPCA and GLMM adaptive on the daily weigh-in dataset}
+\centering
+\begin{tabular}[t]{llccccc}
+\toprule
+\multicolumn{1}{c}{ } & \multicolumn{6}{c}{Maximum observed time} \\
+\cmidrule(l{3pt}r{3pt}){2-7}
+\multicolumn{1}{c}{ } & \multicolumn{3}{c}{fGFPCA} & \multicolumn{3}{c}{GLMMadaptive} \\
+\cmidrule(l{3pt}r{3pt}){2-4} \cmidrule(l{3pt}r{3pt}){5-7}
+  & 100 & 200 & 300 & 100 & 200 & 300\\
+\midrule
+\addlinespace[0.3em]
+\multicolumn{7}{l}{\textbf{Prediction time window}}\\
+\hspace{1em}(100, 200] & 0.75 &  &  & 0.76 &  & \\
+\hspace{1em}(200, 300] & 0.77 & 0.82 &  & 0.76 & 0.80 & \\
+\hspace{1em}(300, 400] & 0.76 & 0.81 & 0.84 & 0.74 & 0.78 & 0.82\\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \hypertarget{discussion}{%
 \section{Discussion}\label{discussion}}
