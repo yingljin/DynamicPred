@@ -119,7 +119,9 @@ As a reference method, we compare our method to Generalized Linear Mixed Models 
 
 The average ISE and AUC across all simulation is presented in Table 1, and Figure 1 presents the predicted function curves of four randomly-drawn subjects from the first simulation. The prediction is conditioning on different length of observed track (specifically, with observations up to t = 200, 400, 600, 800 respectively), and evaluation is made on equal-length time windows on the unobserved tracks following the maximum observation time. As Table 1 reveals, our proposed method (fGFPCA) outperformed GLMMadaptive under every scenario, which was expected since GLMMadaptive can only accommodate simple model structures. In addition, fGFPCA also took less computation time. For one simulated dataset, fGFPCA spent `r round(mean(runtime),2)` minutes on model fitting and out-of-sample prediction, while GLMMadaptive took `r round(mean(runtime_ref),2)` minutes. 
 
-Because of the flexibility of our proposed model framework, the accuracy of prediction at specific time points would improve with more observed data. This is revealed in Table 1 as ISE decreases and AUC increases with maximum observed time (left-to-right), also in Figure 1 as predicted curves get closer with longer observed track. However the same tendency is not observed with GLMMadaptive models, as a result of restricted model flexibility. A linear model that fits well to a specific part of latent function can fit very badly to the following parts, especially when the underlying latent function has cyclic patterns. Therefore, more observations do not necessarily make the model more predictive. 
+Because of the flexibility of our proposed model framework, the accuracy of prediction at specific time points would improve with more observed data. This is revealed in Table 1 as ISE decreases and AUC increases with maximum observed time (left-to-right), also in Figure 1 as predicted curves get closer with longer observed track. However the same tendency is not observed with GLMMadaptive models, as a result of restricted model flexibility. A linear model that fits well to a specific part of latent function can fit very badly to the following parts, especially when the underlying latent function has cyclic patterns. Therefore, more observations do not necessarily make the model more predictive. Since the latent Gaussian function tracks are not known in this case, prediction performance on evaluated with AUC along. 
+
+Table 2 compares the predictive performance of both models. When the observed time is short, the two method performend similarly when predicting recent days, however fGFPCA did better in predicting further days along the trial. As more observations coming in, fGFPCA sees increasingly higher AUC compared to GLMMadaptive model. This could be a result of the difference of model flexibility of the two methods. While the linear relationship in underlying latent functions are not likely to change immediately following the observed track, the whole track may need to be much more flexible, which is a better fit for fGFPCA model. This possible explanation is illustrated in Figure 2 using predicted latent function tracks of four randomly drawn subjects.
 
 
 ```{r}
@@ -392,6 +394,14 @@ rbind(ise_tb, auc_tb) %>%
 
 Data application
 =================================================================================================================================
+
+
+We will illustrate the performance of our proposed method using data from a randomized trial on weight loss at University of Colorado Anschutz Medical Campus [@]. The study originally aimed to study the effect of dietary strategies on weight loss, and participants were given a smart scale for daily at-home weighing. This record was then scaled into a binary indicator of participant adherence to the daily-weigh-in procedure, where 1 indicates participants followed the requirement and 0 otherwise. In this section, we will use this series of daily indicators as the binary functional outcome, and use the proposed method to dynamically predict participant adherence on future days given historical track. 
+
+The dataset includes 55 participants aged 22-56 at baseline. Adherence to daily weigh-in is availabe four 400 consecutive days for all participants. In other words, for each individual, 400 binary measuresments were taken on a regular grid along the functional domain (number of days into the study). We will fit both fGFPCA and GLMMadaptive models and compared their performance on this data. For fGFPCA, every 10 observations are binned together, resulting in 40 bins for final model fitting. Linear interpolation was used for extension back to the unbinned grid. 
+
+
+
 
 
 ```{r}

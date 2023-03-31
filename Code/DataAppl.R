@@ -54,9 +54,8 @@ df_bin_lst <- split(df_long, f = df_long$bin)
 lapply(df_bin_lst, function(x)table(x$Y))
 
 # fit local GLMM and estimate latent function
-# unidentifiability issues !!!
+# near-unidentifiability issues !!!
 df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
-View(df_est_latent[[1]])
 df_est_latent <- bind_rows(df_est_latent) %>% select(id, bin, eta_hat) %>% distinct() # on the binned grid, one unique value each bin
 df_est_latent %>%
   left_join(df_long, by = c("id", "bin")) %>%

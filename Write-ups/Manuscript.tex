@@ -112,7 +112,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{March 30, 2023}
+\date{March 31, 2023}
 
 \begin{document}
 \maketitle
@@ -390,6 +390,28 @@ function tracks, and color indicates different observation time.}
 
 \hypertarget{data-application}{%
 \section{Data application}\label{data-application}}
+
+We will illustrate the performance of our proposed method using data
+from a randomized trial on weight loss at University of Colorado
+Anschutz Medical Campus {[}@{]}. The study originally aimed to study the
+effect of dietary strategies on weight loss, and participants were given
+a smart scale for daily at-home weighing. This record was then scaled
+into a binary indicator of participant adherence to the daily-weigh-in
+procedure, where 1 indicates participants followed the requirement and 0
+otherwise. In this section, we will use this series of daily indicators
+as the binary functional outcome, and use the proposed method to
+dynamically predict participant adherence on future days given
+historical track.
+
+The dataset includes 55 participants aged 22-56 at baseline. Adherence
+to daily weigh-in is availabe four 400 consecutive days for all
+participants. In other words, for each individual, 400 binary
+measuresments were taken on a regular grid along the functional domain
+(number of days into the study). We will fit both fGFPCA and
+GLMMadaptive models and compared their performance on this data. For
+fGFPCA, every 10 observations are binned together, resulting in 40 bins
+for final model fitting. Linear interpolation was used for extension
+back to the unbinned grid.
 
 \begin{figure}
 \centering
