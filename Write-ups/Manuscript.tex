@@ -112,7 +112,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{March 31, 2023}
+\date{April 01, 2023}
 
 \begin{document}
 \maketitle
@@ -347,7 +347,20 @@ restricted model flexibility. A linear model that fits well to a
 specific part of latent function can fit very badly to the following
 parts, especially when the underlying latent function has cyclic
 patterns. Therefore, more observations do not necessarily make the model
-more predictive.
+more predictive. Since the latent Gaussian function tracks are not known
+in this case, prediction performance on evaluated with AUC along.
+
+Table 2 compares the predictive performance of both models. When the
+observed time is short, the two method performend similarly when
+predicting recent days, however fGFPCA did better in predicting further
+days along the trial. As more observations coming in, fGFPCA sees
+increasingly higher AUC compared to GLMMadaptive model. This could be a
+result of the difference of model flexibility of the two methods. While
+the linear relationship in underlying latent functions are not likely to
+change immediately following the observed track, the whole track may
+need to be much more flexible, which is a better fit for fGFPCA model.
+This possible explanation is illustrated in Figure 2 using predicted
+latent function tracks of four randomly drawn subjects.
 
 \begin{figure}
 \centering
@@ -393,15 +406,16 @@ function tracks, and color indicates different observation time.}
 
 We will illustrate the performance of our proposed method using data
 from a randomized trial on weight loss at University of Colorado
-Anschutz Medical Campus {[}@{]}. The study originally aimed to study the
-effect of dietary strategies on weight loss, and participants were given
-a smart scale for daily at-home weighing. This record was then scaled
-into a binary indicator of participant adherence to the daily-weigh-in
-procedure, where 1 indicates participants followed the requirement and 0
-otherwise. In this section, we will use this series of daily indicators
-as the binary functional outcome, and use the proposed method to
-dynamically predict participant adherence on future days given
-historical track.
+Anschutz Medical Campus (\protect\hyperlink{ref-bothwell2022}{Bothwell
+et al. 2022}; \protect\hyperlink{ref-ostendorf2022}{Ostendorf et al.
+2022}). The study originally aimed to study the effect of dietary
+strategies on weight loss, and participants were given a smart scale for
+daily at-home weighing. This record was then scaled into a binary
+indicator of participant adherence to the daily-weigh-in procedure,
+where 1 indicates participants followed the requirement and 0 otherwise.
+In this section, we will use this series of daily indicators as the
+binary functional outcome, and use the proposed method to dynamically
+predict participant adherence on future days given historical track.
 
 The dataset includes 55 participants aged 22-56 at baseline. Adherence
 to daily weigh-in is availabe four 400 consecutive days for all
@@ -446,19 +460,77 @@ function tracks, and color indicates different observation time.}
 \hypertarget{discussion}{%
 \section{Discussion}\label{discussion}}
 
-\begin{itemize}
-\tightlist
-\item
-  Grid
-\item
-  Score bias: cannot demonstrate without repeat simulation
-\end{itemize}
+The simulation study and case study of daily weigh-in data above have
+revealed the proposed method can achieve better predictive performance
+with much less computational burden. Compared to existing method based
+on linear mixed model, fGFPCA can accomodate flexible correlation
+struture between repeated measure, as well as high density of
+measurement. This is particularly useful when underlying outcome shows
+cyclic pattern, such as the simulation setting in Section 3. While the
+binary outcomes are generated from a cyclic Gaussian process, fGFPCA has
+much lower ISE and higher AUC than GLMM. Its prediction accuracy also
+improves as more outcomes are observed, which is a desirable property
+for dynamic prediction where the datasets would be periodically updated
+with newly collected data.
+
+While the proposed method achieved good accuracy of point prediction, it
+is more complicated to develop a straightforward, interpretable metric
+to evaluate the precision of prediction. The challenge arises from the
+fact that fitting local GLMMs (Step 2) and FPCA (Step 3) can both
+introduce uncertainty to the final prediction. Since they are
+implemented consecutively, it is not clear how the uncertainty from both
+procedures should be integrated into one single interval estimator. In
+practice, one could consider developing interval predictions conditional
+on the local GLMMs, quantifying uncertainty of individual score
+estimates from FPCA model alone. Since the score \(\hat{\xi}_{ik}\) is
+essentially a maximum likelihood estimate, it is natural to estimate its
+variance based on likelihood theory with observed information
+\({I}(\hat{\xi}_{ik})\). Therefore, the variation of prediction interval
+is:
+
+\[Var(\hat{\eta_i}(s)-\eta_i(s))=\boldsymbol{\Phi}(s)I(\hat{\boldsymbol{\xi}}_i)\boldsymbol{\Phi}^T(s)+\hat{\sigma_{\epsilon}}^2\]
+Where \(\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))\) and
+\(\hat{\boldsymbol{\xi}}_i=(\hat{\xi}_{i1}, ...,\hat{\xi}_{iK})\).
+
+The hyperparameters introduced by the binning procedure in Step 1 can
+also affect the final predictive performance, thus further
+investigations are needed to quanitfy such effects. Predictive accuracy
+and computational speed can change with bin width, number of
+observations in each bin, whether the bins overlap with each other, also
+whether the bins are equally spaced along the functional grid. Moreover,
+if the bins are very narrow with only a few observations,
+unidentifiability issues can happen when fitting local mixed models.
+While this may not necessarily affect point predictions, it can cause
+numeric failure to estimate standard error and prediction intervals. In
+practice, we expect this to happen when the measurements are sparse or
+sample size is small. Under such scenarios, one may choose traditional
+mixed model framework instead to get valid estimates at the expense of
+computational time.
+
+It should also be noted that the binning procedure in Step 1 changes the
+density of repeated measures. The final prediction of latent continuous
+function tracks are made on the binned grid, integrating information
+contained in several observations in the same bin. In Section 3 and 4,
+we have transformed this sparser grid to the original, unbinned grid
+using linear interpolation of the predicted latent function. However,
+this is by no means the only method to be considered. Such
+transformation can also be made by projection to a higher-dimensional
+space, similar as general additive model with a large number of basis
+functions. We suspect that this method would work better than linear
+interpolation when the original grid is sparse or irregular, but take
+longer time for computation.
 
 \hypertarget{references}{%
 \section{References}\label{references}}
 
 \hypertarget{refs}{}
 \begin{CSLReferences}{1}{0}
+\leavevmode\vadjust pre{\hypertarget{ref-bothwell2022}{}}%
+Bothwell, S., Kaizer, A., Catenacci, V., and Wrobel, J. (2022),
+{``Pattern-based clustering of daily weigh-in trajectories using dynamic
+time warping,''} \emph{Biometrics}.
+\url{https://doi.org/10.1111/biom.13773}.
+
 \leavevmode\vadjust pre{\hypertarget{ref-chen2013}{}}%
 Chen, H., Wang, Y., Paik, M. cho, and Choi, H. A. (2013), {``A marginal
 approach to reduced-rank penalized spline smoothing with application to
@@ -545,6 +617,15 @@ International Biometric Society{]}, 46, 673--687.
 {``\href{http://www.jstor.org/stable/1400665}{Nonlinear models for
 repeated measurement data: An overview and update}''} (2003),
 {[}International Biometric Society, Springer{]}, 8, 387--419.
+
+\leavevmode\vadjust pre{\hypertarget{ref-ostendorf2022}{}}%
+Ostendorf, D. M., Caldwell, A. E., Zaman, A., Pan, Z., Bing, K.,
+Wayland, L. T., Creasy, S. A., Bessesen, D. H., MacLean, P., Melanson,
+E. L., and Catenacci, V. A. (2022), {``Comparison of weight loss induced
+by daily caloric restriction versus intermittent fasting (DRIFT) in
+individuals with obesity: Study protocol for a 52-week randomized
+clinical trial,''} \emph{Trials}, 23, 718.
+\url{https://doi.org/10.1186/s13063-022-06523-2.}
 
 \leavevmode\vadjust pre{\hypertarget{ref-GLMMadaptive}{}}%
 Rizopoulos, D. (2022),

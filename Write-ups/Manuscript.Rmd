@@ -93,13 +93,6 @@ In practice, this approximation could be implemented through an FPCA procedure o
 
 Following the algorithm above, predictions of individual latent functions are made on the binned grid based on partially observed non-Gaussian functions tracks of new subjects. Since the bins are set up to be small in length, the binned grid would still be dense. However, in situations where predictions on the original, un-binned grid is needed, linear interpolation turns out to be a fast, convenient way with good performance for prediction at points between bins. 
 
-<!-- Precision of prediction, usually quantified by the variance of prediction error $Var(\hat{\eta_i}(s)-\eta_i(s))$, is also straightforward under this framework. In step 4 we calculated the MLE of $\hat{\xi}_{ik}$. Based on likelihood theory, its variance can be estimated with observed information ${I}(\hat{\xi}_{ik})$, which is essentially the second derivative of likelihood at  $\hat{\xi}_{ik}$. Therefore, the variation of prediction interval is: -->
-
-<!-- $$Var(\hat{\eta_i}(s)-\eta_i(s))=\boldsymbol{\Phi}(s)I(\hat{\boldsymbol{\xi}}_i)\boldsymbol{\Phi}^T(s)+\hat{\sigma_{\epsilon}}^2$$ -->
-<!-- Where $\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))$ and $\hat{\boldsymbol{\xi}}_i=(\hat{\xi}_{i1}, ...,\hat{\xi}_{iK})$. -->
-
-
-<!-- - Add section of de-bias score: conditional on subject. Need repeat simulation to demonstrate -->
 
 Simulation
 =================================================================================================================================
@@ -265,7 +258,7 @@ rownames(ave_ise_mat_ref) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 
 ```
 
 
-```{r AUC_fGFPCA, cache=TRUE}
+```{r AUC_fGFPCA}
 # maximum observations time
 t_vec <- c(200, 400, 600, 800)
 
@@ -396,7 +389,7 @@ Data application
 =================================================================================================================================
 
 
-We will illustrate the performance of our proposed method using data from a randomized trial on weight loss at University of Colorado Anschutz Medical Campus [@]. The study originally aimed to study the effect of dietary strategies on weight loss, and participants were given a smart scale for daily at-home weighing. This record was then scaled into a binary indicator of participant adherence to the daily-weigh-in procedure, where 1 indicates participants followed the requirement and 0 otherwise. In this section, we will use this series of daily indicators as the binary functional outcome, and use the proposed method to dynamically predict participant adherence on future days given historical track. 
+We will illustrate the performance of our proposed method using data from a randomized trial on weight loss at University of Colorado Anschutz Medical Campus [@bothwell2022; @ostendorf2022]. The study originally aimed to study the effect of dietary strategies on weight loss, and participants were given a smart scale for daily at-home weighing. This record was then scaled into a binary indicator of participant adherence to the daily-weigh-in procedure, where 1 indicates participants followed the requirement and 0 otherwise. In this section, we will use this series of daily indicators as the binary functional outcome, and use the proposed method to dynamically predict participant adherence on future days given historical track. 
 
 The dataset includes 55 participants aged 22-56 at baseline. Adherence to daily weigh-in is availabe four 400 consecutive days for all participants. In other words, for each individual, 400 binary measuresments were taken on a regular grid along the functional domain (number of days into the study). We will fit both fGFPCA and GLMMadaptive models and compared their performance on this data. For fGFPCA, every 10 observations are binned together, resulting in 40 bins for final model fitting. Linear interpolation was used for extension back to the unbinned grid. 
 
@@ -424,7 +417,7 @@ for(m in 1:length(pred_lst_ref)){
 }
 ```
 
-```{r AUC_fGFPCA_Appl, cache=TRUE}
+```{r AUC_fGFPCA_Appl}
 # maximum observations time
 t_vec2 <- c(100, 200, 300)
 
@@ -567,8 +560,23 @@ cbind(auc_mat2, auc_mat_ref2) %>%
 ```
 Discussion
 =================================================================================================================================
--	Grid 
--	Score bias: cannot demonstrate without repeat simulation
+
+The simulation study and case study of daily weigh-in data above have revealed the proposed method can achieve better predictive performance with much less computational burden. Compared to existing method based on linear mixed model, fGFPCA can accomodate flexible correlation struture between repeated measure, as well as high density of measurement. This is particularly useful when underlying outcome shows cyclic pattern, such as the simulation setting in Section 3. While the binary outcomes are generated from a cyclic Gaussian process, fGFPCA has much lower ISE and higher AUC than GLMM. Its prediction accuracy also improves as more outcomes are observed, which is a desirable property for dynamic prediction where the datasets would be periodically updated with newly collected data. 
+
+While the proposed method achieved good accuracy of point prediction, it is more complicated to develop a straightforward, interpretable metric to evaluate the precision of prediction. The challenge arises from the fact that fitting local GLMMs (Step 2) and FPCA (Step 3) can both introduce uncertainty to the final prediction. Since they are implemented consecutively, it is not clear how the uncertainty from both procedures should be integrated into one single interval estimator. In practice, one could consider developing interval predictions conditional on the local GLMMs, quantifying uncertainty of individual score estimates from FPCA model alone. Since the score $\hat{\xi}_{ik}$ is essentially a maximum likelihood estimate, it is natural to estimate its variance based on likelihood theory with observed information ${I}(\hat{\xi}_{ik})$. Therefore, the variation of prediction interval is: 
+
+$$Var(\hat{\eta_i}(s)-\eta_i(s))=\boldsymbol{\Phi}(s)I(\hat{\boldsymbol{\xi}}_i)\boldsymbol{\Phi}^T(s)+\hat{\sigma_{\epsilon}}^2$$
+Where $\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))$ and $\hat{\boldsymbol{\xi}}_i=(\hat{\xi}_{i1}, ...,\hat{\xi}_{iK})$.
+
+
+The hyperparameters introduced by the binning procedure in Step 1 can also affect the final predictive performance, thus further investigations are needed to quanitfy such effects. Predictive accuracy and computational speed can change with bin width, number of observations in each bin, whether the bins overlap with each other, also whether the bins are equally spaced along the functional grid. Moreover, if the bins are very narrow with only a few observations, unidentifiability issues can happen when fitting local mixed models. While this may not necessarily affect point predictions, it can cause numeric failure to estimate standard error and prediction intervals. In practice, we expect this to happen when the measurements are sparse or sample size is small. Under such scenarios, one may choose traditional mixed model framework instead to get valid estimates at the expense of computational time. 
+
+It should also be noted that the binning procedure in Step 1 changes the density of repeated measures. The final prediction of latent continuous function tracks are made on the binned grid, integrating information contained in several observations in the same bin. In Section 3 and 4, we have transformed this sparser grid to the original, unbinned grid using linear interpolation of the predicted latent function. However, this is by no means the only method to be considered. Such transformation can also be made by projection to a higher-dimensional space, similar as general additive model with a large number of basis functions. We suspect that this method would work better than linear interpolation when the original grid is sparse or irregular, but take longer time for computation.
+
+
+<!-- -	Score bias: cannot demonstrate without repeat simulation -->
+
+<!-- - Add section of de-bias score: conditional on subject. Need repeat simulation to demonstrate -->
 
 References
 =================================================================================================================================
