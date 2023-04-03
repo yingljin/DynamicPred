@@ -112,7 +112,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{April 01, 2023}
+\date{April 03, 2023}
 
 \begin{document}
 \maketitle
@@ -123,35 +123,38 @@ Functional Principal Analysis}
 Biomedical investigators are often interested in predicting future
 observations of subjects based on their historical data, typically
 referred to as dynamic prediction. Traditionally, this type of data has
-been modeled using marginal models (generalized estimating equations) or
-conditional models (mixed effect models)
-(\protect\hyperlink{ref-Laird1982}{Laird and Ware 1982};
+been modeled either marginally, such as generalized estimating
+equations, or constitutionally on specific subjects, such as mixed
+effect models (\protect\hyperlink{ref-Laird1982}{Laird and Ware 1982};
 \protect\hyperlink{ref-liang1986}{LIANG and ZEGER 1986};
 \protect\hyperlink{ref-lindstrom1990}{Lindstrom and Bates 1990};
 \protect\hyperlink{ref-davidian2003}{{``Nonlinear models for repeated
-measurement data''} 2003}), and predictions are made based on the
-correlation between repeated measures from the same subject, and/or
-covariates that can be either fixed or time-varying. However, these
-methods are limited in terms of flexibility of correlation structure and
-the ability to handle out-of-sample prediction. When sample size is
+measurement data''} 2003}). For subject-specific models, predictions are
+made based on the correlation between repeated measures from the same
+subject and covariates that can be either fixed or varying. However,
+most of these methods are based on linear model structure, which is very
+limited in terms of flexibility of correlation. When sample size is
 large or the density of repeated measures is high, they also tend to
 cause severe computational burden
-(\protect\hyperlink{ref-GLMMadaptive}{Rizopoulos 2022}).
+(\protect\hyperlink{ref-GLMMadaptive}{Rizopoulos 2022}). In addition,
+with generalized, non-Gaussian outcomes, these methods lack the ability
+to handle out-of-sample prediction because there is usually no
+close-form solution for subject-specific random effects
 
 To address these problems, one may turn to functional mixed effect
 models instead when measures are dense across the domain of measures.
 Such methods accommodate more flexible correlation structure by modeling
-subject-specific random effects as a function, and non-parametric
-smoothing (\protect\hyperlink{ref-Scheipl2014}{Scheipl et al. 2014}) can
-be incorporated to speed up the computation, such as spline basis
-functions or eigenfunctions from functional principal component analysis
-(FPCA). The introduction of basis functions also makes out-of-sample
-prediction more straightforward. Instead of estimating subject-specific
-random effects of new observations, we can simply estimate
-coefficients/loadings on the basis function used for smoothing. Existing
-research on dynamic prediction with functional data analysis methods has
-been focusing on continuous/Gaussian outcomes, modelling
-subject-specific random effects with FPCA
+subject-specific random effects as a function. Non-parametric smoothing
+(\protect\hyperlink{ref-Scheipl2014}{Scheipl et al. 2014}) are often
+incorporated to speed up the computation, where random effects are
+approximated by spline basis functions or eigenfunctions from functional
+principal component analysis (FPCA). The introduction of basis functions
+also makes out-of-sample prediction more straightforward. Instead of
+estimating subject-specific random effects of new observations, we can
+simply estimate coefficients/loadings on the basis function used for
+smoothing. Existing research on dynamic prediction with functional data
+analysis methods has been focusing on continuous/Gaussian outcomes,
+usually modelling subject-specific random effects with FPCA
 (\protect\hyperlink{ref-chiou2012}{Chiou 2012};
 \protect\hyperlink{ref-goldberg2014}{Goldberg et al. 2014};
 \protect\hyperlink{ref-shang2017}{Shang 2017}). Kraus
@@ -165,10 +168,11 @@ Functional Concurrent Regression (FCR) framework which can incorporate
 the effect of subject-specific predictors.
 
 Unfortunately, fewer papers have focused on its extension to
-non-Gaussian data, such as series of binary or count outcomes. Existing
-methods also tend to be very computationally intensive. For example,
-Chen et al. (\protect\hyperlink{ref-chen2013}{2013}) proposed approaches
-to fit marginal functional models that is compatible to multi-level,
+generalized, non-Gaussian outcomes, such as series of binary or count
+outcomes. Existing methods also tend to be very computationally
+intensive. For example, Chen et al.
+(\protect\hyperlink{ref-chen2013}{2013}) proposed approaches to fit
+marginal functional models that is compatible to multi-level,
 generalized outcomes. Goldsmith et al.
 (\protect\hyperlink{ref-goldsmith2015}{2015}) established a model
 framework that takes into account the fixed effect of time-invariant
@@ -176,7 +180,7 @@ covariates, with parameters estimated with Bayesian method in
 \emph{Stan}. Gertheiss et al.
 (\protect\hyperlink{ref-gertheiss2016}{2016}) identified bias introduced
 by directly applying FPCA methods to generalized functions, and proposed
-to address this problem using a two-stage, joint estimation strategy.
+to address this problem using a two-stage joint estimation strategy.
 Linde (\protect\hyperlink{ref-linde2019}{2009}) used an adapted Bayesian
 variational algorithm for FPCA of binary and count data. In terms of
 implementation, Wrobel et al. (\protect\hyperlink{ref-wrobel2019}{2019})
@@ -184,22 +188,33 @@ proposed a fast, efficient way to fit GFPCA on binary data using EM
 algorithm, accompanied by the an open source R package \emph{registr}.
 
 In this paper, we aim to develop a fast, scalable method for dynamic
-prediction of discrete function tracks based on functional mixed effect
-model with FPCA smoothing. Section 2 presents the procedure of the
-proposed method. In Section 3, we illustrate the performance and
-efficiency of our proposed method in a simulation study. In Section 4,
-we apply this method to a real-world dataset. Section 5 presents a
-discussion of advantages and limitation of the proposed method.
+prediction of generalized functional outcome based on functional mixed
+effect model with FPCA smoothing. Specifically, ``Generalized''
+indicates that the outcome follows non-Gaussian exponential family
+distribution, and the term ``functional'' indicates that repeated
+measure are collected densely across the study domain (e.g., time).
+Section 2 explains the implementation procedure of the proposed method.
+In Section 3, we illustrate the performance and efficiency of our
+proposed method in a simulation study. In Section 4, we apply this
+method to a real world dataset from a weight loss study. Section 5
+presents a discussion of advantages and limitation of the proposed
+method.
 
 \hypertarget{method}{%
 \section{Method}\label{method}}
 
 The observed data for a single subject \(i\) is (\(t\), \(Y_i(t)\)),
-where \(t\) consists of dense, discrete points along the functional
-domain, and \(Y_i(t)\) is the non-Gaussian outcome observed at \(t\). We
-assume that the outcome \(Y_i(t)\) can be characterized by a latent
-continuous function \(\eta_i(t)\). That is, at a specific t, \(Y_i(t)\)
-follows a exponential family distribution such that:
+where \(t\) consists of dense, discrete points along the domain of data
+collection. In practice, \(t\) is usually a time index along the
+duration of study. We hereafter refer to the range of \(t\) as the
+``functional domain''. For simplicity, we further assume that outcomes
+are collected on a regular grid over the functional domain, meaning that
+\(t\) are evenly distributed and does not change across subjects.
+
+\(Y_i(t)\) is the non-Gaussian outcome observed at \(t\). We assume that
+the outcome \(Y_i(t)\) can be characterized by a latent continuous
+function \(\eta_i(t)\). That is, at a specific t, \(Y_i(t)\) follows a
+exponential family distribution such that:
 
 \[
 g[E(Y_i(t))] = \eta_i(t) = \beta_0(t)+b_i(t)
@@ -216,18 +231,21 @@ infinite set of orthogonal functions:
 function by a finite set of \(\phi_{k}(t)\), such that
 \(b_i(t)=\sum_{k=1}^{K}\xi_{ik}\phi_{k}(t)+\epsilon_i(t)\), where
 \(\epsilon_i(t)\) indicates random noise introduced by this
-approximation, following a zero-mean Gaussian process. At each specific
-point t, \(\epsilon_i(t) \sim N(0, \sigma^2)\).
+approximation. This random noise is assumed to follow a zero-mean
+Gaussian process, such that at each specific point t,
+\(\epsilon_i(t) \sim N(0, \sigma^2)\).
 
 In practice, this approximation could be implemented through an FPCA
 procedure on \(\eta_i(t)\). In this case
 \(\phi_{k}(t),\ k \in \{1,...,K\}\) are the first K eigenfunctions that
-explain the most variation in \(\eta_i(t)\), and \(\xi_{ik}\) are
-subject-specific PC scores (or loadings) on each eigenfunction.
-Additionally, \(\xi_{ik}\) are mutually independent over both subject
-(\(i\)) and eigenfunctions (\(k\)). That is, each \(\xi_{ik}\) follows
-normal distribution \(N(0, \lambda_k)\) where \(\lambda_k\) is the kth
-eigenvalues.
+explain the most variation in \(\eta_i(t)\). These eigenfunctions, also
+referred to as Principal Component (PC) functions, are orthogonal are
+can be orthonormal with proper scaling. \(\xi_{ik}\) are
+subject-specific scores (or loadings) on each PC function. According to
+properties of FPCA method, these scores are mutually independent over
+both subject (\(i\)) and eigenfunctions (\(k\)). That is, each
+\(\xi_{ik}\) follows normal distribution \(N(0, \lambda_k)\), where
+\(\lambda_k\) is the kth eigenvalues.
 
 \textbf{Fast Generalized FPCA} Based on the problem set up above, we
 propose the following algorithm for fast, generalizable implementation
@@ -235,15 +253,16 @@ of FPCA (fGFPCA) on the unobserved latent process \(\eta_i(t)\):
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
-\tightlist
 \item
   Bin the observed outcomes in to small, non-overlapping, equal length
-  intervals. We hereafter index the bins by their midpoints \(s\).
+  intervals. We hereafter index the bins by their midpoints \(s\). The
+  number of observations from the same subject in bin \(s\) is \(n_s\),
+  and \(t_{sj}\) refers to the jth observation point in bin \(s\).
 \item
   Fit a local Generalized Mixed Model at every bin. Specifically, at bin
-  \(s\), we fit \(g[E(Y_i(t))] = \beta_0(s)+b_i(s)\) for all \(t\) in
-  bin \(s\). From this series of models we can estimate the individual
-  latent functions at every bin:
+  \(s\), we fit \(g[E(Y_i(t_{sj}))] = \beta_0(s)+b_i(s)\),
+  \(j\in\{1, ..., n_s\}\). From this series of models we can estimate
+  the individual latent functions at every bin:
   \(\hat{\eta}_i(s) = \hat{\beta}_0(s)+\hat{b}_i(s)\).
 \item
   Fit FPCA on the estimated latent functions:
@@ -267,12 +286,13 @@ unobserved points can be estimated as
 \(\hat{\eta_i}(s)=\hat{f}_0(s)+\sum_{k=1}^K\hat{\xi}_{ik}{\phi}_k(s)\)
 
 Following the algorithm above, predictions of individual latent
-functions are made on the binned grid based on partially observed
-non-Gaussian functions tracks of new subjects. Since the bins are set up
-to be small in length, the binned grid would still be dense. However, in
-situations where predictions on the original, un-binned grid is needed,
-linear interpolation turns out to be a fast, convenient way with good
-performance for prediction at points between bins.
+functions are made on the binned grid based on partially observed tracks
+on the un-binned grid. Since the bins are set up to be small in length,
+the binned grid would still be dense. However, in situations where
+predictions on the original, un-binned grid is needed, linear
+interpolation of estimated latent function tracks turns out to be a
+fast, convenient way with good performance for prediction at points
+between bins.
 
 \hypertarget{simulation}{%
 \section{Simulation}\label{simulation}}
@@ -281,7 +301,7 @@ In this section, we illustrate the predictive performance and
 computational efficiency of the proposed method through a simulation
 study. We simulated 50 datasets, each with 500 subjects. For every
 subject, we generate 1000 binary outcomes \(Y_i(t) \in \{0, 1\}\) across
-functional domain \(t \in [0, 1000]\), where the distribution of outcome
+functional domain \(t \in (0, 1000]\), where the distribution of outcome
 is characterized by a continuous latent function. The data generation
 mechanism can be expressed as follows:
 
@@ -291,24 +311,23 @@ Y_i(t) & \sim Binomial(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
 \end{aligned}\]
 
 In this simulation, we set \(f_0(t) = 0\). \(\xi_{ik}\) are mutually
-independent normal random variables \(\xi_{ik}\sim N(0, \gamma_k)\).
-Here we set the values of \(\gamma_k\) to be \(0.5^{k-1}\),
+independent normal random variables \(\xi_{ik}\sim N(0, \lambda_k)\).
+Here we set the values of \(\lambda_k\) to be \(0.5^{k-1}\),
 \(k \in (1,..., 4)\). In addition, for simplicity of presentation, we
 generate data on a regular grid, which means observations points are
-equally distributed across \([0, 1000]\) and are the same for all
+equally distributed across \((0, 1000]\) and are the same for all
 subjects.
 
 We use two metrics to evaluate the out-of-sample predictive performance:
 integrated squared error (ISE) and
-Area-Under-the-Receiver-Operator-Curve (AUC). ISE assess the prediction
-accuracy of latent continuous function. It is evaluated on the binned
-grid at midpoints of each unobserved bin. If the entire functional
-domain has S bins, but we have observations up to the mth bin, then ISE
-is defined as
-\(\frac{1}{N}\sum_{i=1}^N\sum_{s=s_m+1}^S(\hat{\eta}_i(s)-\eta_i(s))^2\).
+Area-Under-the-Receiver-Operator-Curve (AUC). ISE assesses the
+prediction accuracy of latent continuous functions. It is evaluated on
+the binned grid at midpoints of each unobserved bin. With observations
+up to bin \(s_m\), ISE is defined as
+\(\frac{1}{N}\sum_{i=1}^N\sum_{s>s_m} (\hat{\eta}_i(s)-\eta_i(s))^2\).
 The second metric, AUC, focuses on evaluation of prediction of the
 binary outcome. Since the binary outcomes are generated on the original,
-un-binned grid, we evaluated AUC on this grid and estimated values of
+un-binned grid, we evaluated AUC on this grid by estimating values of
 latent functions between bins with linear interpolation.
 
 As a reference method, we compare our method to Generalized Linear Mixed
@@ -325,42 +344,30 @@ and is unfeasible to implement under the scale of our simulated data or
 the complexity of our proposed method.
 
 The average ISE and AUC across all simulation is presented in Table 1,
-and Figure 1 presents the predicted function curves of four
-randomly-drawn subjects from the first simulation. The prediction is
-conditioning on different length of observed track (specifically, with
-observations up to t = 200, 400, 600, 800 respectively), and evaluation
-is made on equal-length time windows on the unobserved tracks following
-the maximum observation time. As Table 1 reveals, our proposed method
-(fGFPCA) outperformed GLMMadaptive under every scenario, which was
-expected since GLMMadaptive can only accommodate simple model
-structures. In addition, fGFPCA also took less computation time. For one
-simulated dataset, fGFPCA spent 4.94 minutes on model fitting and
-out-of-sample prediction, while GLMMadaptive took 5.11 minutes.
+and Figure 1 presents the predicted latent function of four randomly
+selected subjects from the first simulated dataset. The prediction is
+made conditioning on different length of observed track (specifically,
+with observations up to t = 200, 400, 600, 800 respectively), and
+evaluation is made on equal-length time windows on the unobserved tracks
+following the maximum observation time. As Table 1 reveals, the proposed
+method (fGFPCA) outperforms GLMMadaptive under every scenario, which was
+expected since the linear model structure of GLMM is too simple for the
+cyclic data generation mechanism. In addition, fGFPCA also took less
+computation time. For one simulated dataset, fGFPCA spent 4.94 minutes
+on model fitting and out-of-sample prediction overall, while
+GLMMadaptive took 5.11 minutes.
 
 Because of the flexibility of our proposed model framework, the accuracy
-of prediction at specific time points would improve with more observed
-data. This is revealed in Table 1 as ISE decreases and AUC increases
-with maximum observed time (left-to-right), also in Figure 1 as
-predicted curves get closer with longer observed track. However the same
-tendency is not observed with GLMMadaptive models, as a result of
-restricted model flexibility. A linear model that fits well to a
-specific part of latent function can fit very badly to the following
-parts, especially when the underlying latent function has cyclic
-patterns. Therefore, more observations do not necessarily make the model
-more predictive. Since the latent Gaussian function tracks are not known
-in this case, prediction performance on evaluated with AUC along.
-
-Table 2 compares the predictive performance of both models. When the
-observed time is short, the two method performend similarly when
-predicting recent days, however fGFPCA did better in predicting further
-days along the trial. As more observations coming in, fGFPCA sees
-increasingly higher AUC compared to GLMMadaptive model. This could be a
-result of the difference of model flexibility of the two methods. While
-the linear relationship in underlying latent functions are not likely to
-change immediately following the observed track, the whole track may
-need to be much more flexible, which is a better fit for fGFPCA model.
-This possible explanation is illustrated in Figure 2 using predicted
-latent function tracks of four randomly drawn subjects.
+of prediction at specific time points would improve as more observed
+data is collected. This is revealed in Table 1 as ISE decreases and AUC
+increases with maximum observed time (left-to-right), also in Figure 1
+as predicted curves get closer to the true latent function with longer
+observed track. However the same tendency is not observed with
+GLMMadaptive models, as a result of restricted model flexibility. A
+linear model that fits well to a specific part can fit very badly to
+other parts along the underlying latent function tracks, especially when
+the shapes of functions are wiggly or cyclic. Therefore, more
+observations do not necessarily make the model more predictive.
 
 \begin{figure}
 \centering
@@ -404,28 +411,49 @@ function tracks, and color indicates different observation time.}
 \hypertarget{data-application}{%
 \section{Data application}\label{data-application}}
 
-We will illustrate the performance of our proposed method using data
-from a randomized trial on weight loss at University of Colorado
-Anschutz Medical Campus (\protect\hyperlink{ref-bothwell2022}{Bothwell
-et al. 2022}; \protect\hyperlink{ref-ostendorf2022}{Ostendorf et al.
-2022}). The study originally aimed to study the effect of dietary
-strategies on weight loss, and participants were given a smart scale for
-daily at-home weighing. This record was then scaled into a binary
-indicator of participant adherence to the daily-weigh-in procedure,
-where 1 indicates participants followed the requirement and 0 otherwise.
-In this section, we will use this series of daily indicators as the
-binary functional outcome, and use the proposed method to dynamically
-predict participant adherence on future days given historical track.
+In this section, we illustrate the performance of our proposed method
+using data from a randomized trial on weight loss at University of
+Colorado Anschutz Medical Campus
+(\protect\hyperlink{ref-bothwell2022}{Bothwell et al. 2022};
+\protect\hyperlink{ref-ostendorf2022}{Ostendorf et al. 2022}). The study
+originally aimed to study the effect of dietary strategies on weight
+loss, and participants were given a smart scale for daily at-home
+weighing. This record was then scaled into a binary indicator of
+participant adherence to the daily-weigh-in procedure, where 1 indicates
+participants followed the requirement and 0 otherwise. In this section,
+we will use this series of daily indicators as the binary functional
+outcome, and use the proposed method to dynamically predict participant
+adherence on future days given historical track.
 
 The dataset includes 55 participants aged 22-56 at baseline. Adherence
-to daily weigh-in is availabe four 400 consecutive days for all
+to daily weigh-in is available along 400 consecutive days for all
 participants. In other words, for each individual, 400 binary
-measuresments were taken on a regular grid along the functional domain
+measurements were taken on a regular grid along the functional domain
 (number of days into the study). We will fit both fGFPCA and
 GLMMadaptive models and compared their performance on this data. For
 fGFPCA, every 10 observations are binned together, resulting in 40 bins
 for final model fitting. Linear interpolation was used for extension
-back to the unbinned grid.
+from the binned grid back to the un-binned grid. Since the latent
+continuous function tracks are not known in this case, prediction
+performance on evaluated with AUC alone.
+
+Table 2 compares the predictive performance of both models. Similar to
+the simulatio study, prediction is made conditioning on observations up
+to the 100th, 200th and 300th day respectively, and evaluation is made
+every 100 days following the maximum observation time. As is revealed,
+when the observed time is short (up to 100th day), the two method
+performed similarly when predicting recent days, however fGFPCA did
+better in predicting further days along the trial (prediction time
+window of \((300, 400]\)). As more observations coming in, fGFPCA sees
+increasingly higher AUC compared to GLMMadaptive model. This could be a
+result of the difference in model flexibility of the two methods. While
+the linear relationship in underlying latent functions are not likely to
+change immediately following the observed track, the whole track could
+be much more complex. Therefore, while fGFPCA performs similarly to
+GLMMadaptive right after the end of observation, it does a much better
+job capturing the underlying pattern along the whole track. Figure 2
+further illustrate such difference using predicted latent function
+tracks of four randomly drawn subjects.
 
 \begin{figure}
 \centering
@@ -462,16 +490,21 @@ function tracks, and color indicates different observation time.}
 
 The simulation study and case study of daily weigh-in data above have
 revealed the proposed method can achieve better predictive performance
-with much less computational burden. Compared to existing method based
-on linear mixed model, fGFPCA can accomodate flexible correlation
-struture between repeated measure, as well as high density of
-measurement. This is particularly useful when underlying outcome shows
-cyclic pattern, such as the simulation setting in Section 3. While the
-binary outcomes are generated from a cyclic Gaussian process, fGFPCA has
-much lower ISE and higher AUC than GLMM. Its prediction accuracy also
-improves as more outcomes are observed, which is a desirable property
+with much less computational burden. Compared to existing methods based
+on linear mixed model, fGFPCA can accommodate flexible correlation
+structure between repeated measure, which is particularly useful when
+outcome is generated from latent functions with wiggly or cyclic
+pattern. As in the simulation setting in Section 3, the binary outcomes
+are generated from a cyclic process. fGFPCA has much lower ISE and
+higher AUC than GLMM in this case, and its prediction accuracy also
+improves as more outcomes are collected, which is a desirable property
 for dynamic prediction where the datasets would be periodically updated
-with newly collected data.
+with newly collected data. Moreover, fGFPCA also significantly reduce
+time spent on model fitting and predict, which is beneficial when
+repeated measures are dense or sample size is large. In fact, as far as
+we are aware of, the proposed method is the only feasible method that
+can handle the scale of the simulated datasets with compatible
+flexibility.
 
 While the proposed method achieved good accuracy of point prediction, it
 is more complicated to develop a straightforward, interpretable metric
@@ -494,7 +527,7 @@ Where \(\boldsymbol{\Phi}(s)=(\phi_1(s)...\phi_K(s))\) and
 
 The hyperparameters introduced by the binning procedure in Step 1 can
 also affect the final predictive performance, thus further
-investigations are needed to quanitfy such effects. Predictive accuracy
+investigations are needed to quantify such effects. Predictive accuracy
 and computational speed can change with bin width, number of
 observations in each bin, whether the bins overlap with each other, also
 whether the bins are equally spaced along the functional grid. Moreover,
@@ -508,17 +541,19 @@ mixed model framework instead to get valid estimates at the expense of
 computational time.
 
 It should also be noted that the binning procedure in Step 1 changes the
-density of repeated measures. The final prediction of latent continuous
-function tracks are made on the binned grid, integrating information
-contained in several observations in the same bin. In Section 3 and 4,
-we have transformed this sparser grid to the original, unbinned grid
-using linear interpolation of the predicted latent function. However,
-this is by no means the only method to be considered. Such
-transformation can also be made by projection to a higher-dimensional
-space, similar as general additive model with a large number of basis
-functions. We suspect that this method would work better than linear
-interpolation when the original grid is sparse or irregular, but take
-longer time for computation.
+density of repeated measures. We essentially assume that latent
+functions are smooth in small intervals, and treat adjacent observations
+as if they are generated from the same time point. The final prediction
+of latent continuous function tracks are made on the binned grid,
+integrating information from several adjacent observations in the same
+bin. In Section 3 and 4, this sparser grid was transformed to the
+original, un-binned grid using linear interpolation of the predicted
+latent function. However, this is by no means the only method to be
+considered. Such transformation can also be made by projection to a
+higher-dimensional space, similar as general additive model with a large
+number of basis functions. We suspect that this method would work better
+than linear interpolation when the original grid is sparse or irregular,
+but take longer time for computation.
 
 \hypertarget{references}{%
 \section{References}\label{references}}
