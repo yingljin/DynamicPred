@@ -112,7 +112,7 @@
 \title{Dynamic Prediction of Non-Guassian Outcome with fast Generalized
 Functional Principal Analysis}
 \author{Ying Jin \and Andrew Leroux}
-\date{April 03, 2023}
+\date{April 04, 2023}
 
 \begin{document}
 \maketitle
@@ -229,11 +229,7 @@ function \(b_i(t)\) can be represented as the linear combination of a
 infinite set of orthogonal functions:
 \(b_i(t)=\sum_{k=1}^{\infty}\xi_{ik}\phi_{k}(t)\). We approximate this
 function by a finite set of \(\phi_{k}(t)\), such that
-\(b_i(t)=\sum_{k=1}^{K}\xi_{ik}\phi_{k}(t)+\epsilon_i(t)\), where
-\(\epsilon_i(t)\) indicates random noise introduced by this
-approximation. This random noise is assumed to follow a zero-mean
-Gaussian process, such that at each specific point t,
-\(\epsilon_i(t) \sim N(0, \sigma^2)\).
+\(b_i(t)=\sum_{k=1}^{K}\xi_{ik}\phi_{k}(t)\).
 
 In practice, this approximation could be implemented through an FPCA
 procedure on \(\eta_i(t)\). In this case
@@ -267,7 +263,11 @@ of FPCA (fGFPCA) on the unobserved latent process \(\eta_i(t)\):
 \item
   Fit FPCA on the estimated latent functions:
   \(\hat{\eta}_i(s) = f_0(s)+\sum_{k=1}^K\xi_{ik}\phi_{k}(s)+\epsilon_i(s)\),
-  and obtain estimates of basis functions
+  where \(\epsilon_i(t)\) indicates random noise introduced by the
+  binning process in previous steps. This random noise is assumed to
+  follow a zero-mean Gaussian process, such that at each specific point
+  t, \(\epsilon_i(t) \sim N(0, \sigma^2)\). The FPCA output includes
+  estimates of basis functions
   \(\boldsymbol{\Phi} = \{\phi_1(s), ...,\phi_k(s)\}\), eigenvalues
   \(\hat{\lambda}_1...\hat{\lambda}_k\), mean function \(\hat{f}_0(s)\)
   and residual variance \(\hat{\sigma}^2\).
