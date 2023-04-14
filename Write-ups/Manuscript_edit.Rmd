@@ -95,7 +95,7 @@ Beyond the computational burden associated with fitting the model of interest, f
 **Dynamic prediction** Now assume we have a new observations $u$ with partially observed outcome $\boldsymbol{Y}_u = \{Y_u(t), t\leq t_m\}$. The maximum observed point is $t_m$, which is a point along the functional domain and belongs to bin $s_m$ on the binned grid from step 1 above. With components extracted from the FPCA model in step 3, we will be able to make predictions on the future, unobserved bins. Specifically, with the partially observed binary function $Y_u(t)$, we will be able to calculate the MLE of the subject-specific PC scores $\hat{\boldsymbol{\xi}}_u= \{\hat{\xi}_{u1},...,\hat{\xi}_{uK}\}$ that maximizes its posterior likelihood: 
 
 
-$$\hat{\boldsymbol{\xi}}_u = \underset{\boldsymbol{\xi}_u}{\mathrm{argmin}} \ L(\boldsymbol{\xi}_u|\boldsymbol{Y}_u, 
+$$\hat{\boldsymbol{\xi}}_u = \underset{\boldsymbol{\xi}_u}{\mathrm{argmax}} \ L(\boldsymbol{\xi}_u|\boldsymbol{Y}_u, 
 \hat{\boldsymbol{\Theta}})= \frac{p(\boldsymbol{Y}_u|\boldsymbol{\xi}_u, \hat{\boldsymbol{\Theta}})p(\boldsymbol{\xi}_u|\hat{\boldsymbol{\Theta}})}{\int p(\boldsymbol{Y}_u|\boldsymbol{\xi}_u,\hat{\boldsymbol{\Theta}})p(\boldsymbol{\xi}_u|\hat{\boldsymbol{\Theta}})d\boldsymbol{\xi}_u}$$
 
 Then the value of latent functions at unobserved points can be estimated as $\hat{\eta_u}(s)=\hat{f}_0(s)+\sum_{k=1}^K\hat{\xi}_{uk}{\phi}_k(s)$. In fact, since the denominator in the formula above is constant with respect to $\boldsymbol{\xi}_u$, we only need to maximum the numerator. Since $\boldsymbol{Y}_u|\boldsymbol{\xi}_u$ follows an exponential family distribution and $\boldsymbol{\xi}_u$ follows multivariate Guassian distribution, it could be numerically maximized efficiently. 

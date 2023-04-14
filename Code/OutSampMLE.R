@@ -17,7 +17,7 @@ library(rootSolve)
 
 llh_div <- function(xi, df_new, fpca_fit){
   
-  # observations
+  # observations 
   ns <- as.vector(table(df_new$bin)) # number of observations
   hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
     select(Y) %>% unlist()# number of success
