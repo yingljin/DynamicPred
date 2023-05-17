@@ -65,7 +65,7 @@ Model <- function(parm, Data){
 
 
 # data: 
-out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=195) %>% select(-eta_i)){
+out_pred_laplace <- function(fpca_fit, df_new){
   
   # put data into correct format
   ns <- as.vector(table(df_new$bin)) # number of observations
@@ -83,7 +83,11 @@ out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=
   X <- fpca_fit$efunctions[1:max_bin, ] # "covariates", in this case PC functions
   J <- ncol(fpca_fit$efunctions) # number of parameters/scores
   mon.names <- "LP"
-  parm.names <- as.parm.names(list(xi1=0, xi2=0, xi3=0, xi4=0))
+  
+  # parameter names
+  name_lst <- as.list(rep(0, J))
+  names(name_lst) <- paste("xi", 1:J, sep = "")
+  parm.names <- as.parm.names(name_lst)
   pos.xi <- grep("xi", parm.names)
   PGF <- function(Data) {
     xi <- rnorm(Data$J)
@@ -95,7 +99,7 @@ out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=
   
   
   # fit laplace approximation
-  Fit <- LaplaceApproximation(Model, parm = rep(0, 4), Data=MyData)
+  Fit <- LaplaceApproximation(Model, parm = rep(0, J), Data=MyData)
   score <- Fit$Summary1[, "Mode"]
   
   # prediction
@@ -114,6 +118,6 @@ out_pred_laplace <- function(fpca_fit, df_new = df %>% filter(id==1 & sind_inx<=
 
 # test
 
-# out_pred_laplace(fpca_fit,  df %>% filter(id==2 & sind_inx<=395) %>% select(-eta_i))
-
+# score_out <- out_pred_laplace(fpca_fit,  df %>% filter(id==rand_id[1] & sind<=720))$score_out
+# eta_pred_out <- fpca_mod$mu+fpca_mod$efunctions%*%score_out
 

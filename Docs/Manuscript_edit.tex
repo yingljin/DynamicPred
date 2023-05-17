@@ -323,7 +323,7 @@ calculate the MLE of the subject-specific PC scores
 \(\hat{\boldsymbol{\xi}}_u= \{\hat{\xi}_{u1},...,\hat{\xi}_{uK}\}\) that
 maximizes its posterior likelihood:
 
-\[\hat{\boldsymbol{\xi}}_u = \underset{\boldsymbol{\xi}_u}{\mathrm{argmin}} \ L(\boldsymbol{\xi}_u|\boldsymbol{Y}_u, 
+\[\hat{\boldsymbol{\xi}}_u = \underset{\boldsymbol{\xi}_u}{\mathrm{argmax}} \ L(\boldsymbol{\xi}_u|\boldsymbol{Y}_u, 
 \hat{\boldsymbol{\Theta}})= \frac{p(\boldsymbol{Y}_u|\boldsymbol{\xi}_u, \hat{\boldsymbol{\Theta}})p(\boldsymbol{\xi}_u|\hat{\boldsymbol{\Theta}})}{\int p(\boldsymbol{Y}_u|\boldsymbol{\xi}_u,\hat{\boldsymbol{\Theta}})p(\boldsymbol{\xi}_u|\hat{\boldsymbol{\Theta}})d\boldsymbol{\xi}_u}\]
 
 Then the value of latent functions at unobserved points can be estimated
@@ -441,22 +441,22 @@ tracks, and color indicates different observation time.}
 \cmidrule(l{3pt}r{3pt}){2-9}
 \multicolumn{1}{c}{ } & \multicolumn{4}{c}{fGFPCA} & \multicolumn{4}{c}{GLMMadaptive} \\
 \cmidrule(l{3pt}r{3pt}){2-5} \cmidrule(l{3pt}r{3pt}){6-9}
-  & 200 & 400 & 600 & 800 & 200 & 400 & 600 & 800\\
+  & 0.2 & 0.4 & 0.6 & 0.8 & 0.2 & 0.4 & 0.6 & 0.8\\
 \midrule
 \addlinespace[0.3em]
 \multicolumn{9}{l}{\textbf{Prediction time window}}\\
 \addlinespace[0.3em]
 \multicolumn{9}{l}{\textbf{ISE}}\\
-\hspace{1em}\hspace{1em}(200, 400] & 15.29 &  &  &  & 38.20 &  &  & \\
-\hspace{1em}\hspace{1em}(400, 600] & 18.68 & 8.53 &  &  & 28.59 & 26.46 &  & \\
-\hspace{1em}\hspace{1em}(600, 800] & 22.53 & 5.51 & 1.65 &  & 31.32 & 27.97 & 27.40 & \\
-\hspace{1em}\hspace{1em}(800, 1000] & 11.34 & 8.72 & 1.90 & 1.30 & 55.19 & 46.89 & 58.57 & 59.25\\
+\hspace{1em}\hspace{1em}(0.2, 0.4] & 15.29 &  &  &  & 38.20 &  &  & \\
+\hspace{1em}\hspace{1em}(0.4, 0.6] & 18.68 & 8.53 &  &  & 28.59 & 26.46 &  & \\
+\hspace{1em}\hspace{1em}(0.6, 0.8] & 22.53 & 5.51 & 1.65 &  & 31.32 & 27.97 & 27.40 & \\
+\hspace{1em}\hspace{1em}(0.8, 1.0] & 11.34 & 8.72 & 1.90 & 1.30 & 55.19 & 46.89 & 58.57 & 59.25\\
 \addlinespace[0.3em]
 \multicolumn{9}{l}{\textbf{AUC}}\\
-\hspace{1em}\hspace{1em}(200, 400] & 0.74 &  &  &  & 0.59 &  &  & \\
-\hspace{1em}\hspace{1em}(400, 600] & 0.66 & 0.73 &  &  & 0.52 & 0.59 &  & \\
-\hspace{1em}\hspace{1em}(600, 800] & 0.71 & 0.79 & 0.80 &  & 0.67 & 0.70 & 0.69 & \\
-\hspace{1em}\hspace{1em}(800, 1000] & 0.74 & 0.75 & 0.78 & 0.78 & 0.52 & 0.56 & 0.53 & 0.57\\
+\hspace{1em}\hspace{1em}(0.2, 0.4] & 0.74 &  &  &  & 0.59 &  &  & \\
+\hspace{1em}\hspace{1em}(0.4, 0.6] & 0.66 & 0.73 &  &  & 0.52 & 0.59 &  & \\
+\hspace{1em}\hspace{1em}(0.6, 0.8] & 0.71 & 0.79 & 0.80 &  & 0.67 & 0.70 & 0.69 & \\
+\hspace{1em}\hspace{1em}(0.8, 1.0] & 0.74 & 0.75 & 0.78 & 0.78 & 0.52 & 0.56 & 0.53 & 0.57\\
 \bottomrule
 \end{tabular}
 \end{table}

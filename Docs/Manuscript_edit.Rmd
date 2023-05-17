@@ -169,14 +169,14 @@ fig1a <- exp_df_sim1 %>%
   filter(id %in% rand_id) %>%
   ggplot()+
   geom_line(aes(x=bin, y=eta_i, col = "True"))+
-  geom_line(aes(x=bin, y = pred_t200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=bin, y = pred_t400, col = "Up to 400"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=bin, y = pred_t600, col = "Up to 600"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=bin, y = pred_t800, col= "Up to 800"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t200, col = "Up to 0.2"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t400, col = "Up to 0.4"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t600, col = "Up to 0.6"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=bin, y = pred_t800, col= "Up to 0.8"), linetype = "dashed", na.rm = T)+
   facet_wrap(~id, scales = "free_y")+
-  labs(y = "Latent function", x = "Bin", colour= "Observed time", title = "fGFPCA")+
+  labs(y = "Latent function", x = "Time", colour= "Observed time", title = "fGFPCA")+
   scale_color_manual(values=cbPalette)+
-  scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000))
+  scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 
 # GLMMadaptive
 fig1b <- exp_df_sim1_ref %>%
@@ -184,14 +184,15 @@ fig1b <- exp_df_sim1_ref %>%
   filter(id %in% rand_id) %>%
   ggplot()+
   geom_line(aes(x=sind_inx, y=eta_i, col = "True"))+
-  geom_line(aes(x=sind_inx, y = pred_t200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=sind_inx, y = pred_t400, col = "Up to 400"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=sind_inx, y = pred_t600, col = "Up to 600"), linetype = "dashed", na.rm = T)+
-  geom_line(aes(x=sind_inx, y = pred_t800, col= "Up to 800"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t200, col = "Up to 0.2"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t400, col = "Up to 0.4"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t600, col = "Up to 0.6"), linetype = "dashed", na.rm = T)+
+  geom_line(aes(x=sind_inx, y = pred_t800, col= "Up to 0.8"), linetype = "dashed", na.rm = T)+
   facet_wrap(~id, scales = "free_y")+
-  labs(y = "Latent function", x = "Bin", colour= "Observed time", title = "GLMMadaptive")+
+  labs(y = "Latent function", x = "Time", colour= "Observed time", title = "GLMMadaptive")+
   scale_color_manual(values=cbPalette)+
-  scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000))
+  scale_x_continuous(breaks = c(0, 200, 400, 600, 800, 1000),
+                     labels = c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 
 ggarrange(fig1a, fig1b, nrow = 1, common.legend = T)
 
@@ -226,8 +227,8 @@ for(m in 1:M){
 }
 
 ave_ise_mat <- apply(ise_mat, MARGIN = c(1, 2), mean)[-1, ]
-colnames(ave_ise_mat) <- c("200", "400", "600", "800")
-rownames(ave_ise_mat) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+colnames(ave_ise_mat) <- c("0.2", "0.4", "0.6", "0.8")
+rownames(ave_ise_mat) <- c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]")
 
 
 ```
@@ -258,8 +259,8 @@ for(m in 1:M){
 }
 
 ave_ise_mat_ref <- apply(ise_mat_ref, MARGIN = c(1, 2), mean)[-1, ]
-colnames(ave_ise_mat_ref) <- c("200", "400", "600", "800")
-rownames(ave_ise_mat_ref) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+colnames(ave_ise_mat_ref) <- c("0.2", "0.4", "0.6", "0.8")
+rownames(ave_ise_mat_ref) <- c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]")
 
 # cbind(ave_ise_mat, ave_ise_mat_ref)
 ```
@@ -313,8 +314,8 @@ for(m in 1:M){
 
 
 ave_auc_mat <- apply(auc_mat, MARGIN = c(1, 2), mean)
-colnames(ave_auc_mat) <- c("200", "400", "600", "800")
-rownames(ave_auc_mat) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+colnames(ave_auc_mat) <- c("0.2", "0.4", "0.6", "0.8")
+rownames(ave_auc_mat) <- c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]")
 
 ```
 
@@ -359,8 +360,8 @@ for(m in 1:M){
 
 
 ave_auc_mat_ref <- apply(auc_mat_ref, MARGIN = c(1, 2), mean)
-colnames(ave_auc_mat_ref) <- c("200", "400", "600", "800")
-rownames(ave_auc_mat_ref) <- c("(200, 400]", "(400, 600]", "(600, 800]", "(800, 1000]")
+colnames(ave_auc_mat_ref) <- c("0.2", "0.4", "0.6", "0.8")
+rownames(ave_auc_mat_ref) <- c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]")
 
 
 ```
@@ -530,7 +531,7 @@ fig2a <- Y_df2 %>%
   geom_line(aes(x=sind_inx, y = pred_200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
   geom_line(aes(x=sind_inx, y = pred_300, col = "Up to 300"), linetype = "dashed", na.rm = T)+
   facet_wrap(~id, scales = "free_y")+
-  labs(y = "Predicted latent function on probability scale", x = "Bin", 
+  labs(y = "Predicted latent function on probability scale", x = "Time", 
        colour= "Observed time", title = "fGFPCA")+
   scale_color_manual(values=cbPalette)+
   scale_x_continuous(breaks = c(0, 100, 200, 300, 400))
@@ -544,7 +545,7 @@ fig2b <- df_est_latent_ref %>%
   geom_line(aes(x=sind_inx, y = pred_t200, col = "Up to 200"), linetype = "dashed", na.rm = T)+
   geom_line(aes(x=sind_inx, y = pred_t300, col = "Up to 300"), linetype = "dashed", na.rm = T)+
   facet_wrap(~id, scales = "free_y")+
-  labs(y = "Predicted latent function on probability scale", x = "Bin", 
+  labs(y = "Predicted latent function on probability scale", x = "Time", 
        colour= "Observed time", title = "GLMMadaptive")+
   scale_color_manual(values=cbPalette)+
   scale_x_continuous(breaks = c(0, 100, 200, 300, 400))

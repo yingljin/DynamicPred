@@ -1,0 +1,166 @@
+---
+title: "Progress Report"
+author: "Ying Jin"
+date: "2023-05-16"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+set.seed(516)
+
+library(here)
+library(tidyverse)
+library(refund)
+library(lme4)
+library(ROCR)
+library(GLMMadaptive)
+theme_set(theme_minimal())
+
+df <- read_rds(here("Data/nhanes_bi.rds"))
+load(here("Data/ApplOutput_fGFPCA.RData"))
+
+```
+
+# NHANES data application
+
+## Failed prediction 
+
+- Laplace approximation failed for some subjects
+- Only when the observed track is short (up to 360)
+- These subjects have something in common
+
+```{r}
+# compare subjects that failed at Laplace Approximation with others
+rand_id <- sample(unique(df$SEQN), size = 4)
+com_id <- c(rand_id, sample(skip_id, 4))
+
+df_est_latent %>% filter(id %in% com_id) %>%
+  left_join(df %>% select(SEQN, Z, sind) %>%
+              rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>%
+  mutate(type = ifelse(id %in% rand_id, "Prediction", "Failed prediction")) %>%
+  ggplot(aes(x=bin, y=eta_hat, col = type))+
+  geom_line()+
+  geom_vline(xintercept = 360)+
+  facet_wrap(~type+id, nrow = 2, ncol = 4)
+```
+
+
+## Subjects with complete prediction
+
+```{r fig_prob, warning=FALSE}
+df_est_latent %>%
+  filter(id %in% rand_id) %>%
+  mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080),
+         pred_t720 = ifelse(bin<=720, NA, pred_t720),
+         pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>%
+  mutate_at(vars(pred_t360, pred_t720, pred_t1080), function(x)exp(x)/(1+exp(x))) %>%
+  left_join(df %>% select(SEQN, Z, sind) %>%
+              rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>%
+  ggplot()+
+    geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+
+    geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.5)+
+    facet_wrap(~id)+
+    labs(x = "Time", y = "Estimated latent function (probablity scale)")
+```
+
+
+```{r fig_eta, warning=FALSE}
+df_est_latent %>%
+  filter(id %in% rand_id) %>%
+  mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080),
+         pred_t720 = ifelse(bin<=720, NA, pred_t720),
+         pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>%
+  ggplot()+
+    geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+
+    geom_line(aes(x=bin, y = eta_hat, col = "eta_hat"), linetype = "solid" )+
+    facet_wrap(~id)+
+    labs(x = "Time", y = "Estimated latent function")
+```
+
+## AUC on subjects with complete prediction
+
+- Use interpolation to fill in gaps between bins
+
+```{r}
+# subjects with complete prediction
+N <- length(unique(df$SEQN))-length(skip_id)
+eval_id <- setdiff(unique(df$SEQN), skip_id)
+J <- max(df$sind)
+
+# containter: row index subject, column index time
+eta_mat_t360 <- eta_mat_t720 <- eta_mat_t1080 <- matrix(NA, nrow = N, ncol = J)
+
+# interpolation
+for(i in seq_along(eval_id)){
+   eta_mat_t360[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]],
+                               y=df_est_latent$pred_t360[df_est_latent$id==eval_id[i]], 
+                               xout = 1:J)$y
+   eta_mat_t720[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]],
+                               y=df_est_latent$pred_t720[df_est_latent$id==eval_id[i]], 
+                               xout = 1:J)$y
+   eta_mat_t1080[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]],
+                               y=df_est_latent$pred_t1080[df_est_latent$id==eval_id[i]], 
+                               xout = 1:J)$y
+  }
+
+
+```
+
+
+
+```{r}
+# true outcome
+Y_mat <- df$Z[df$SEQN %in% eval_id]
+Y_mat <- matrix(Y_mat, nrow = N, ncol = J, byrow = T) 
+```
+
+```{r AUC_fGFPCA}
+# maximum observations time
+t_vec <- c(360, 720, 1080)
+
+# AUC container
+auc_mat <- matrix(NA, 3, 3)
+colnames(auc_mat) <- c("360", "720", "1080")
+rownames(auc_mat) <- c("(360, 720]", "(720, 1080]", "(1080, 1440]")
+
+# Calculate AUC
+
+auc_mat[1, 1] <- performance(prediction(as.vector(eta_mat_t360[, 361:720]), 
+                                   as.vector(Y_mat[, 361:720])),
+                        "auc")@y.values[[1]]
+auc_mat[2, 1] <- performance(prediction(as.vector(eta_mat_t360[, 721:1080]), 
+                                   as.vector(Y_mat[, 721:1080])),
+                        "auc")@y.values[[1]]
+auc_mat[3, 1] <- performance(prediction(as.vector(eta_mat_t360[, 1081:1435]), 
+                                   as.vector(Y_mat[, 1081:1435])),
+                        "auc")@y.values[[1]]
+
+auc_mat[2, 2] <- performance(prediction(as.vector(eta_mat_t720[, 721:1080]), 
+                                   as.vector(Y_mat[, 721:1080])),
+                        "auc")@y.values[[1]]
+auc_mat[3, 2] <- performance(prediction(as.vector(eta_mat_t720[, 1081:1435]), 
+                                   as.vector(Y_mat[, 1081:1435])),
+                        "auc")@y.values[[1]]
+
+
+auc_mat[3, 3] <- performance(prediction(as.vector(eta_mat_t1080[, 1081:1435]), 
+                                   as.vector(Y_mat[, 1081:1435])),
+                        "auc")@y.values[[1]]
+auc_mat
+```
+
+
+## Reference method
+
+- GLMMadaptive?
+- fcr on lowess smoothed track?
