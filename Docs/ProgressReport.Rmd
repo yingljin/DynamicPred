@@ -4,13 +4,16 @@ author: "Ying Jin"
 date: "2023-05-16"
 output: 
   html_document:
+    self_contained: no
+    number_sections: true
+    code_folding: hide
     toc: true
     toc_depth: 3
     toc_float: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 
 set.seed(516)
 
@@ -27,140 +30,447 @@ load(here("Data/ApplOutput_fGFPCA.RData"))
 
 ```
 
+
 # NHANES data application
 
-## Failed prediction 
+## Data overview
 
-- Laplace approximation failed for some subjects
-- Only when the observed track is short (up to 360)
-- These subjects have something in common
+- 8763 subjects, 1440 measures each
+- no missingness
 
 ```{r}
-# compare subjects that failed at Laplace Approximation with others
-rand_id <- sample(unique(df$SEQN), size = 4)
-com_id <- c(rand_id, sample(skip_id, 4))
-
-df_est_latent %>% filter(id %in% com_id) %>%
-  left_join(df %>% select(SEQN, Z, sind) %>%
-              rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>%
-  mutate(type = ifelse(id %in% rand_id, "Prediction", "Failed prediction")) %>%
-  ggplot(aes(x=bin, y=eta_hat, col = type))+
-  geom_line()+
-  geom_vline(xintercept = 360)+
-  facet_wrap(~type+id, nrow = 2, ncol = 4)
+N <- length(unique(df$SEQN)) # sample size 8763
+J <- max(df$sind) # 1440 measures per subject
 ```
 
 
-## Subjects with complete prediction
+```{r}
+rand_id <- sample(unique(df$SEQN), size = 4) # "toy" sample
 
-```{r fig_prob, warning=FALSE}
-df_est_latent %>%
-  filter(id %in% rand_id) %>%
-  mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080),
-         pred_t720 = ifelse(bin<=720, NA, pred_t720),
-         pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>%
-  mutate_at(vars(pred_t360, pred_t720, pred_t1080), function(x)exp(x)/(1+exp(x))) %>%
-  left_join(df %>% select(SEQN, Z, sind) %>%
-              rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>%
+df %>% 
+  filter(SEQN %in% rand_id) %>%
   ggplot()+
-    geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+
-    geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.5)+
-    facet_wrap(~id)+
-    labs(x = "Time", y = "Estimated latent function (probablity scale)")
+  geom_point(aes(x=sind, y=Z), size = 0.5)+
+  facet_wrap(~SEQN)+
+  labs(x="Time", y = "Activity", title = "A brief overview of the outcome")
 ```
 
+## fGFPCA Estimation
 
-```{r fig_eta, warning=FALSE}
-df_est_latent %>%
-  filter(id %in% rand_id) %>%
-  mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080),
-         pred_t720 = ifelse(bin<=720, NA, pred_t720),
-         pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>%
+```{r}
+# code
+source(here("Code/GLMM-FPCA.R")) 
+# use pred_latent function to estimate latent function 
+source(here("Code/OutSampMLE.R"))
+# source(here("Code/OutsampBayes.R"))
+
+
+```
+
+### Binning
+
+- Bin every 10 measures 
+
+```{r, message=FALSE}
+# bin data
+bin_w <- 10 # bin width
+n_bin <- J/bin_w # number of bins
+brks <- seq(0, J, by = bin_w) # cutoff points
+mid <- (brks+bin_w/2)[1:n_bin] # mid points
+
+
+df$bin <- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
+df$bin <- as.numeric(as.character(df$bin))
+# head(df)
+
+df %>% 
+  filter(SEQN %in% rand_id) %>%
+  group_by(SEQN, bin) %>%
+  summarise(num = sum(Z)) %>%
   ggplot()+
-    geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+
-    geom_line(aes(x=bin, y = eta_hat, col = "eta_hat"), linetype = "solid" )+
-    facet_wrap(~id)+
-    labs(x = "Time", y = "Estimated latent function")
+  geom_point(aes(x=bin, y=num), size = 0.5)+
+  facet_wrap(~SEQN)+
+  labs(x="Time", y = "Activity", title = "Number of active nimutes within each bin")
 ```
 
-## AUC on subjects with complete prediction
 
-- Use interpolation to fill in gaps between bins
+### Local GLMMs
+
+- This is where near-unidentifiability issues first appear
+- Though point estimation not necessarily affected
+
+
+```{r, cache=TRUE, warning=FALSE}
+# split by each bin
+df <- df %>% rename(id = SEQN, Y=Z)
+df_bin_lst <- split(df, f = df$bin)
+
+# fit local GLMM and estimate latent function
+# near-unidentifiability issues 
+df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
+df_est_latent <- bind_rows(df_est_latent)
+
+# keep midpoint values
+df_est_latent <- df_est_latent %>%
+  select(-sind, -Y) %>% distinct(.)
+```
+
+
+```{r, message=FALSE}
+df %>% 
+  filter(id %in% rand_id) %>%
+  left_join(df_est_latent, by = c("id", "bin")) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id))+
+  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
+             alpha = 0.5, linewidth = 0.5)+
+  labs(x = "Time", y = "Estimated latent function (probablity scale)")
+```
+
+
+```{r, message=FALSE}
+# overview at estimated latent function
+df %>% 
+  filter(id %in% rand_id) %>%
+  group_by(id, bin) %>%
+  summarise(num = sum(Y)) %>%
+  left_join(df_est_latent, by = c("id", "bin")) %>%
+  # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id, linetype = "dashed"))+
+  geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
+             linewidth = 0.5, alpha = 0.6)+
+  labs(x = "Bin", y = "Estimated latent function/number of active minutes")
+```
+
+- Take a closer look at the unidentifiable bins?
+
+I just realized glmer actually used Laplace approximation as well. Could this also be due to numeric stability? In some bins (465, 545, 555, 1185, 1195, 1205), the approximation failed to converge. 
+
+Below is the warning messages and one model summary.
+
+For this bin, the problem is with the fixed effect standard error. It is clearly near-zero. 
+
+https://www.learn-mlms.com/07-module-7.html
+
+https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
+
+
+
+```{r, eval=FALSE}
+try_fit_lst<-list()
+for(i in seq_along(df_bin_lst)){
+  this_glm <- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]],
+                             family = binomial)},
+                       warning=function(w){NA})
+  try_fit_lst[[i]] <- this_glm
+  
+}
+
+# bins where glmer returned errors
+# names(df_bin_lst)[is.na(try_fit_lst)]
+```
 
 ```{r}
-# subjects with complete prediction
-N <- length(unique(df$SEQN))-length(skip_id)
-eval_id <- setdiff(unique(df$SEQN), skip_id)
-J <- max(df$sind)
-
-# containter: row index subject, column index time
-eta_mat_t360 <- eta_mat_t720 <- eta_mat_t1080 <- matrix(NA, nrow = N, ncol = J)
-
-# interpolation
-for(i in seq_along(eval_id)){
-   eta_mat_t360[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]],
-                               y=df_est_latent$pred_t360[df_est_latent$id==eval_id[i]], 
-                               xout = 1:J)$y
-   eta_mat_t720[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]],
-                               y=df_est_latent$pred_t720[df_est_latent$id==eval_id[i]], 
-                               xout = 1:J)$y
-   eta_mat_t1080[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]],
-                               y=df_est_latent$pred_t1080[df_est_latent$id==eval_id[i]], 
-                               xout = 1:J)$y
-  }
+issue_fit <- glmer(Y ~ 1 + (1|id), data = df_bin_lst[['465']],
+                             family = binomial)
+summary(issue_fit)
 
 
+# table(df_bin_lst[['5']]$id, df_bin_lst[['5']]$Y)
 ```
 
+```{r eval=FALSE}
+colSums(table(df_bin_lst[['5']]$id, df_bin_lst[['5']]$Y)==0)
+colSums(table(df_bin_lst[['465']]$id, df_bin_lst[['465']]$Y)==0)
+```
+
+### FPCA
+
+```{r}
+mat_est_unique <- matrix(df_est_latent$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+# row index subject, column binned time
+fpca_mod <- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, var=T)
+
+K <- ncol(fpca_mod$efunctions) # 18 eigenfunctions
+```
+
+```{r}
+# population mean
+plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "mean")
+```
+
+```{r}
+# eigenfunctions
+par(mfrow=c(2,2))
+plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
+plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
+plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+```
 
 
 ```{r}
-# true outcome
-Y_mat <- df$Z[df$SEQN %in% eval_id]
-Y_mat <- matrix(Y_mat, nrow = N, ncol = J, byrow = T) 
-```
-
-```{r AUC_fGFPCA}
-# maximum observations time
-t_vec <- c(360, 720, 1080)
-
-# AUC container
-auc_mat <- matrix(NA, 3, 3)
-colnames(auc_mat) <- c("360", "720", "1080")
-rownames(auc_mat) <- c("(360, 720]", "(720, 1080]", "(1080, 1440]")
-
-# Calculate AUC
-
-auc_mat[1, 1] <- performance(prediction(as.vector(eta_mat_t360[, 361:720]), 
-                                   as.vector(Y_mat[, 361:720])),
-                        "auc")@y.values[[1]]
-auc_mat[2, 1] <- performance(prediction(as.vector(eta_mat_t360[, 721:1080]), 
-                                   as.vector(Y_mat[, 721:1080])),
-                        "auc")@y.values[[1]]
-auc_mat[3, 1] <- performance(prediction(as.vector(eta_mat_t360[, 1081:1435]), 
-                                   as.vector(Y_mat[, 1081:1435])),
-                        "auc")@y.values[[1]]
-
-auc_mat[2, 2] <- performance(prediction(as.vector(eta_mat_t720[, 721:1080]), 
-                                   as.vector(Y_mat[, 721:1080])),
-                        "auc")@y.values[[1]]
-auc_mat[3, 2] <- performance(prediction(as.vector(eta_mat_t720[, 1081:1435]), 
-                                   as.vector(Y_mat[, 1081:1435])),
-                        "auc")@y.values[[1]]
-
-
-auc_mat[3, 3] <- performance(prediction(as.vector(eta_mat_t1080[, 1081:1435]), 
-                                   as.vector(Y_mat[, 1081:1435])),
-                        "auc")@y.values[[1]]
-auc_mat
+# covariance
+heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
+        Rowv = NA, Colv = NA, main = "Covariance matrix")
 ```
 
 
-## Reference method
+## Dynamic prediction
 
-- GLMMadaptive?
-- fcr on lowess smoothed track?
+### Maximum likelihood
+
+- Boundary hitting issues with numeric maximization
+- Warning message: Steady solution not reached
+- Large variation in both predicted values and scores. The numeric solution from maximum likelihood is obviously not stable. It is very likely to fail to converge.
+- Perhaps it can be fixed with numeric options? But I'd rather not go that route because it depend on chance a lot. 
+
+```{r}
+# Out-of-sample prediction
+# maximum observations time: 360, 720, 1080
+df_pred <- df_est_latent %>% filter(id %in% rand_id)
+df_pred[, 'pred_t360'] <- df_pred[, 'pred_t720'] <- df_pred[, 'pred_t1080'] <- NA
+score_out_mat <- array(NA, dim = c(length(rand_id), K, 3))
+# dim indexes subject, eigenfunction and max obs time respectively
+```
+
+```{r, warning=FALSE}
+# prediction for a single subject
+for(i in rand_id){
+  df_i <- df %>% filter(id==i) %>% mutate(bin=as.numeric(bin))
+  # prediction
+  pred_t360 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=360),
+                                 fpca_fit = fpca_mod, K = K)
+  pred_t720 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=720),
+                                 fpca_fit = fpca_mod, K = K)
+  pred_t1080 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=1080),
+                                  fpca_fit = fpca_mod, K = K)
+  # prediction in container
+  df_pred[df_pred$id==i, 'pred_t360'] <- pred_t360$eta_pred
+  df_pred[df_pred$id==i, 'pred_t720'] <- pred_t720$eta_pred
+  df_pred[df_pred$id==i, 'pred_t1080'] <- pred_t1080$eta_pred
+  # score in container
+  # score_out_mat[i, ,1] <- pred_t360$score_out
+  # score_out_mat[i, ,2] <- pred_t720$score_out
+  # score_out_mat[i, ,3] <- pred_t1440$score_out
+}
+
+```
+
+```{r}
+df_pred$pred_t360[df_pred$bin<=360] <- NA
+df_pred$pred_t720[df_pred$bin<=720] <- NA
+df_pred$pred_t1080[df_pred$bin<=1080] <- NA
+# df_pred %>% filter(id == rand_id[1])
+```
+
+```{r, warning=FALSE}
+df_pred %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
+  geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
+  geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
+  facet_wrap(~id)
+```
+
+
+### Bayes method like Laplace approximation
+
+
+```{r, warning=FALSE, message=FALSE, results='hide'}
+df_pred2 <- df_est_latent %>% filter(id %in% rand_id)
+df_pred2[, 'pred_t360'] <- df_pred2[, 'pred_t720'] <- df_pred2[, 'pred_t1080'] <- NA
+score_out_mat2 <- array(NA, dim = c(length(rand_id), K, 3))
+
+
+# unique id
+# prediction for a single subject
+source(here("Code/OutsampBayes.R"))
+
+for(i in rand_id){
+  df_i <- df %>% filter(id==i) 
+  
+  # prediction 
+  ## up to 360
+  pred_t1 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=360))
+  eta_pred_t1 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t1$score_out
+  df_pred2[df_pred2$id == i, 'pred_t360'] <- eta_pred_t1
+  ## up to 720
+  pred_t2 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=720))
+  eta_pred_t2 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t2$score_out
+  df_pred2[df_pred2$id == i, 'pred_t720'] <- eta_pred_t2
+  ## up to 1080
+  pred_t3 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=1080))
+  eta_pred_t3 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t3$score_out
+  df_pred2[df_pred2$id == i, 'pred_t1080'] <- eta_pred_t3
+
+}
+```
+
+
+```{r}
+df_pred2$pred_t360[df_pred2$bin<=360] <- NA
+df_pred2$pred_t720[df_pred2$bin<=720] <- NA
+df_pred2$pred_t1080[df_pred2$bin<=1080] <- NA
+# df_pred %>% filter(id == rand_id[1])
+```
+
+```{r, warning=FALSE}
+df_pred2 %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
+  geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
+  geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
+  facet_wrap(~id)
+```
+
+
+
+
+
+
+<!-- ## Failed prediction  -->
+
+<!-- - Laplace approximation failed for some subjects -->
+<!-- - Only when the observed track is short (up to 360) -->
+<!-- - These subjects have something in common -->
+
+<!-- ```{r} -->
+<!-- # compare subjects that failed at Laplace Approximation with others -->
+<!-- rand_id <- sample(unique(df$SEQN), size = 4) -->
+<!-- com_id <- c(rand_id, sample(skip_id, 4)) -->
+
+<!-- df_est_latent %>% filter(id %in% com_id) %>% -->
+<!--   left_join(df %>% select(SEQN, Z, sind) %>% -->
+<!--               rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>% -->
+<!--   mutate(type = ifelse(id %in% rand_id, "Prediction", "Failed prediction")) %>% -->
+<!--   ggplot(aes(x=bin, y=eta_hat, col = type))+ -->
+<!--   geom_line()+ -->
+<!--   geom_vline(xintercept = 360)+ -->
+<!--   facet_wrap(~type+id, nrow = 2, ncol = 4)+ -->
+<!--   labs(y = "Estimated latend function", x = "Time", col = "") -->
+<!-- ``` -->
+
+
+<!-- ## Subjects with complete prediction -->
+
+<!-- ```{r fig_prob, warning=FALSE} -->
+<!-- df_est_latent %>% -->
+<!--   filter(id %in% rand_id) %>% -->
+<!--   mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080), -->
+<!--          pred_t720 = ifelse(bin<=720, NA, pred_t720), -->
+<!--          pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>% -->
+<!--   mutate_at(vars(pred_t360, pred_t720, pred_t1080), function(x)exp(x)/(1+exp(x))) %>% -->
+<!--   left_join(df %>% select(SEQN, Z, sind) %>% -->
+<!--               rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>% -->
+<!--   ggplot()+ -->
+<!--     geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+ -->
+<!--     geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+ -->
+<!--     geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+ -->
+<!--     geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.5)+ -->
+<!--     facet_wrap(~id)+ -->
+<!--     labs(x = "Time", y = "Estimated latent function (probablity scale)", -->
+<!--          col = "Maximum observation time") -->
+<!-- ``` -->
+
+
+<!-- ```{r fig_eta, warning=FALSE} -->
+<!-- df_est_latent %>% -->
+<!--   filter(id %in% rand_id) %>% -->
+<!--   mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080), -->
+<!--          pred_t720 = ifelse(bin<=720, NA, pred_t720), -->
+<!--          pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>% -->
+<!--   ggplot()+ -->
+<!--     geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+ -->
+<!--     geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+ -->
+<!--     geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+ -->
+<!--     geom_line(aes(x=bin, y = eta_hat, col = "eta_hat"), linetype = "solid" )+ -->
+<!--     facet_wrap(~id)+ -->
+<!--     labs(x = "Time", y = "Estimated latent function") -->
+<!-- ``` -->
+
+<!-- ## AUC on subjects with complete prediction -->
+
+<!-- - Use interpolation to fill in gaps between bins -->
+
+<!-- ```{r} -->
+<!-- # subjects with complete prediction -->
+<!-- N <- length(unique(df$SEQN))-length(skip_id) -->
+<!-- eval_id <- setdiff(unique(df$SEQN), skip_id) -->
+<!-- J <- max(df$sind) -->
+
+<!-- # containter: row index subject, column index time -->
+<!-- eta_mat_t360 <- eta_mat_t720 <- eta_mat_t1080 <- matrix(NA, nrow = N, ncol = J) -->
+
+<!-- # interpolation -->
+<!-- for(i in seq_along(eval_id)){ -->
+<!--    eta_mat_t360[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]], -->
+<!--                                y=df_est_latent$pred_t360[df_est_latent$id==eval_id[i]],  -->
+<!--                                xout = 1:J)$y -->
+<!--    eta_mat_t720[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]], -->
+<!--                                y=df_est_latent$pred_t720[df_est_latent$id==eval_id[i]],  -->
+<!--                                xout = 1:J)$y -->
+<!--    eta_mat_t1080[i, ] <- approx(x=df_est_latent$bin[df_est_latent$id==eval_id[i]], -->
+<!--                                y=df_est_latent$pred_t1080[df_est_latent$id==eval_id[i]],  -->
+<!--                                xout = 1:J)$y -->
+<!--   } -->
+
+
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- # true outcome -->
+<!-- Y_mat <- df$Z[df$SEQN %in% eval_id] -->
+<!-- Y_mat <- matrix(Y_mat, nrow = N, ncol = J, byrow = T)  -->
+<!-- ``` -->
+
+<!-- ```{r AUC_fGFPCA} -->
+<!-- # maximum observations time -->
+<!-- t_vec <- c(360, 720, 1080) -->
+
+<!-- # AUC container -->
+<!-- auc_mat <- matrix(NA, 3, 3) -->
+<!-- colnames(auc_mat) <- c("360", "720", "1080") -->
+<!-- rownames(auc_mat) <- c("(360, 720]", "(720, 1080]", "(1080, 1440]") -->
+
+<!-- # Calculate AUC -->
+
+<!-- auc_mat[1, 1] <- performance(prediction(as.vector(eta_mat_t360[, 361:720]),  -->
+<!--                                    as.vector(Y_mat[, 361:720])), -->
+<!--                         "auc")@y.values[[1]] -->
+<!-- auc_mat[2, 1] <- performance(prediction(as.vector(eta_mat_t360[, 721:1080]),  -->
+<!--                                    as.vector(Y_mat[, 721:1080])), -->
+<!--                         "auc")@y.values[[1]] -->
+<!-- auc_mat[3, 1] <- performance(prediction(as.vector(eta_mat_t360[, 1081:1435]),  -->
+<!--                                    as.vector(Y_mat[, 1081:1435])), -->
+<!--                         "auc")@y.values[[1]] -->
+
+<!-- auc_mat[2, 2] <- performance(prediction(as.vector(eta_mat_t720[, 721:1080]),  -->
+<!--                                    as.vector(Y_mat[, 721:1080])), -->
+<!--                         "auc")@y.values[[1]] -->
+<!-- auc_mat[3, 2] <- performance(prediction(as.vector(eta_mat_t720[, 1081:1435]),  -->
+<!--                                    as.vector(Y_mat[, 1081:1435])), -->
+<!--                         "auc")@y.values[[1]] -->
+
+
+<!-- auc_mat[3, 3] <- performance(prediction(as.vector(eta_mat_t1080[, 1081:1435]),  -->
+<!--                                    as.vector(Y_mat[, 1081:1435])), -->
+<!--                         "auc")@y.values[[1]] -->
+<!-- auc_mat -->
+<!-- ``` -->
+
+
+<!-- ## Reference method -->
+
+<!-- - GLMMadaptive? -->
+<!-- - fcr on lowess smoothed track? -->
