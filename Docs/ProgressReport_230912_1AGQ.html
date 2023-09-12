@@ -350,17 +350,27 @@ df %&gt;%
   left_join(df_est_latent, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
   # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
   ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_line(aes(x=bin, y=eta_hat, group = id, linetype = &quot;dashed&quot;))+
   geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
   facet_wrap(~id, scales = &quot;free&quot;)+
   geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
              linewidth = 0.5, alpha = 0.6)+
   labs(x = &quot;Bin&quot;, y = &quot;Estimated latent function/number of active minutes&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
-<div id="take-a-closer-look-at-the-unidentifiable-bins"
-class="section level4" number="1.2.2.1">
-<h4><span class="header-section-number">1.2.2.1</span> Take a closer
-look at the unidentifiable bins</h4>
+<ul>
+<li>Take a closer look at the unidentifiable bins?</li>
+</ul>
+<p>I just realized glmer actually used Laplace approximation as well.
+Could this also be due to numeric stability? In some bins (465, 545,
+555, 1185, 1195, 1205), the approximation failed to converge.</p>
+<p>Below is the warning messages and one model summary.</p>
+<p>For this bin, the problem is with the fixed effect standard error. It
+is clearly near-zero.</p>
+<p><a href="https://www.learn-mlms.com/07-module-7.html"
+class="uri">https://www.learn-mlms.com/07-module-7.html</a></p>
+<p><a
+href="https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html"
+class="uri">https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html</a></p>
 <pre class="r"><code>try_fit_lst&lt;-list()
 for(i in seq_along(df_bin_lst)){
   this_glm &lt;- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]],
@@ -371,18 +381,14 @@ for(i in seq_along(df_bin_lst)){
 }
 
 # bins where glmer returned errors
-names(df_bin_lst)[is.na(try_fit_lst)]</code></pre>
-<p>The fitting problem occurs in the following bins: 465, 545, 555,
-1185, 1195, 1205. All of them had two warnings: 1) Non-convergence; 2)
-near-unidenetifiability. Summary results show that standar error
-estimates of fixed effects (intercept) are very close two zero.</p>
-<p>Below is an example of bin 465:</p>
-<pre class="r fold-show"><code>issue_fit &lt;- glmer(Y ~ 1 + (1|id), data = df_bin_lst[[&#39;465&#39;]], family = binomial)</code></pre>
+# names(df_bin_lst)[is.na(try_fit_lst)]</code></pre>
+<pre class="r"><code>issue_fit &lt;- glmer(Y ~ 1 + (1|id), data = df_bin_lst[[&#39;465&#39;]],
+                             family = binomial)</code></pre>
 <pre><code>## Warning in checkConv(attr(opt, &quot;derivs&quot;), opt$par, ctrl = control$checkConv, :
 ## Model failed to converge with max|grad| = 1.32945 (tol = 0.002, component 1)</code></pre>
 <pre><code>## Warning in checkConv(attr(opt, &quot;derivs&quot;), opt$par, ctrl = control$checkConv, : Model is nearly unidentifiable: very large eigenvalue
 ##  - Rescale variables?</code></pre>
-<pre class="r fold-show"><code>summary(issue_fit)</code></pre>
+<pre class="r"><code>summary(issue_fit)</code></pre>
 <pre><code>## Generalized linear mixed model fit by maximum likelihood (Laplace
 ##   Approximation) [glmerMod]
 ##  Family: binomial  ( logit )
@@ -410,139 +416,31 @@ estimates of fixed effects (intercept) are very close two zero.</p>
 ## Model failed to converge with max|grad| = 1.32945 (tol = 0.002, component 1)
 ## Model is nearly unidentifiable: very large eigenvalue
 ##  - Rescale variables?</code></pre>
-<p>However, this issue seems to disappear after setting nAGO=2. This
-argument controls the number of nodes in adaptive Gauss-Hermite
-quadrature approximation. This also seems to be faster and more
-accurate!</p>
-<p>Reference: <a href="https://arxiv.org/pdf/2202.07864.pdf"
-class="uri">https://arxiv.org/pdf/2202.07864.pdf</a></p>
-<pre class="r fold-show"><code>issue_fit &lt;- glmer(Y ~ 1 + (1|id), data = df_bin_lst[[&#39;465&#39;]], family = binomial, nAGQ=2)
-
-summary(issue_fit)</code></pre>
-<pre><code>## Generalized linear mixed model fit by maximum likelihood (Adaptive
-##   Gauss-Hermite Quadrature, nAGQ = 2) [glmerMod]
-##  Family: binomial  ( logit )
-## Formula: Y ~ 1 + (1 | id)
-##    Data: df_bin_lst[[&quot;465&quot;]]
-## 
-##      AIC      BIC   logLik deviance df.resid 
-##  61618.9  61637.7 -30807.4  61614.9    87628 
-## 
-## Scaled residuals: 
-##     Min      1Q  Median      3Q     Max 
-## -2.5614 -0.1231 -0.1231  0.2093  3.0087 
-## 
-## Random effects:
-##  Groups Name        Variance Std.Dev.
-##  id     (Intercept) 12.87    3.587   
-## Number of obs: 87630, groups:  id, 8763
-## 
-## Fixed effects:
-##             Estimate Std. Error z value Pr(&gt;|z|)    
-## (Intercept) -2.27006    0.04844  -46.86   &lt;2e-16 ***
-## ---
-## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
-<!-- https://www.learn-mlms.com/07-module-7.html -->
-<!-- https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html -->
-<p>So I decided to re-do latent function estimation while adjusting the
-nAGQ parameter. Below are some findings:</p>
-<ul>
-<li>nAGQ=0 for all bins: no warnings appeared. This is supposed to be
-fast but not accurate</li>
-<li>nAGQ=1, 2: warnings appeared in some bins.</li>
-</ul>
-<pre class="r"><code># re-fit local GLMM and check numeric issues
-try_fit_lst&lt;-list()
-for(i in seq_along(df_bin_lst)){
-  this_glm &lt;- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=0)},
-                       warning=function(w){NA})
-  try_fit_lst[[i]] &lt;- this_glm
-  
-}
-
-# bins where glmer returned errors
-names(df_bin_lst)[is.na(try_fit_lst)]
-lapply(head(try_fit_lst), summary)</code></pre>
-<p>So perhaps we could try either setting nAGQ = 0 or a variable
-nAGQ:</p>
-<p>Below is the result for nAGQ = 0:</p>
-<pre class="r"><code># re-define pre_latent funciton with nAGQ = 0
-pred_latent_0AGQ &lt;- function(df){
-    this_glm &lt;- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ = 0)
-    eta_hat &lt;- predict(this_glm, type = &quot;link&quot;)
-    df$eta_hat &lt;- eta_hat
-    return(df)
-}
-
-# re-fit local GLMMs
-df_est_latent_0AGQ &lt;- lapply(df_bin_lst, function(x){pred_latent_0AGQ(x)}) 
-# head(df_est_latent_0AGQ[[1]])
-df_est_latent_0AGQ &lt;- bind_rows(df_est_latent_0AGQ)
-
-# keep midpoint values
-df_est_latent_0AGQ &lt;- df_est_latent_0AGQ %&gt;%
-  select(-sind, -Y) %&gt;% distinct(.)</code></pre>
-<pre class="r"><code>df %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  left_join(df_est_latent_0AGQ, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
-  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
-  ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, group = id))+
-  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
-  facet_wrap(~id, scales = &quot;free&quot;)+
-  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
-             # alpha = 0.5, linewidth = 0.5)+
-  labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
-<pre class="r"><code># overview at estimated latent function
-df %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  group_by(id, bin) %&gt;%
-  summarise(num = sum(Y)) %&gt;%
-  left_join(df_est_latent_0AGQ, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
-  # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
-  facet_wrap(~id, scales = &quot;free&quot;)+
-  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
-  #            linewidth = 0.5, alpha = 0.6)+
-  labs(x = &quot;Bin&quot;, y = &quot;Estimated latent function/number of active minutes&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
-<p>Obviously the lower bound of estimated latent function got a lot
-higher. Nothing else seems to change much.</p>
-<p>For FPCA models below, I’ll use the result from nAGQ=0 since it is
-free of fitting issues.</p>
-</div>
+<pre class="r"><code># table(df_bin_lst[[&#39;5&#39;]]$id, df_bin_lst[[&#39;5&#39;]]$Y)</code></pre>
+<pre class="r"><code>colSums(table(df_bin_lst[[&#39;5&#39;]]$id, df_bin_lst[[&#39;5&#39;]]$Y)==0)
+colSums(table(df_bin_lst[[&#39;465&#39;]]$id, df_bin_lst[[&#39;465&#39;]]$Y)==0)</code></pre>
 </div>
 <div id="fpca" class="section level3" number="1.2.3">
 <h3><span class="header-section-number">1.2.3</span> FPCA</h3>
-<pre class="r"><code>mat_est_unique &lt;- matrix(df_est_latent_0AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+<pre class="r"><code>mat_est_unique &lt;- matrix(df_est_latent$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
 # row index subject, column binned time
 fpca_mod &lt;- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, var=T)
 
 K &lt;- ncol(fpca_mod$efunctions) # 18 eigenfunctions</code></pre>
 <pre class="r"><code># population mean
 plot(mid, fpca_mod$mu, type = &quot;l&quot;, xlab = &quot;bin&quot;, ylab = &quot;mean&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 <pre class="r"><code># eigenfunctions
 par(mfrow=c(2,2))
 plot(mid, fpca_mod$efunctions[, 1], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;)
 plot(mid, fpca_mod$efunctions[, 2], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;)
 plot(mid, fpca_mod$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
 plot(mid, fpca_mod$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
 <pre class="r"><code># covariance
 heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
         Rowv = NA, Colv = NA, main = &quot;Covariance matrix&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
-<p>Compared the nAGQ=1:</p>
-<ul>
-<li>The lower bound of mean function went up</li>
-<li>Shapes of PC functions didn’t change a lot</li>
-<li>Covariance matrix looks a lot more different! Near-diagonal
-correlation got higher and off-diagonal got lower.</li>
-</ul>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
 </div>
 </div>
 <div id="dynamic-prediction" class="section level2" number="1.3">
@@ -559,12 +457,10 @@ solution from maximum likelihood is obviously not stable. It is very
 likely to fail to converge.</li>
 <li>Perhaps it can be fixed with numeric options? But I’d rather not go
 that route because it depend on chance a lot.</li>
-<li>After setting nAGQ=0, the problem got better for some subjects, but
-not the others.</li>
 </ul>
 <pre class="r"><code># Out-of-sample prediction
 # maximum observations time: 360, 720, 1080
-df_pred &lt;- df_est_latent_0AGQ %&gt;% filter(id %in% rand_id)
+df_pred &lt;- df_est_latent %&gt;% filter(id %in% rand_id)
 df_pred[, &#39;pred_t360&#39;] &lt;- df_pred[, &#39;pred_t720&#39;] &lt;- df_pred[, &#39;pred_t1080&#39;] &lt;- NA
 score_out_mat &lt;- array(NA, dim = c(length(rand_id), K, 3))
 # dim indexes subject, eigenfunction and max obs time respectively</code></pre>
@@ -586,9 +482,7 @@ for(i in rand_id){
   # score_out_mat[i, ,1] &lt;- pred_t360$score_out
   # score_out_mat[i, ,2] &lt;- pred_t720$score_out
   # score_out_mat[i, ,3] &lt;- pred_t1440$score_out
-}
-
-# df_pred</code></pre>
+}</code></pre>
 <pre class="r"><code>df_pred$pred_t360[df_pred$bin&lt;=360] &lt;- NA
 df_pred$pred_t720[df_pred$bin&lt;=720] &lt;- NA
 df_pred$pred_t1080[df_pred$bin&lt;=1080] &lt;- NA
@@ -599,14 +493,14 @@ df_pred$pred_t1080[df_pred$bin&lt;=1080] &lt;- NA
   geom_line(aes(x=bin, y = pred_t360, col = &quot;360&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = &quot;720&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = &quot;1080&quot;, group = id))+
-  facet_wrap(~id,scales = &quot;free&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
+  facet_wrap(~id)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
 </div>
 <div id="bayes-method-like-laplace-approximation" class="section level3"
 number="1.3.2">
 <h3><span class="header-section-number">1.3.2</span> Bayes method like
 Laplace approximation</h3>
-<pre class="r"><code>df_pred2 &lt;- df_est_latent_0AGQ %&gt;% filter(id %in% rand_id)
+<pre class="r"><code>df_pred2 &lt;- df_est_latent %&gt;% filter(id %in% rand_id)
 df_pred2[, &#39;pred_t360&#39;] &lt;- df_pred2[, &#39;pred_t720&#39;] &lt;- df_pred2[, &#39;pred_t1080&#39;] &lt;- NA
 score_out_mat2 &lt;- array(NA, dim = c(length(rand_id), K, 3))
 
@@ -643,8 +537,8 @@ df_pred2$pred_t1080[df_pred2$bin&lt;=1080] &lt;- NA
   geom_line(aes(x=bin, y = pred_t360, col = &quot;360&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = &quot;720&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = &quot;1080&quot;, group = id))+
-  facet_wrap(~id,scales = &quot;free&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
+  facet_wrap(~id)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
 <!-- ## Failed prediction  -->
 <!-- - Laplace approximation failed for some subjects -->
 <!-- - Only when the observed track is short (up to 360) -->

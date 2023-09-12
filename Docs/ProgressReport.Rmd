@@ -140,7 +140,7 @@ df %>%
   left_join(df_est_latent, by = c("id", "bin")) %>%
   # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id, linetype = "dashed"))+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
   geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
   facet_wrap(~id, scales = "free")+
   geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
@@ -148,19 +148,7 @@ df %>%
   labs(x = "Bin", y = "Estimated latent function/number of active minutes")
 ```
 
-- Take a closer look at the unidentifiable bins?
-
-I just realized glmer actually used Laplace approximation as well. Could this also be due to numeric stability? In some bins (465, 545, 555, 1185, 1195, 1205), the approximation failed to converge. 
-
-Below is the warning messages and one model summary.
-
-For this bin, the problem is with the fixed effect standard error. It is clearly near-zero. 
-
-https://www.learn-mlms.com/07-module-7.html
-
-https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
-
-
+#### Take a closer look at the unidentifiable bins
 
 ```{r, eval=FALSE}
 try_fit_lst<-list()
@@ -173,27 +161,123 @@ for(i in seq_along(df_bin_lst)){
 }
 
 # bins where glmer returned errors
-# names(df_bin_lst)[is.na(try_fit_lst)]
+names(df_bin_lst)[is.na(try_fit_lst)]
 ```
+
+The fitting problem occurs in the following bins: 465, 545, 555, 1185, 1195, 1205. All of them had two warnings: 1) Non-convergence; 2) near-unidenetifiability. Summary results show that standar error estimates of fixed effects (intercept) are very close two zero. 
+
+Below is an example of bin 465:
+
+```{r class.source='fold-show'}
+issue_fit <- glmer(Y ~ 1 + (1|id), data = df_bin_lst[['465']], family = binomial)
+
+summary(issue_fit)
+```
+
+
+However, this issue seems to disappear after setting nAGO=2. This argument controls the number of nodes in adaptive Gauss-Hermite quadrature approximation. This also seems to be faster and more accurate! 
+
+Reference: https://arxiv.org/pdf/2202.07864.pdf
+
+
+```{r class.source='fold-show'}
+issue_fit <- glmer(Y ~ 1 + (1|id), data = df_bin_lst[['465']], family = binomial, nAGQ=2)
+
+summary(issue_fit)
+```
+
+
+<!-- https://www.learn-mlms.com/07-module-7.html -->
+
+<!-- https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html -->
+
+So I decided to re-do latent function estimation while adjusting the nAGQ parameter. Below are some findings:
+
+- nAGQ=0 for all bins: no warnings appeared. This is supposed to be fast but not accurate
+- nAGQ=1, 2: warnings appeared in some bins. 
+
+```{r, eval=FALSE}
+# re-fit local GLMM and check numeric issues
+try_fit_lst<-list()
+for(i in seq_along(df_bin_lst)){
+  this_glm <- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=0)},
+                       warning=function(w){NA})
+  try_fit_lst[[i]] <- this_glm
+  
+}
+
+# bins where glmer returned errors
+names(df_bin_lst)[is.na(try_fit_lst)]
+lapply(head(try_fit_lst), summary)
+```
+
+So perhaps we could try either setting nAGQ = 0 or a variable nAGQ:
+
+Below is the result for nAGQ = 0: 
+
 
 ```{r}
-issue_fit <- glmer(Y ~ 1 + (1|id), data = df_bin_lst[['465']],
-                             family = binomial)
-summary(issue_fit)
+# re-define pre_latent funciton with nAGQ = 0
+pred_latent_0AGQ <- function(df){
+    this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ = 0)
+    eta_hat <- predict(this_glm, type = "link")
+    df$eta_hat <- eta_hat
+    return(df)
+}
 
+# re-fit local GLMMs
+df_est_latent_0AGQ <- lapply(df_bin_lst, function(x){pred_latent_0AGQ(x)}) 
+# head(df_est_latent_0AGQ[[1]])
+df_est_latent_0AGQ <- bind_rows(df_est_latent_0AGQ)
 
-# table(df_bin_lst[['5']]$id, df_bin_lst[['5']]$Y)
+# keep midpoint values
+df_est_latent_0AGQ <- df_est_latent_0AGQ %>%
+  select(-sind, -Y) %>% distinct(.)
 ```
 
-```{r eval=FALSE}
-colSums(table(df_bin_lst[['5']]$id, df_bin_lst[['5']]$Y)==0)
-colSums(table(df_bin_lst[['465']]$id, df_bin_lst[['465']]$Y)==0)
+
+
+```{r, message=FALSE}
+df %>% 
+  filter(id %in% rand_id) %>%
+  left_join(df_est_latent_0AGQ, by = c("id", "bin")) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id))+
+  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
+             # alpha = 0.5, linewidth = 0.5)+
+  labs(x = "Time", y = "Estimated latent function (probablity scale)")
 ```
+
+
+
+```{r, message=FALSE}
+# overview at estimated latent function
+df %>% 
+  filter(id %in% rand_id) %>%
+  group_by(id, bin) %>%
+  summarise(num = sum(Y)) %>%
+  left_join(df_est_latent_0AGQ, by = c("id", "bin")) %>%
+  # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
+  #            linewidth = 0.5, alpha = 0.6)+
+  labs(x = "Bin", y = "Estimated latent function/number of active minutes")
+```
+
+Obviously the lower bound of estimated latent function got a lot higher. Nothing else seems to change much. 
+
+For FPCA models below, I'll use the result from nAGQ=0 since it is free of fitting issues. 
 
 ### FPCA
 
 ```{r}
-mat_est_unique <- matrix(df_est_latent$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+mat_est_unique <- matrix(df_est_latent_0AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
 # row index subject, column binned time
 fpca_mod <- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, var=T)
 
@@ -221,6 +305,11 @@ heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
         Rowv = NA, Colv = NA, main = "Covariance matrix")
 ```
 
+Compared the nAGQ=1: 
+
+- The lower bound of mean function went up
+- Shapes of PC functions didn't change a lot
+- Covariance matrix looks a lot more different! Near-diagonal correlation got higher and off-diagonal got lower.
 
 ## Dynamic prediction
 
@@ -230,11 +319,13 @@ heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
 - Warning message: Steady solution not reached
 - Large variation in both predicted values and scores. The numeric solution from maximum likelihood is obviously not stable. It is very likely to fail to converge.
 - Perhaps it can be fixed with numeric options? But I'd rather not go that route because it depend on chance a lot. 
+- After setting nAGQ=0, the problem got better for some subjects, but not the others. 
+
 
 ```{r}
 # Out-of-sample prediction
 # maximum observations time: 360, 720, 1080
-df_pred <- df_est_latent %>% filter(id %in% rand_id)
+df_pred <- df_est_latent_0AGQ %>% filter(id %in% rand_id)
 df_pred[, 'pred_t360'] <- df_pred[, 'pred_t720'] <- df_pred[, 'pred_t1080'] <- NA
 score_out_mat <- array(NA, dim = c(length(rand_id), K, 3))
 # dim indexes subject, eigenfunction and max obs time respectively
@@ -261,6 +352,8 @@ for(i in rand_id){
   # score_out_mat[i, ,3] <- pred_t1440$score_out
 }
 
+# df_pred
+
 ```
 
 ```{r}
@@ -277,7 +370,7 @@ df_pred %>%
   geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
-  facet_wrap(~id)
+  facet_wrap(~id,scales = "free")
 ```
 
 
@@ -285,7 +378,7 @@ df_pred %>%
 
 
 ```{r, warning=FALSE, message=FALSE, results='hide'}
-df_pred2 <- df_est_latent %>% filter(id %in% rand_id)
+df_pred2 <- df_est_latent_0AGQ %>% filter(id %in% rand_id)
 df_pred2[, 'pred_t360'] <- df_pred2[, 'pred_t720'] <- df_pred2[, 'pred_t1080'] <- NA
 score_out_mat2 <- array(NA, dim = c(length(rand_id), K, 3))
 
@@ -329,7 +422,7 @@ df_pred2 %>%
   geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
-  facet_wrap(~id)
+  facet_wrap(~id,scales = "free")
 ```
 
 
