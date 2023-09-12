@@ -19,6 +19,7 @@ set.seed(516)
 
 library(here)
 library(tidyverse)
+library(ggpubr)
 library(refund)
 library(lme4)
 library(ROCR)
@@ -175,10 +176,13 @@ summary(issue_fit)
 ```
 
 
-However, this issue seems to disappear after setting nAGO=2. This argument controls the number of nodes in adaptive Gauss-Hermite quadrature approximation. This also seems to be faster and more accurate! 
+However, this issue seems to disappear after changing nAGQ. This argument controls the number of nodes in adaptive Gauss-Hermite quadrature approximation. If nAGQ=0, optimitization is done through penalized iteratively reweighted least square (PIRLS); if nAGQ=1, Laplace approximation and if nAGQ>1, adaptive Gauss-Hermite Quadrature. 
 
-Reference: https://arxiv.org/pdf/2202.07864.pdf
+Reference: https://arxiv.org/pdf/2202.07864.pdf (In fact based on this reference the recommended number of node is 0)
 
+Another reference: https://stats.stackexchange.com/questions/544937/when-is-it-appropriate-to-set-nagq-0-in-glmer. According to this one, when setting nAGQ=0, fixed effect parameters are not optimized.
+
+For example set nAGQ=2 for bin 465: 
 
 ```{r class.source='fold-show'}
 issue_fit <- glmer(Y ~ 1 + (1|id), data = df_bin_lst[['465']], family = binomial, nAGQ=2)
@@ -193,14 +197,15 @@ summary(issue_fit)
 
 So I decided to re-do latent function estimation while adjusting the nAGQ parameter. Below are some findings:
 
-- nAGQ=0 for all bins: no warnings appeared. This is supposed to be fast but not accurate
-- nAGQ=1, 2: warnings appeared in some bins. 
+- nAGQ=0 for all bins: no warnings appeared. This is supposed to be fast but not accurate. 
+- nAGQ=1, 2, 3: warnings appeared in some bins. 
+- nAGQ=5: no warnings! 
 
 ```{r, eval=FALSE}
 # re-fit local GLMM and check numeric issues
 try_fit_lst<-list()
 for(i in seq_along(df_bin_lst)){
-  this_glm <- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=0)},
+  this_glm <- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=5)},
                        warning=function(w){NA})
   try_fit_lst[[i]] <- this_glm
   
@@ -208,15 +213,15 @@ for(i in seq_along(df_bin_lst)){
 
 # bins where glmer returned errors
 names(df_bin_lst)[is.na(try_fit_lst)]
-lapply(head(try_fit_lst), summary)
+glmer(Y ~ 1 + (1|id), data = df_bin_lst[['565']], family = binomial, nAGQ=3)
 ```
 
 So perhaps we could try either setting nAGQ = 0 or a variable nAGQ:
 
-Below is the result for nAGQ = 0: 
+Below compares the result for nAGQ = 0 and nAGQ = 5: 
 
 
-```{r}
+```{r, cache=TRUE}
 # re-define pre_latent funciton with nAGQ = 0
 pred_latent_0AGQ <- function(df){
     this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ = 0)
@@ -226,9 +231,12 @@ pred_latent_0AGQ <- function(df){
 }
 
 # re-fit local GLMMs
+t1=Sys.time()
 df_est_latent_0AGQ <- lapply(df_bin_lst, function(x){pred_latent_0AGQ(x)}) 
+t2=Sys.time()
 # head(df_est_latent_0AGQ[[1]])
 df_est_latent_0AGQ <- bind_rows(df_est_latent_0AGQ)
+t_0AGQ <- t2-t1
 
 # keep midpoint values
 df_est_latent_0AGQ <- df_est_latent_0AGQ %>%
@@ -237,7 +245,35 @@ df_est_latent_0AGQ <- df_est_latent_0AGQ %>%
 
 
 
+```{r, cache=TRUE}
+# re-define pre_latent funciton with nAGQ = 0
+pred_latent_5AGQ <- function(df){
+    this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ = 5)
+    eta_hat <- predict(this_glm, type = "link")
+    df$eta_hat <- eta_hat
+    return(df)
+}
+
+# re-fit local GLMMs
+t1=Sys.time()
+df_est_latent_5AGQ <- lapply(df_bin_lst, function(x){pred_latent_5AGQ(x)}) 
+t2=Sys.time()
+# head(df_est_latent_0AGQ[[1]])
+df_est_latent_5AGQ <- bind_rows(df_est_latent_5AGQ)
+t_5AGQ <- t2-t1
+
+# keep midpoint values
+df_est_latent_5AGQ <- df_est_latent_5AGQ %>%
+  select(-sind, -Y) %>% distinct(.)
+```
+
+- Time spent: `r t_0AGQ` for nAGQ=0, `r t_5AGQ` for nAGQ=5
+
+
+
 ```{r, message=FALSE}
+ggarrange(
+# nAQG=0
 df %>% 
   filter(id %in% rand_id) %>%
   left_join(df_est_latent_0AGQ, by = c("id", "bin")) %>%
@@ -248,13 +284,27 @@ df %>%
   facet_wrap(~id, scales = "free")+
   # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
              # alpha = 0.5, linewidth = 0.5)+
-  labs(x = "Time", y = "Estimated latent function (probablity scale)")
+  labs(x = "Time", y = "Estimated latent function (probablity scale)", title = "nAGQ=0"),
+#nAGQ=5
+df %>% 
+  filter(id %in% rand_id) %>%
+  left_join(df_est_latent_5AGQ, by = c("id", "bin")) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id))+
+  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
+             # alpha = 0.5, linewidth = 0.5)+
+  labs(x = "Time", y = "Estimated latent function (probablity scale)", title = "nAGQ=5"), nrow = 1)
 ```
 
 
 
 ```{r, message=FALSE}
 # overview at estimated latent function
+ggarrange(
+#nAGQ=0
 df %>% 
   filter(id %in% rand_id) %>%
   group_by(id, bin) %>%
@@ -267,42 +317,91 @@ df %>%
   facet_wrap(~id, scales = "free")+
   # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
   #            linewidth = 0.5, alpha = 0.6)+
-  labs(x = "Bin", y = "Estimated latent function/number of active minutes")
+  labs(x = "Bin", y = "Estimated latent function/number of active minutes", title = "nAGQ=0")+
+  ylim(-25, 10),
+
+#nAGQ=5
+df %>% 
+  filter(id %in% rand_id) %>%
+  group_by(id, bin) %>%
+  summarise(num = sum(Y)) %>%
+  left_join(df_est_latent_5AGQ, by = c("id", "bin")) %>%
+  # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = "red",
+  #            linewidth = 0.5, alpha = 0.6)+
+  labs(x = "Bin", y = "Estimated latent function/number of active minutes", title = "nAGQ=5")+
+  ylim(-25, 10),
+
+nrow = 1
+)
 ```
 
-Obviously the lower bound of estimated latent function got a lot higher. Nothing else seems to change much. 
+Obviously the lower bound of estimated latent function got a lot lower using AGQ than PIRLS. Nothing else seems to change much. 
 
-For FPCA models below, I'll use the result from nAGQ=0 since it is free of fitting issues. 
 
 ### FPCA
 
-```{r}
-mat_est_unique <- matrix(df_est_latent_0AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
-# row index subject, column binned time
-fpca_mod <- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, var=T)
+I would also like to compare the difference between AGQ (nAGQ=5) and PIRLS (nAGQ=0)
 
-K <- ncol(fpca_mod$efunctions) # 18 eigenfunctions
+- AGQ has 16 eigenfunctions while PIRLS has 18
+
+
+```{r}
+# nAGQ=0
+mat_est_unique_0AGQ <- matrix(df_est_latent_0AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+# row index subject, column binned time
+fpca_mod_0AGQ <- fpca.face(mat_est_unique_0AGQ, pve = 0.95, argvals = mid, var=T)
+
+K_0AGQ <- ncol(fpca_mod_0AGQ$efunctions) # 18 eigenfunctions
 ```
+
+
+```{r}
+# nAGQ=5
+mat_est_unique_5AGQ <- matrix(df_est_latent_5AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+# row index subject, column binned time
+fpca_mod_5AGQ <- fpca.face(mat_est_unique_5AGQ, pve = 0.95, argvals = mid, var=T)
+
+K_5AGQ <- ncol(fpca_mod_5AGQ$efunctions) # 18 eigenfunctions
+```
+
+- Population mean function
 
 ```{r}
 # population mean
-plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "mean")
+par(mfrow=c(1, 2))
+plot(mid, fpca_mod_0AGQ$mu, type = "l", xlab = "bin", ylab = "mean", main = "nAGQ=0", ylim = c(-25, 0))
+plot(mid, fpca_mod_5AGQ$mu, type = "l", xlab = "bin", ylab = "mean", main = "nAGQ=5", ylim = c(-25, 0))
 ```
-
-```{r}
+- PC functions
+```{r, fig.height=10, fig.width=6}
 # eigenfunctions
-par(mfrow=c(2,2))
-plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
-plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
-plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
-plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+par(mfrow=c(4,2))
+
+plot(mid, fpca_mod_0AGQ$efunctions[, 1], type="l", xlab="bin", ylab="PC1", main = "nAGQ=0")
+plot(mid, fpca_mod_5AGQ$efunctions[, 1], type="l", xlab="bin", ylab="PC1", main = "nAGQ=5")
+
+plot(mid, fpca_mod_0AGQ$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
+plot(mid, fpca_mod_5AGQ$efunctions[, 2], type="l", xlab="bin", ylab="PC3")
+
+plot(mid, fpca_mod_0AGQ$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+plot(mid, fpca_mod_5AGQ$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+
+plot(mid, fpca_mod_0AGQ$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+plot(mid, fpca_mod_5AGQ$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
 ```
 
-
+- Individual covariance matrix
 ```{r}
 # covariance
-heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
-        Rowv = NA, Colv = NA, main = "Covariance matrix")
+heatmap(fpca_mod_0AGQ$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
+        Rowv = NA, Colv = NA, main = "nAGQ=0")
+heatmap(fpca_mod_5AGQ$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
+        Rowv = NA, Colv = NA, main = "nAGQ=5")
 ```
 
 Compared the nAGQ=1: 
@@ -325,27 +424,61 @@ Compared the nAGQ=1:
 ```{r}
 # Out-of-sample prediction
 # maximum observations time: 360, 720, 1080
+# nAGQ=0
 df_pred <- df_est_latent_0AGQ %>% filter(id %in% rand_id)
 df_pred[, 'pred_t360'] <- df_pred[, 'pred_t720'] <- df_pred[, 'pred_t1080'] <- NA
-score_out_mat <- array(NA, dim = c(length(rand_id), K, 3))
+score_out_mat <- array(NA, dim = c(length(rand_id), K_0AGQ, 3))
 # dim indexes subject, eigenfunction and max obs time respectively
+
+# nAGQ=5
+df_pred2 <- df_est_latent_5AGQ %>% filter(id %in% rand_id)
+df_pred2[, 'pred_t360'] <- df_pred2[, 'pred_t720'] <- df_pred2[, 'pred_t1080'] <- NA
+score_out_mat2 <- array(NA, dim = c(length(rand_id), K_5AGQ, 3))
 ```
 
 ```{r, warning=FALSE}
 # prediction for a single subject
+# nAGQ=0
 for(i in rand_id){
   df_i <- df %>% filter(id==i) %>% mutate(bin=as.numeric(bin))
   # prediction
   pred_t360 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=360),
-                                 fpca_fit = fpca_mod, K = K)
+                                 fpca_fit = fpca_mod_0AGQ, K = K_0AGQ)
   pred_t720 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=720),
-                                 fpca_fit = fpca_mod, K = K)
+                                 fpca_fit = fpca_mod_0AGQ, K = K_0AGQ)
   pred_t1080 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=1080),
-                                  fpca_fit = fpca_mod, K = K)
+                                  fpca_fit = fpca_mod_0AGQ, K = K_0AGQ)
   # prediction in container
   df_pred[df_pred$id==i, 'pred_t360'] <- pred_t360$eta_pred
   df_pred[df_pred$id==i, 'pred_t720'] <- pred_t720$eta_pred
   df_pred[df_pred$id==i, 'pred_t1080'] <- pred_t1080$eta_pred
+  # score in container
+  # score_out_mat[i, ,1] <- pred_t360$score_out
+  # score_out_mat[i, ,2] <- pred_t720$score_out
+  # score_out_mat[i, ,3] <- pred_t1440$score_out
+}
+
+# df_pred
+
+```
+
+
+```{r, warning=FALSE}
+# prediction for a single subject
+# nAGQ=5
+for(i in rand_id){
+  df_i <- df %>% filter(id==i) %>% mutate(bin=as.numeric(bin))
+  # prediction
+  pred_t360 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=360),
+                                 fpca_fit = fpca_mod_5AGQ, K = K_5AGQ)
+  pred_t720 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=720),
+                                 fpca_fit = fpca_mod_5AGQ, K = K_5AGQ)
+  pred_t1080 <- out_samp_dyn_pred(df_new = df_i %>% filter(sind<=1080),
+                                  fpca_fit = fpca_mod_5AGQ, K = K_5AGQ)
+  # prediction in container
+  df_pred2[df_pred2$id==i, 'pred_t360'] <- pred_t360$eta_pred
+  df_pred2[df_pred2$id==i, 'pred_t720'] <- pred_t720$eta_pred
+  df_pred2[df_pred2$id==i, 'pred_t1080'] <- pred_t1080$eta_pred
   # score in container
   # score_out_mat[i, ,1] <- pred_t360$score_out
   # score_out_mat[i, ,2] <- pred_t720$score_out
@@ -361,54 +494,107 @@ df_pred$pred_t360[df_pred$bin<=360] <- NA
 df_pred$pred_t720[df_pred$bin<=720] <- NA
 df_pred$pred_t1080[df_pred$bin<=1080] <- NA
 # df_pred %>% filter(id == rand_id[1])
+
+df_pred2$pred_t360[df_pred2$bin<=360] <- NA
+df_pred2$pred_t720[df_pred2$bin<=720] <- NA
+df_pred2$pred_t1080[df_pred2$bin<=1080] <- NA
 ```
 
+
 ```{r, warning=FALSE}
+ggarrange(
 df_pred %>%
   ggplot()+
   geom_line(aes(x=bin, y=eta_hat, group = id))+
   geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
-  facet_wrap(~id,scales = "free")
+  facet_wrap(~id,scales = "free")+
+  labs(title = "nAGQ=0"),
+
+df_pred2 %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
+  geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
+  geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
+  facet_wrap(~id,scales = "free")+
+  labs(title = "nAGQ=5"),
+
+nrow = 1
+)
 ```
 
 
 ### Bayes method like Laplace approximation
 
 
-```{r, warning=FALSE, message=FALSE, results='hide'}
-df_pred2 <- df_est_latent_0AGQ %>% filter(id %in% rand_id)
+```{r, warning=FALSE, message=FALSE}
+#PIRLS
+df_pred <- df_est_latent_0AGQ %>% filter(id %in% rand_id)
+df_pred[, 'pred_t360'] <- df_pred[, 'pred_t720'] <- df_pred[, 'pred_t1080'] <- NA
+score_out_mat <- array(NA, dim = c(length(rand_id), K_0AGQ, 3))
+
+# AGQ
+df_pred2 <- df_est_latent_5AGQ %>% filter(id %in% rand_id)
 df_pred2[, 'pred_t360'] <- df_pred2[, 'pred_t720'] <- df_pred2[, 'pred_t1080'] <- NA
-score_out_mat2 <- array(NA, dim = c(length(rand_id), K, 3))
+score_out_mat <- array(NA, dim = c(length(rand_id), K_5AGQ, 3))
+
+```
 
 
+```{r, results='hide'}
 # unique id
 # prediction for a single subject
 source(here("Code/OutsampBayes.R"))
 
+# PRILS
 for(i in rand_id){
   df_i <- df %>% filter(id==i) 
   
   # prediction 
   ## up to 360
-  pred_t1 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=360))
-  eta_pred_t1 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t1$score_out
-  df_pred2[df_pred2$id == i, 'pred_t360'] <- eta_pred_t1
+  pred_t1 <- out_pred_laplace(fpca_mod_0AGQ, df_i %>% filter(sind<=360))
+  eta_pred_t1 <- fpca_mod_0AGQ$mu+fpca_mod_0AGQ$efunctions%*%pred_t1$score_out
+  df_pred[df_pred$id == i, 'pred_t360'] <- eta_pred_t1
   ## up to 720
-  pred_t2 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=720))
-  eta_pred_t2 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t2$score_out
-  df_pred2[df_pred2$id == i, 'pred_t720'] <- eta_pred_t2
+  pred_t2 <- out_pred_laplace(fpca_mod_0AGQ, df_i %>% filter(sind<=720))
+  eta_pred_t2 <- fpca_mod_0AGQ$mu+fpca_mod_0AGQ$efunctions%*%pred_t2$score_out
+  df_pred[df_pred$id == i, 'pred_t720'] <- eta_pred_t2
   ## up to 1080
-  pred_t3 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=1080))
-  eta_pred_t3 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t3$score_out
-  df_pred2[df_pred2$id == i, 'pred_t1080'] <- eta_pred_t3
+  pred_t3 <- out_pred_laplace(fpca_mod_0AGQ, df_i %>% filter(sind<=1080))
+  eta_pred_t3 <- fpca_mod_0AGQ$mu+fpca_mod_0AGQ$efunctions%*%pred_t3$score_out
+  df_pred[df_pred$id == i, 'pred_t1080'] <- eta_pred_t3
 
 }
+
+df_pred$pred_t360[df_pred$bin<=360] <- NA
+df_pred$pred_t720[df_pred$bin<=720] <- NA
+df_pred$pred_t1080[df_pred$bin<=1080] <- NA
 ```
 
 
-```{r}
+```{r, results='hide'}
+# AGQ
+for(i in rand_id){
+  df_i <- df %>% filter(id==i) 
+  
+  # prediction 
+  ## up to 360
+  pred_t1 <- out_pred_laplace(fpca_mod_5AGQ, df_i %>% filter(sind<=360))
+  eta_pred_t1 <- fpca_mod_5AGQ$mu+fpca_mod_5AGQ$efunctions%*%pred_t1$score_out
+  df_pred2[df_pred2$id == i, 'pred_t360'] <- eta_pred_t1
+  ## up to 720
+  pred_t2 <- out_pred_laplace(fpca_mod_5AGQ, df_i %>% filter(sind<=720))
+  eta_pred_t2 <- fpca_mod_5AGQ$mu+fpca_mod_5AGQ$efunctions%*%pred_t2$score_out
+  df_pred2[df_pred2$id == i, 'pred_t720'] <- eta_pred_t2
+  ## up to 1080
+  pred_t3 <- out_pred_laplace(fpca_mod_5AGQ, df_i %>% filter(sind<=1080))
+  eta_pred_t3 <- fpca_mod_5AGQ$mu+fpca_mod_5AGQ$efunctions%*%pred_t3$score_out
+  df_pred2[df_pred2$id == i, 'pred_t1080'] <- eta_pred_t3
+
+}
+
 df_pred2$pred_t360[df_pred2$bin<=360] <- NA
 df_pred2$pred_t720[df_pred2$bin<=720] <- NA
 df_pred2$pred_t1080[df_pred2$bin<=1080] <- NA
@@ -416,13 +602,25 @@ df_pred2$pred_t1080[df_pred2$bin<=1080] <- NA
 ```
 
 ```{r, warning=FALSE}
+ggarrange(
+df_pred %>%
+  ggplot()+
+  geom_line(aes(x=bin, y=eta_hat, group = id))+
+  geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
+  geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
+  geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
+  facet_wrap(~id,scales = "free")+
+  labs(title = "nAGQ=0"),
+  
 df_pred2 %>%
   ggplot()+
   geom_line(aes(x=bin, y=eta_hat, group = id))+
   geom_line(aes(x=bin, y = pred_t360, col = "360", group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = "720", group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = "1080", group = id))+
-  facet_wrap(~id,scales = "free")
+  facet_wrap(~id,scales = "free")+
+  labs(title = "nAGQ=5"), nrow = 1
+)
 ```
 
 

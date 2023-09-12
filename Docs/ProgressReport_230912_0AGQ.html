@@ -410,21 +410,12 @@ estimates of fixed effects (intercept) are very close two zero.</p>
 ## Model failed to converge with max|grad| = 1.32945 (tol = 0.002, component 1)
 ## Model is nearly unidentifiable: very large eigenvalue
 ##  - Rescale variables?</code></pre>
-<p>However, this issue seems to disappear after changing nAGQ. This
+<p>However, this issue seems to disappear after setting nAGO=2. This
 argument controls the number of nodes in adaptive Gauss-Hermite
-quadrature approximation. If nAGQ=0, optimitization is done through
-penalized iteratively reweighted least square (PIRLS); if nAGQ=1,
-Laplace approximation and if nAGQ&gt;1, adaptive Gauss-Hermite
-Quadrature.</p>
+quadrature approximation. This also seems to be faster and more
+accurate!</p>
 <p>Reference: <a href="https://arxiv.org/pdf/2202.07864.pdf"
-class="uri">https://arxiv.org/pdf/2202.07864.pdf</a> (In fact based on
-this reference the recommended number of node is 0)</p>
-<p>Another reference: <a
-href="https://stats.stackexchange.com/questions/544937/when-is-it-appropriate-to-set-nagq-0-in-glmer"
-class="uri">https://stats.stackexchange.com/questions/544937/when-is-it-appropriate-to-set-nagq-0-in-glmer</a>.
-According to this one, when setting nAGQ=0, fixed effect parameters are
-not optimized.</p>
-<p>For example set nAGQ=2 for bin 465:</p>
+class="uri">https://arxiv.org/pdf/2202.07864.pdf</a></p>
 <pre class="r fold-show"><code>issue_fit &lt;- glmer(Y ~ 1 + (1|id), data = df_bin_lst[[&#39;465&#39;]], family = binomial, nAGQ=2)
 
 summary(issue_fit)</code></pre>
@@ -457,14 +448,13 @@ summary(issue_fit)</code></pre>
 nAGQ parameter. Below are some findings:</p>
 <ul>
 <li>nAGQ=0 for all bins: no warnings appeared. This is supposed to be
-fast but not accurate.</li>
-<li>nAGQ=1, 2, 3: warnings appeared in some bins.</li>
-<li>nAGQ=5: no warnings!</li>
+fast but not accurate</li>
+<li>nAGQ=1, 2: warnings appeared in some bins.</li>
 </ul>
 <pre class="r"><code># re-fit local GLMM and check numeric issues
 try_fit_lst&lt;-list()
 for(i in seq_along(df_bin_lst)){
-  this_glm &lt;- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=5)},
+  this_glm &lt;- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=0)},
                        warning=function(w){NA})
   try_fit_lst[[i]] &lt;- this_glm
   
@@ -472,10 +462,10 @@ for(i in seq_along(df_bin_lst)){
 
 # bins where glmer returned errors
 names(df_bin_lst)[is.na(try_fit_lst)]
-glmer(Y ~ 1 + (1|id), data = df_bin_lst[[&#39;565&#39;]], family = binomial, nAGQ=3)</code></pre>
+lapply(head(try_fit_lst), summary)</code></pre>
 <p>So perhaps we could try either setting nAGQ = 0 or a variable
 nAGQ:</p>
-<p>Below compares the result for nAGQ = 0 and nAGQ = 5:</p>
+<p>Below is the result for nAGQ = 0:</p>
 <pre class="r"><code># re-define pre_latent funciton with nAGQ = 0
 pred_latent_0AGQ &lt;- function(df){
     this_glm &lt;- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ = 0)
@@ -485,42 +475,14 @@ pred_latent_0AGQ &lt;- function(df){
 }
 
 # re-fit local GLMMs
-t1=Sys.time()
 df_est_latent_0AGQ &lt;- lapply(df_bin_lst, function(x){pred_latent_0AGQ(x)}) 
-t2=Sys.time()
 # head(df_est_latent_0AGQ[[1]])
 df_est_latent_0AGQ &lt;- bind_rows(df_est_latent_0AGQ)
-t_0AGQ &lt;- t2-t1
 
 # keep midpoint values
 df_est_latent_0AGQ &lt;- df_est_latent_0AGQ %&gt;%
   select(-sind, -Y) %&gt;% distinct(.)</code></pre>
-<pre class="r"><code># re-define pre_latent funciton with nAGQ = 0
-pred_latent_5AGQ &lt;- function(df){
-    this_glm &lt;- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ = 5)
-    eta_hat &lt;- predict(this_glm, type = &quot;link&quot;)
-    df$eta_hat &lt;- eta_hat
-    return(df)
-}
-
-# re-fit local GLMMs
-t1=Sys.time()
-df_est_latent_5AGQ &lt;- lapply(df_bin_lst, function(x){pred_latent_5AGQ(x)}) 
-t2=Sys.time()
-# head(df_est_latent_0AGQ[[1]])
-df_est_latent_5AGQ &lt;- bind_rows(df_est_latent_5AGQ)
-t_5AGQ &lt;- t2-t1
-
-# keep midpoint values
-df_est_latent_5AGQ &lt;- df_est_latent_5AGQ %&gt;%
-  select(-sind, -Y) %&gt;% distinct(.)</code></pre>
-<ul>
-<li>Time spent: 4.21580400069555 for nAGQ=0, 13.256231602033 for
-nAGQ=5</li>
-</ul>
-<pre class="r"><code>ggarrange(
-# nAQG=0
-df %&gt;% 
+<pre class="r"><code>df %&gt;% 
   filter(id %in% rand_id) %&gt;%
   left_join(df_est_latent_0AGQ, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
   mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
@@ -530,23 +492,9 @@ df %&gt;%
   facet_wrap(~id, scales = &quot;free&quot;)+
   # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
              # alpha = 0.5, linewidth = 0.5)+
-  labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;, title = &quot;nAGQ=0&quot;),
-#nAGQ=5
-df %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  left_join(df_est_latent_5AGQ, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
-  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
-  ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, group = id))+
-  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
-  facet_wrap(~id, scales = &quot;free&quot;)+
-  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
-             # alpha = 0.5, linewidth = 0.5)+
-  labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;, title = &quot;nAGQ=5&quot;), nrow = 1)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+  labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
 <pre class="r"><code># overview at estimated latent function
-ggarrange(
-#nAGQ=0
 df %&gt;% 
   filter(id %in% rand_id) %&gt;%
   group_by(id, bin) %&gt;%
@@ -559,84 +507,35 @@ df %&gt;%
   facet_wrap(~id, scales = &quot;free&quot;)+
   # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
   #            linewidth = 0.5, alpha = 0.6)+
-  labs(x = &quot;Bin&quot;, y = &quot;Estimated latent function/number of active minutes&quot;, title = &quot;nAGQ=0&quot;)+
-  ylim(-25, 10),
-
-#nAGQ=5
-df %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  group_by(id, bin) %&gt;%
-  summarise(num = sum(Y)) %&gt;%
-  left_join(df_est_latent_5AGQ, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
-  # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
-  facet_wrap(~id, scales = &quot;free&quot;)+
-  # geom_vline(xintercept = c(465, 545, 555, 1185, 1195, 1205), col = &quot;red&quot;,
-  #            linewidth = 0.5, alpha = 0.6)+
-  labs(x = &quot;Bin&quot;, y = &quot;Estimated latent function/number of active minutes&quot;, title = &quot;nAGQ=5&quot;)+
-  ylim(-25, 10),
-
-nrow = 1
-)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+  labs(x = &quot;Bin&quot;, y = &quot;Estimated latent function/number of active minutes&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
 <p>Obviously the lower bound of estimated latent function got a lot
-lower using AGQ than PIRLS. Nothing else seems to change much.</p>
+higher. Nothing else seems to change much.</p>
+<p>For FPCA models below, I’ll use the result from nAGQ=0 since it is
+free of fitting issues.</p>
 </div>
 </div>
 <div id="fpca" class="section level3" number="1.2.3">
 <h3><span class="header-section-number">1.2.3</span> FPCA</h3>
-<p>I would also like to compare the difference between AGQ (nAGQ=5) and
-PIRLS (nAGQ=0)</p>
-<ul>
-<li>AGQ has 16 eigenfunctions while PIRLS has 18</li>
-</ul>
-<pre class="r"><code># nAGQ=0
-mat_est_unique_0AGQ &lt;- matrix(df_est_latent_0AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+<pre class="r"><code>mat_est_unique &lt;- matrix(df_est_latent_0AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
 # row index subject, column binned time
-fpca_mod_0AGQ &lt;- fpca.face(mat_est_unique_0AGQ, pve = 0.95, argvals = mid, var=T)
+fpca_mod &lt;- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, var=T)
 
-K_0AGQ &lt;- ncol(fpca_mod_0AGQ$efunctions) # 18 eigenfunctions</code></pre>
-<pre class="r"><code># nAGQ=5
-mat_est_unique_5AGQ &lt;- matrix(df_est_latent_5AGQ$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
-# row index subject, column binned time
-fpca_mod_5AGQ &lt;- fpca.face(mat_est_unique_5AGQ, pve = 0.95, argvals = mid, var=T)
-
-K_5AGQ &lt;- ncol(fpca_mod_5AGQ$efunctions) # 18 eigenfunctions</code></pre>
-<ul>
-<li>Population mean function</li>
-</ul>
+K &lt;- ncol(fpca_mod$efunctions) # 18 eigenfunctions</code></pre>
 <pre class="r"><code># population mean
-par(mfrow=c(1, 2))
-plot(mid, fpca_mod_0AGQ$mu, type = &quot;l&quot;, xlab = &quot;bin&quot;, ylab = &quot;mean&quot;, main = &quot;nAGQ=0&quot;, ylim = c(-25, 0))
-plot(mid, fpca_mod_5AGQ$mu, type = &quot;l&quot;, xlab = &quot;bin&quot;, ylab = &quot;mean&quot;, main = &quot;nAGQ=5&quot;, ylim = c(-25, 0))</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+plot(mid, fpca_mod$mu, type = &quot;l&quot;, xlab = &quot;bin&quot;, ylab = &quot;mean&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
 <pre class="r"><code># eigenfunctions
-par(mfrow=c(4,2))
-
-plot(mid, fpca_mod_0AGQ$efunctions[, 1], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;, main = &quot;nAGQ=0&quot;)
-plot(mid, fpca_mod_5AGQ$efunctions[, 1], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;, main = &quot;nAGQ=5&quot;)
-
-plot(mid, fpca_mod_0AGQ$efunctions[, 2], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;)
-plot(mid, fpca_mod_5AGQ$efunctions[, 2], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
-
-plot(mid, fpca_mod_0AGQ$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
-plot(mid, fpca_mod_5AGQ$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
-
-plot(mid, fpca_mod_0AGQ$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)
-plot(mid, fpca_mod_5AGQ$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-19-1.png" width="576" /></p>
-<ul>
-<li>Individual covariance matrix</li>
-</ul>
+par(mfrow=c(2,2))
+plot(mid, fpca_mod$efunctions[, 1], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;)
+plot(mid, fpca_mod$efunctions[, 2], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;)
+plot(mid, fpca_mod$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
+plot(mid, fpca_mod$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
 <pre class="r"><code># covariance
-heatmap(fpca_mod_0AGQ$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
-        Rowv = NA, Colv = NA, main = &quot;nAGQ=0&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
-<pre class="r"><code>heatmap(fpca_mod_5AGQ$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
-        Rowv = NA, Colv = NA, main = &quot;nAGQ=5&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-20-2.png" width="672" /></p>
+heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
+        Rowv = NA, Colv = NA, main = &quot;Covariance matrix&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
 <p>Compared the nAGQ=1:</p>
 <ul>
 <li>The lower bound of mean function went up</li>
@@ -665,27 +564,20 @@ not the others.</li>
 </ul>
 <pre class="r"><code># Out-of-sample prediction
 # maximum observations time: 360, 720, 1080
-# nAGQ=0
 df_pred &lt;- df_est_latent_0AGQ %&gt;% filter(id %in% rand_id)
 df_pred[, &#39;pred_t360&#39;] &lt;- df_pred[, &#39;pred_t720&#39;] &lt;- df_pred[, &#39;pred_t1080&#39;] &lt;- NA
-score_out_mat &lt;- array(NA, dim = c(length(rand_id), K_0AGQ, 3))
-# dim indexes subject, eigenfunction and max obs time respectively
-
-# nAGQ=5
-df_pred2 &lt;- df_est_latent_5AGQ %&gt;% filter(id %in% rand_id)
-df_pred2[, &#39;pred_t360&#39;] &lt;- df_pred2[, &#39;pred_t720&#39;] &lt;- df_pred2[, &#39;pred_t1080&#39;] &lt;- NA
-score_out_mat2 &lt;- array(NA, dim = c(length(rand_id), K_5AGQ, 3))</code></pre>
+score_out_mat &lt;- array(NA, dim = c(length(rand_id), K, 3))
+# dim indexes subject, eigenfunction and max obs time respectively</code></pre>
 <pre class="r"><code># prediction for a single subject
-# nAGQ=0
 for(i in rand_id){
   df_i &lt;- df %&gt;% filter(id==i) %&gt;% mutate(bin=as.numeric(bin))
   # prediction
   pred_t360 &lt;- out_samp_dyn_pred(df_new = df_i %&gt;% filter(sind&lt;=360),
-                                 fpca_fit = fpca_mod_0AGQ, K = K_0AGQ)
+                                 fpca_fit = fpca_mod, K = K)
   pred_t720 &lt;- out_samp_dyn_pred(df_new = df_i %&gt;% filter(sind&lt;=720),
-                                 fpca_fit = fpca_mod_0AGQ, K = K_0AGQ)
+                                 fpca_fit = fpca_mod, K = K)
   pred_t1080 &lt;- out_samp_dyn_pred(df_new = df_i %&gt;% filter(sind&lt;=1080),
-                                  fpca_fit = fpca_mod_0AGQ, K = K_0AGQ)
+                                  fpca_fit = fpca_mod, K = K)
   # prediction in container
   df_pred[df_pred$id==i, &#39;pred_t360&#39;] &lt;- pred_t360$eta_pred
   df_pred[df_pred$id==i, &#39;pred_t720&#39;] &lt;- pred_t720$eta_pred
@@ -697,155 +589,62 @@ for(i in rand_id){
 }
 
 # df_pred</code></pre>
-<pre class="r"><code># prediction for a single subject
-# nAGQ=5
-for(i in rand_id){
-  df_i &lt;- df %&gt;% filter(id==i) %&gt;% mutate(bin=as.numeric(bin))
-  # prediction
-  pred_t360 &lt;- out_samp_dyn_pred(df_new = df_i %&gt;% filter(sind&lt;=360),
-                                 fpca_fit = fpca_mod_5AGQ, K = K_5AGQ)
-  pred_t720 &lt;- out_samp_dyn_pred(df_new = df_i %&gt;% filter(sind&lt;=720),
-                                 fpca_fit = fpca_mod_5AGQ, K = K_5AGQ)
-  pred_t1080 &lt;- out_samp_dyn_pred(df_new = df_i %&gt;% filter(sind&lt;=1080),
-                                  fpca_fit = fpca_mod_5AGQ, K = K_5AGQ)
-  # prediction in container
-  df_pred2[df_pred2$id==i, &#39;pred_t360&#39;] &lt;- pred_t360$eta_pred
-  df_pred2[df_pred2$id==i, &#39;pred_t720&#39;] &lt;- pred_t720$eta_pred
-  df_pred2[df_pred2$id==i, &#39;pred_t1080&#39;] &lt;- pred_t1080$eta_pred
-  # score in container
-  # score_out_mat[i, ,1] &lt;- pred_t360$score_out
-  # score_out_mat[i, ,2] &lt;- pred_t720$score_out
-  # score_out_mat[i, ,3] &lt;- pred_t1440$score_out
-}
-
-# df_pred</code></pre>
 <pre class="r"><code>df_pred$pred_t360[df_pred$bin&lt;=360] &lt;- NA
 df_pred$pred_t720[df_pred$bin&lt;=720] &lt;- NA
 df_pred$pred_t1080[df_pred$bin&lt;=1080] &lt;- NA
-# df_pred %&gt;% filter(id == rand_id[1])
-
-df_pred2$pred_t360[df_pred2$bin&lt;=360] &lt;- NA
-df_pred2$pred_t720[df_pred2$bin&lt;=720] &lt;- NA
-df_pred2$pred_t1080[df_pred2$bin&lt;=1080] &lt;- NA</code></pre>
-<pre class="r"><code>ggarrange(
-df_pred %&gt;%
+# df_pred %&gt;% filter(id == rand_id[1])</code></pre>
+<pre class="r"><code>df_pred %&gt;%
   ggplot()+
   geom_line(aes(x=bin, y=eta_hat, group = id))+
   geom_line(aes(x=bin, y = pred_t360, col = &quot;360&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = &quot;720&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = &quot;1080&quot;, group = id))+
-  facet_wrap(~id,scales = &quot;free&quot;)+
-  labs(title = &quot;nAGQ=0&quot;),
-
-df_pred2 %&gt;%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_line(aes(x=bin, y = pred_t360, col = &quot;360&quot;, group = id))+
-  geom_line(aes(x=bin, y = pred_t720, col = &quot;720&quot;, group = id))+
-  geom_line(aes(x=bin, y = pred_t1080, col = &quot;1080&quot;, group = id))+
-  facet_wrap(~id,scales = &quot;free&quot;)+
-  labs(title = &quot;nAGQ=5&quot;),
-
-nrow = 1
-)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
+  facet_wrap(~id,scales = &quot;free&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
 </div>
 <div id="bayes-method-like-laplace-approximation" class="section level3"
 number="1.3.2">
 <h3><span class="header-section-number">1.3.2</span> Bayes method like
 Laplace approximation</h3>
-<pre class="r"><code>#PIRLS
-df_pred &lt;- df_est_latent_0AGQ %&gt;% filter(id %in% rand_id)
-df_pred[, &#39;pred_t360&#39;] &lt;- df_pred[, &#39;pred_t720&#39;] &lt;- df_pred[, &#39;pred_t1080&#39;] &lt;- NA
-score_out_mat &lt;- array(NA, dim = c(length(rand_id), K_0AGQ, 3))
-
-# AGQ
-df_pred2 &lt;- df_est_latent_5AGQ %&gt;% filter(id %in% rand_id)
+<pre class="r"><code>df_pred2 &lt;- df_est_latent_0AGQ %&gt;% filter(id %in% rand_id)
 df_pred2[, &#39;pred_t360&#39;] &lt;- df_pred2[, &#39;pred_t720&#39;] &lt;- df_pred2[, &#39;pred_t1080&#39;] &lt;- NA
-score_out_mat &lt;- array(NA, dim = c(length(rand_id), K_5AGQ, 3))</code></pre>
-<pre class="r"><code># unique id
+score_out_mat2 &lt;- array(NA, dim = c(length(rand_id), K, 3))
+
+
+# unique id
 # prediction for a single subject
-source(here(&quot;Code/OutsampBayes.R&quot;))</code></pre>
-<pre><code>## 
-## Attaching package: &#39;LaplacesDemon&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:lubridate&#39;:
-## 
-##     dst, interval</code></pre>
-<pre><code>## The following object is masked from &#39;package:purrr&#39;:
-## 
-##     partial</code></pre>
-<pre><code>## 
-## Attaching package: &#39;mvtnorm&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:LaplacesDemon&#39;:
-## 
-##     dmvt, rmvt</code></pre>
-<pre class="r"><code># PRILS
+source(here(&quot;Code/OutsampBayes.R&quot;))
+
 for(i in rand_id){
   df_i &lt;- df %&gt;% filter(id==i) 
   
   # prediction 
   ## up to 360
-  pred_t1 &lt;- out_pred_laplace(fpca_mod_0AGQ, df_i %&gt;% filter(sind&lt;=360))
-  eta_pred_t1 &lt;- fpca_mod_0AGQ$mu+fpca_mod_0AGQ$efunctions%*%pred_t1$score_out
-  df_pred[df_pred$id == i, &#39;pred_t360&#39;] &lt;- eta_pred_t1
-  ## up to 720
-  pred_t2 &lt;- out_pred_laplace(fpca_mod_0AGQ, df_i %&gt;% filter(sind&lt;=720))
-  eta_pred_t2 &lt;- fpca_mod_0AGQ$mu+fpca_mod_0AGQ$efunctions%*%pred_t2$score_out
-  df_pred[df_pred$id == i, &#39;pred_t720&#39;] &lt;- eta_pred_t2
-  ## up to 1080
-  pred_t3 &lt;- out_pred_laplace(fpca_mod_0AGQ, df_i %&gt;% filter(sind&lt;=1080))
-  eta_pred_t3 &lt;- fpca_mod_0AGQ$mu+fpca_mod_0AGQ$efunctions%*%pred_t3$score_out
-  df_pred[df_pred$id == i, &#39;pred_t1080&#39;] &lt;- eta_pred_t3
-
-}
-
-df_pred$pred_t360[df_pred$bin&lt;=360] &lt;- NA
-df_pred$pred_t720[df_pred$bin&lt;=720] &lt;- NA
-df_pred$pred_t1080[df_pred$bin&lt;=1080] &lt;- NA</code></pre>
-<pre class="r"><code># AGQ
-for(i in rand_id){
-  df_i &lt;- df %&gt;% filter(id==i) 
-  
-  # prediction 
-  ## up to 360
-  pred_t1 &lt;- out_pred_laplace(fpca_mod_5AGQ, df_i %&gt;% filter(sind&lt;=360))
-  eta_pred_t1 &lt;- fpca_mod_5AGQ$mu+fpca_mod_5AGQ$efunctions%*%pred_t1$score_out
+  pred_t1 &lt;- out_pred_laplace(fpca_mod, df_i %&gt;% filter(sind&lt;=360))
+  eta_pred_t1 &lt;- fpca_mod$mu+fpca_mod$efunctions%*%pred_t1$score_out
   df_pred2[df_pred2$id == i, &#39;pred_t360&#39;] &lt;- eta_pred_t1
   ## up to 720
-  pred_t2 &lt;- out_pred_laplace(fpca_mod_5AGQ, df_i %&gt;% filter(sind&lt;=720))
-  eta_pred_t2 &lt;- fpca_mod_5AGQ$mu+fpca_mod_5AGQ$efunctions%*%pred_t2$score_out
+  pred_t2 &lt;- out_pred_laplace(fpca_mod, df_i %&gt;% filter(sind&lt;=720))
+  eta_pred_t2 &lt;- fpca_mod$mu+fpca_mod$efunctions%*%pred_t2$score_out
   df_pred2[df_pred2$id == i, &#39;pred_t720&#39;] &lt;- eta_pred_t2
   ## up to 1080
-  pred_t3 &lt;- out_pred_laplace(fpca_mod_5AGQ, df_i %&gt;% filter(sind&lt;=1080))
-  eta_pred_t3 &lt;- fpca_mod_5AGQ$mu+fpca_mod_5AGQ$efunctions%*%pred_t3$score_out
+  pred_t3 &lt;- out_pred_laplace(fpca_mod, df_i %&gt;% filter(sind&lt;=1080))
+  eta_pred_t3 &lt;- fpca_mod$mu+fpca_mod$efunctions%*%pred_t3$score_out
   df_pred2[df_pred2$id == i, &#39;pred_t1080&#39;] &lt;- eta_pred_t3
 
-}
-
-df_pred2$pred_t360[df_pred2$bin&lt;=360] &lt;- NA
+}</code></pre>
+<pre class="r"><code>df_pred2$pred_t360[df_pred2$bin&lt;=360] &lt;- NA
 df_pred2$pred_t720[df_pred2$bin&lt;=720] &lt;- NA
 df_pred2$pred_t1080[df_pred2$bin&lt;=1080] &lt;- NA
 # df_pred %&gt;% filter(id == rand_id[1])</code></pre>
-<pre class="r"><code>ggarrange(
-df_pred %&gt;%
+<pre class="r"><code>df_pred2 %&gt;%
   ggplot()+
   geom_line(aes(x=bin, y=eta_hat, group = id))+
   geom_line(aes(x=bin, y = pred_t360, col = &quot;360&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t720, col = &quot;720&quot;, group = id))+
   geom_line(aes(x=bin, y = pred_t1080, col = &quot;1080&quot;, group = id))+
-  facet_wrap(~id,scales = &quot;free&quot;)+
-  labs(title = &quot;nAGQ=0&quot;),
-  
-df_pred2 %&gt;%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_line(aes(x=bin, y = pred_t360, col = &quot;360&quot;, group = id))+
-  geom_line(aes(x=bin, y = pred_t720, col = &quot;720&quot;, group = id))+
-  geom_line(aes(x=bin, y = pred_t1080, col = &quot;1080&quot;, group = id))+
-  facet_wrap(~id,scales = &quot;free&quot;)+
-  labs(title = &quot;nAGQ=5&quot;), nrow = 1
-)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-29-1.png" width="672" /></p>
+  facet_wrap(~id,scales = &quot;free&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
 <!-- ## Failed prediction  -->
 <!-- - Laplace approximation failed for some subjects -->
 <!-- - Only when the observed track is short (up to 360) -->
