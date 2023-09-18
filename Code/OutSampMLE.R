@@ -8,31 +8,31 @@ library(rootSolve)
 # just for mess around
 
 #### Likelihood function ####
-joint_pdf <- function(xi, df_new, fpca_fit){
-  
-  # observations 
-  ns <- as.vector(table(df_new$bin)) # number of observations
-  hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
-    select(Y) %>% unlist()# number of success
-  nf <- ns-hs # number of failure
-  max_bin <- length(unique(df_new$bin)) # assume no skipped bins 
-  
-  # numbers
-  ns <- table(df_out$bin) # number of observations
-  hs <- df_out %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
-    select(Y) # number of success
-  nf <- ns-hs # number of failure
-  
-  # probability of conditional distribution of Y
-  eta = f0+phi%*%xi
-  pr = exp(eta)/(1+exp(eta))
-  # the part relevant to P(Y|xi)
-  p1 <- prod(dbinom(x=unlist(hs), size = ns, prob=pr))
-  p2 <- exp(-t(xi)%*%solve(tao)%*%xi/2)
-  
-  return(p1*p2)
-  
-}
+# joint_pdf <- function(xi, df_new, fpca_fit){
+#   
+#   # observations 
+#   ns <- as.vector(table(df_new$bin)) # number of observations
+#   hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
+#     select(Y) %>% unlist()# number of success
+#   nf <- ns-hs # number of failure
+#   max_bin <- length(unique(df_new$bin)) # assume no skipped bins 
+#   
+#   # numbers
+#   ns <- table(df_out$bin) # number of observations
+#   hs <- df_out %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
+#     select(Y) # number of success
+#   nf <- ns-hs # number of failure
+#   
+#   # probability of conditional distribution of Y
+#   eta = f0+phi%*%xi
+#   pr = exp(eta)/(1+exp(eta))
+#   # the part relevant to P(Y|xi)
+#   p1 <- prod(dbinom(x=unlist(hs), size = ns, prob=pr))
+#   p2 <- exp(-t(xi)%*%solve(tao)%*%xi/2)
+#   
+#   return(p1*p2)
+#   
+# }
 
 
 #### MLE of out-of-sample score ####
