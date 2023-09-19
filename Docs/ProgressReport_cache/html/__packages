@@ -16,3 +16,5 @@ ROCR
 GLMMadaptive
 rootSolve
 ggpubr
+glmmTMB
+kableExtra

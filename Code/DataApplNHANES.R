@@ -21,8 +21,6 @@ df <- read_rds(here("Data/nhanes_bi.rds"))
 N <- length(unique(df$SEQN)) # sample size 8763
 J <- max(df$sind) # 1440 measures for each subject
 
-
-
 #### visulization ####
 rand_id <- sample(unique(df$SEQN), size = 4)
 
@@ -33,11 +31,11 @@ df %>%
   facet_wrap(~SEQN)+
   labs(x="Time", y = "Activity")+
   theme(plot.margin = margin(0, 1, 0, 0))
-ggsave(here("Images/NHANES/data.png"), width=7, height=5, bg="white")
+# ggsave(here("Images/NHANES/data.png"), width=7, height=5, bg="white")
 
 
 
-##### fGFPCA #####
+##### Bin data #####
 
 # bin data
 bin_w <- 10 # bin width
@@ -45,177 +43,215 @@ n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
 
-
+# bin labels
 df$bin <- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
 df$bin <- as.numeric(as.character(df$bin))
-head(df, 20)
 
 df <- df %>% rename(id = SEQN, Y=Z)
 
-df_bin_lst <- split(df, f = df$bin)
 
-lapply(df_bin_lst, function(x)table(x$Y))
+##### Data split #####
 
-# fit local GLMM and estimate latent function
+id_vec <- unique(df$id)
+train_id <- sample(id_vec, size = 0.8*N, replace = FALSE) # 7010 subjects for training
+test_id <- setdiff(id_vec, train_id) # 1753 subjects for testing
+
+#### fGFPCA estimation ####
+# fit model on the training set
+df_train <- df %>% filter(id %in% train_id)
+train_bin_lst <- split(df_train, f = df_train$bin)
+# length(train_bin_lst)
+# lapply(train_bin_lst, nrow)
+# train_bin_lst[[1]] %>% View()
+
+# local GLMM and estimate latent function
 # near-unidentifiability issues 
-df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
+t1=Sys.time()
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2= Sys.time()
+t_local_glmm <- t2-t1 # 3.3 minutes for model estimation
+# no numeric warnings appeared
+
 lapply(df_est_latent, function(x)range(x$eta_hat))
+lapply(df_est_latent, function(x)unique(x$eta_hat)) %>% head()
+df_est_latent[[1]] %>% View()
 
 # on the binned grid, one unique value each bin
-df_est_latent <- bind_rows(df_est_latent) %>% select(id, bin, eta_hat) %>% distinct() 
+df_est_latent <- bind_rows(df_est_latent) %>% 
+  select(-sind, -Y) %>% distinct(.) 
 
-df_est_latent %>%
-  left_join(df %>% filter(sind==bin), by = c("id", "bin")) %>%
+# visualization of the estimated latent function
+rand_id <- sample(train_id, size = 4)
+df %>% 
   filter(id %in% rand_id) %>%
+  left_join(df_est_latent, by = c("id", "bin")) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   ggplot()+
-  geom_line(aes(x=bin, y= exp(eta_hat)/(1+exp(eta_hat))), col = "Red")+
-  geom_point(aes(x=bin, y = Y), size = 0.5)+
-  facet_wrap(~id)+
+  geom_line(aes(x=sind, y=eta_hat, group = id))+
+  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
-ggsave(here("Images/NHANES/est_eta.png"), width=7, height=5, bg="white")
-
-
 
 # fPCA
-mat_est_unique <- matrix(df_est_latent$eta_hat, nrow=N, ncol=n_bin, byrow = F) # row index subject, column binned time
+mat_est_unique <- matrix(df_est_latent$eta_hat,
+                         nrow=length(train_id), 
+                         ncol=n_bin, byrow = F) # row index subject, column binned time
 dim(mat_est_unique)
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T)
 
-fpca_mod <- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, var=T)
+dim(fpca_mod$efunctions) # 27 eigenfunctions total
+fpca_mod$evalues
+K <- 4 # use for eigen functions for prediction
 
-# estimator parameters
-dim(fpca_mod$efunctions)
-
-K <- ncol(fpca_mod$efunctions) # 13 eigenfunctions
+#### Dynamic prediction ####
 # Out-of-sample prediction
-# observations time: 360, 720, 1080
-df_est_latent[, 'pred_t360'] <- df_est_latent[, 'pred_t720'] <- df_est_latent[, 'pred_t1080'] <- NA 
-score_out_mat <- array(NA, dim = c(N, K, 3)) # dim indexes subject, eigenfunction and max obs time respectively
-dim(score_out_mat)
+df_test <- df %>% filter(id %in% test_id)
+df_test <- df_test %>% select(-sind, -Y) %>% distinct(.)
 
-# unique id
+# observations time: 9am (540), 1pm (780),  5pm (1020)
+df_test[, 'pred_t540'] <- df_test[, 'pred_t780'] <- df_test[, 'pred_t1020'] <- NA
+# score_out_mat <- array(NA, dim = c(length(test_id), K, 3))
 
-id_vec <- unique(df_est_latent$id)
-
+# predict all test subjects
 skip_id <- c()
 
-pb = txtProgressBar(min = 0, max = length(id_vec), initial = 0, style = 3) 
-
+t1=Sys.time()
+pb = txtProgressBar(min = 0, max = length(test_id), initial = 0, style = 3) 
 # prediction for a single subject
-for(i in seq_along(id_vec)){
-  df_i <- df %>% filter(id==id_vec[i]) 
+for(i in seq_along(test_id)){
+  df_i <- df %>% filter(id==test_id[i]) 
   
   # prediction 
-  ## up to 360
-  pred_t1 <- tryCatch({out_pred_laplace(fpca_mod, df %>% filter(id==id_vec[i] & sind<=360))},
+  ## up to 540
+  pred_t1 <- tryCatch({out_pred_laplace(fpca_mod, df_i %>% filter(sind<=540), kpc = K)},
                       error = function(e){return(NA)})
   if(sum(is.na(pred_t1))==0){
-    eta_pred_t1 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t1$score_out
-    df_est_latent[df_est_latent$id == id_vec[i], 'pred_t360'] <- eta_pred_t1
-    score_out_mat[i, ,1] <- pred_t1$score_out
+    df_test[df_test$id == test_id[i], 'pred_t540'] <- pred_t1$eta_pred
+    # score_out_mat[i, ,1] <- pred_t1$score_out
   } else{
-    skip_id <- append(skip_id, id_vec[i])
+    skip_id <- append(skip_id, test_id[i])
   }
   
-  ## up to 720
-  pred_t2 <- tryCatch({out_pred_laplace(fpca_mod, df %>% filter(id==id_vec[i] & sind<=720))},
+  ## up to 780
+  pred_t2 <- tryCatch({out_pred_laplace(fpca_mod, df_i %>% filter(sind<=780), kpc = K)},
                       error = function(e){return(NA)})
   if(sum(is.na(pred_t2))==0){
-    eta_pred_t2 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t2$score_out
-    df_est_latent[df_est_latent$id == id_vec[i], 'pred_t720'] <- eta_pred_t2
-    score_out_mat[i, ,2] <- pred_t2$score_out
+    df_test[df_test$id == test_id[i], 'pred_t780'] <- pred_t2$eta_pred
+    # score_out_mat[i, ,1] <- pred_t1$score_out
   } else{
-    skip <- c(skip, id_vec[i])
+    skip_id <- append(skip_id, test_id[i])
   }
   
-  ## up to 1080
-  pred_t3 <- tryCatch({out_pred_laplace(fpca_mod, df %>% filter(id==id_vec[i] & sind<=1080))},
+  ## up to 1020
+  pred_t3 <- tryCatch({out_pred_laplace(fpca_mod, df_i %>% filter(sind<=1020), kpc = K)},
                       error = function(e){return(NA)})
   if(sum(is.na(pred_t3))==0){
-    eta_pred_t3 <- fpca_mod$mu+fpca_mod$efunctions%*%pred_t3$score_out
-    df_est_latent[df_est_latent$id == id_vec[i], 'pred_t1080'] <- eta_pred_t3
-    score_out_mat[i, ,3] <- pred_t3$score_out
+    df_test[df_test$id == test_id[i], 'pred_t1020'] <- pred_t3$eta_pred
+    # score_out_mat[i, ,1] <- pred_t1$score_out
   } else{
-    skip <- c(skip, id_vec[i])
+    skip_id <- append(skip_id, test_id[i])
   }
   
   setTxtProgressBar(pb, i)
 }
+t2=Sys.time()
 
+t_pred = t2-t1 # total 20min for out-of-sample prediction
+t_pred/length(test_id) # about 0.01 mins per subject 
+
+
+#### numeric problems ####
+skip_id # 65876, 80414, 83271 had numeric problems
+
+df_test[df_test$id==65876, ] %>% View() 
+df_test[df_test$id==83271, ] %>% View() 
+df_test[df_test$id==80414, ] %>% View() 
+
+# for all three subjects, failed approximation happened with the shortest observer track (540)
+
+df %>% filter(id %in% skip_id) %>% 
+  ggplot()+
+  geom_point(aes(x=sind, y=Y))+
+  facet_wrap(~id)+
+  geom_vline(xintercept = c(540, 780, 1020))
 
 #### check results ####
 # score
-score_out_mat[1,,]
+# score_out_mat[1,,]
 
 # prediction on probability scale
+df_test$pred_t540[df_test$bin<=540] <- NA
+df_test$pred_t780[df_test$bin<=780] <- NA
+df_test$pred_t1020[df_test$bin<=1020] <- NA
 
-df_est_latent %>%
+rand_id <- sample(test_id, 4)
+
+df %>% 
   filter(id %in% rand_id) %>%
-  mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080),
-         pred_t720 = ifelse(bin<=720, NA, pred_t720),
-         pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>%
-  mutate_at(vars(pred_t360, pred_t720, pred_t1080), function(x)exp(x)/(1+exp(x))) %>%
-  left_join(df %>% filter(sind==bin), by = c("id", "bin")) %>%
+  left_join(df_test %>% select(id, bin, pred_t540, pred_t780, pred_t1020)) %>%
+  mutate_at(vars(pred_t540, pred_t780, pred_t1020), function(x)exp(x)/(1+exp(x))) %>% 
   ggplot()+
-    geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+
-    geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.5)+
+    geom_line(aes(x=bin, y = pred_t540, col = "9am"), linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t780, col = "1pm"),linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t1020, col = "5pm"),linetype = "dashed")+
+    geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.2)+
     facet_wrap(~id)+
     labs(x = "Time", y = "Estimated latent function (probablity scale)")
-ggsave(here("Images/NHANES/pred_eta_prob.png"), width=7, height=5, bg="white")
+# ggsave(here("Images/NHANES/pred_eta_prob.png"), width=7, height=5, bg="white")
 
 # prediction on latent function scale
-df_est_latent %>%
-  filter(id %in% rand_id) %>%
-  mutate(pred_t1080 = ifelse(bin<=1080, NA, pred_t1080),
-         pred_t720 = ifelse(bin<=720, NA, pred_t720),
-         pred_t360 = ifelse(bin<=360, NA, pred_t360)) %>%
+df_test %>%
+  filter(id %in% rand_id) %>% 
   ggplot()+
-    geom_line(aes(x=bin, y = pred_t360, col = "360"), linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t720, col = "720"),linetype = "dashed")+
-    geom_line(aes(x=bin, y = pred_t1080, col = "1080"),linetype = "dashed")+
-    geom_line(aes(x=bin, y = eta_hat, col = "eta_hat"), linetype = "solid" )+
+    geom_line(aes(x=bin, y = pred_t540, col = "9am"), linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t780, col = "1pm"),linetype = "dashed")+
+    geom_line(aes(x=bin, y = pred_t1020, col = "5pm"),linetype = "dashed")+
+    # geom_line(aes(x=bin, y = eta_hat, col = "eta_hat"), linetype = "solid" )+
     facet_wrap(~id)+
     labs(x = "Time", y = "Estimated latent function")
-ggsave(here("Images/NHANES/pred_eta_latent.png"), width=7, height=5, bg="white")
+# ggsave(here("Images/NHANES/pred_eta_latent.png"), width=7, height=5, bg="white")
 
 
 # save results
-save(df_est_latent, score_out_mat, skip_id, file = here("Data/ApplOutput_fGFPCA.RData"))
+save(df_test, skip_id, file = here("Data/ApplOutput_fGFPCA.RData"))
 
 
-#### Numeric issues with laplace approximation ####
+#### Reference method: GLMMadaptive ####
 
-load(here("Data/ApplOutput_fGFPCA.RData"))
+# fit GLMMadaptvie model on the training set
+head(df_train)
+t1 <- Sys.time()
+adglmm_mod <- mixed_model(Y ~ sind, random = ~ 1 | id, data = df_train %>% mutate(sind=sind/J),
+                      family = binomial())
+t2 <- Sys.time()
+t_est_adglmm <- t2-t1 # model fitting took 20.72 mins
+summary(adglmm_mod)
 
-# seems like the numeric issues happy when we don't have a long enough observed track
+# use the fitted model for prediction
+df_test <- df %>% filter(id %in% test_id)
+df_test$sind <- df_test$sind/J
+head(df_test)
 
-df %>% filter(SEQN %in% skip_id[1:4]) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Z))+
-  facet_wrap(~SEQN)
-head(df)
-# compare between subjects with or without numeric issues
+## up to 540
+t1 <- Sys.time()
+adglmm_pred_t540 <- predict(adglmm_mod, 
+        newdata = df_test %>% filter(sind <= 540/J),
+        newdata2 =  df_test %>% filter(sind > 540/J), 
+        type = "subject_specific", type_pred = "link",
+        se.fit = TRUE, return_newdata = TRUE)
 
-com_id <- c(rand_id, skip_id[1:4])
+adglmm_pred_t780 <- predict(adglmm_mod, 
+                            newdata = df_test %>% filter(sind <= 780/J),
+                            newdata2 =  df_test %>% filter(sind > 780/J), 
+                            type = "subject_specific", type_pred = "link",
+                            se.fit = TRUE, return_newdata = TRUE)
 
+adglmm_pred_t1020 <- predict(adglmm_mod, 
+                            newdata = df_test %>% filter(sind <= 1020/J),
+                            newdata2 =  df_test %>% filter(sind > 1020/J), 
+                            type = "subject_specific", type_pred = "link",
+                            se.fit = TRUE, return_newdata = TRUE)
+t2 <- Sys.time()
+t_pred_adglmm <- t2-t1 # 12.18 minutes spent on prediction
 
-
-df_est_latent %>% filter(id %in% com_id) %>%
-  left_join(df %>% select(SEQN, Z, sind) %>%
-              rename(id = SEQN, Y=Z, bin = sind), by = c("id", "bin")) %>%
-  mutate(type = ifelse(id %in% rand_id, "Prediction", "Failed prediction")) %>%
-  ggplot(aes(x=bin, y=eta_hat, col = type))+
-  geom_line()+
-  facet_wrap(~id, ncol = 2, nrow = 4)
-ggsave(here("Images/NHANES/num_issue.png"), width=7, height=5, bg="white")
-  
-mis_col_id <- rep(NA, length(skip_id))  
-for(i in seq_along(skip_id)){
-  
-  num_NA <- apply(df_est_latent%>%filter(id==skip_id[i]), 2, function(x){sum(is.na(x))})
-  print(num_NA)
-  
-}
-
-sum(mis_col_id!="pred_t360")
+save(adglmm_pred_t540, adglmm_pred_t780, adglmm_pred_t1020, file = here("Data/ApplOutput_GLMMadaptive.RData"))
