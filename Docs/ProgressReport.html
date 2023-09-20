@@ -692,48 +692,88 @@ out-of-sample prediction</li>
 (about 0.01 per subject)</li>
 <li>Three subjects had failed approximation, all happened with the
 shortest observed track</li>
+<li>We can either assume that the latent function value is constant
+within the same bin, or use linear interpolation to fill in the gaps
+between bin midpoints. Here I wanna compare if this choice would make
+any different. Also, there are a log of other methods to fill in the
+gaps, such as projection.</li>
+<li>For linear interpolation, I set the edges to be the closest data
+extreme.</li>
 </ul>
 <pre class="r"><code>load(here(&quot;Data/ApplOutput_fGFPCA.RData&quot;))</code></pre>
-<ul>
-<li>Example of out-of-sample prediction</li>
-</ul>
+<pre class="r"><code># linear interpolation
+# remove subjects with numeric problem
+df_test_full &lt;- df %&gt;% 
+  filter(id %in% unique(df_test$id)) %&gt;%
+  filter(!id %in% skip_id) %&gt;%
+  left_join(df_test %&gt;% select(id, bin, pred_t540, pred_t780, pred_t1020), by = c(&quot;id&quot;, &quot;bin&quot;))
+df_test_full$pred_t540_interp &lt;- df_test_full$pred_t780_interp &lt;- df_test_full$pred_t1020_interp &lt;- NA 
+
+# interpolation for each subject
+for(i in unique(df_test_full$id)){
+  # interpolation t540
+  interp_i_t540 &lt;- approx(x = df_test[df_test$id==i, &quot;bin&quot;], 
+                     y = df_test[df_test$id==i, &quot;pred_t540&quot;],
+                     xout = 541:J, rule = 2)
+  df_test_full$pred_t540_interp[df_test_full$id==i &amp; df_test_full$sind&gt;540] &lt;- interp_i_t540$y
+  
+  # interpolation t780
+  interp_i_t780 &lt;- approx(x = df_test[df_test$id==i, &quot;bin&quot;], 
+                     y = df_test[df_test$id==i, &quot;pred_t780&quot;],
+                     xout = 781:J, rule = 2)
+  df_test_full$pred_t780_interp[df_test_full$id==i &amp; df_test_full$sind&gt;780] &lt;- interp_i_t780$y
+  
+  # interpolation t1020
+  interp_i_t1020 &lt;- approx(x = df_test[df_test$id==i, &quot;bin&quot;], 
+                     y = df_test[df_test$id==i, &quot;pred_t1020&quot;],
+                     xout = 1021:J, rule = 2)
+  df_test_full$pred_t1020_interp[df_test_full$id==i &amp; df_test_full$sind&gt;1020] &lt;- interp_i_t1020$y
+}</code></pre>
+<p>Let’s look at four subjects as an example:</p>
 <pre class="r"><code>rand_id2 &lt;- sample(unique(df_test$id), 4)
-df %&gt;% 
+# without interpolation, assume constant latent function value in each bin
+df_test_full%&gt;% 
   filter(id %in% rand_id2) %&gt;%
-  left_join(df_test %&gt;% select(id, bin, pred_t540, pred_t780, pred_t1020)) %&gt;%
   mutate_at(vars(pred_t540, pred_t780, pred_t1020), function(x)exp(x)/(1+exp(x))) %&gt;% 
   ggplot()+
-    geom_line(aes(x=bin, y = pred_t540, col = &quot;9am&quot;), linetype = &quot;dashed&quot;)+
-    geom_line(aes(x=bin, y = pred_t780, col = &quot;1pm&quot;),linetype = &quot;dashed&quot;)+
-    geom_line(aes(x=bin, y = pred_t1020, col = &quot;5pm&quot;),linetype = &quot;dashed&quot;)+
+    geom_line(aes(x=bin, y = pred_t540, col = &quot;9am&quot;))+
+    geom_line(aes(x=bin, y = pred_t780, col = &quot;1pm&quot;))+
+    geom_line(aes(x=bin, y = pred_t1020, col = &quot;5pm&quot;))+
     geom_point(aes(x=bin, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
     facet_wrap(~id)+
-    labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-26-1.png" width="672" /></p>
-<ul>
-<li>Subjects with numeric issue</li>
-</ul>
+    labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;, 
+         title = &quot;Constant latent function within bin&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-27-1.png" width="672" /></p>
+<pre class="r"><code># with interpolation
+df_test_full%&gt;% 
+  filter(id %in% rand_id2) %&gt;%
+  mutate_at(vars(pred_t540_interp, pred_t780_interp, pred_t1020_interp), function(x)exp(x)/(1+exp(x))) %&gt;% 
+  ggplot()+
+    geom_line(aes(x=bin, y = pred_t540_interp, col = &quot;9am&quot;))+
+    geom_line(aes(x=bin, y = pred_t780_interp, col = &quot;1pm&quot;))+
+    geom_line(aes(x=bin, y = pred_t1020_interp, col = &quot;5pm&quot;))+
+    geom_point(aes(x=bin, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;, 
+         title = &quot;Interpolated latent function&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-28-1.png" width="672" />
+- Subjects with numeric issue</p>
 <pre class="r"><code>df %&gt;% filter(id %in% skip_id) %&gt;% 
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
   facet_wrap(~id)+
   geom_vline(xintercept = c(540))</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-27-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-29-1.png" width="864" /></p>
 <ul>
 <li>Calculated AUC</li>
 </ul>
-<p>Since we are assuming value of latent function is constant within a
-bin, why can’t we just do the same when calculating AUC without
-interpolation?</p>
-<p>Remove the three subjects with failed approximation</p>
-<pre class="r"><code>lst_auc &lt;- df %&gt;% 
-  filter(id %in% unique(df_test$id) &amp; !id %in% skip_id ) %&gt;%
-  left_join(df_test %&gt;% select(id, bin, pred_t540, pred_t780, pred_t1020), by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;% 
+<pre class="r"><code># break by prediction window
+lst_auc &lt;- df_test_full %&gt;% 
   mutate(window = cut(sind, breaks = c(0, 540, 780, 1020, 1260, 1440), 
                       labels = c(&quot;0-9am&quot;, &quot;9am-1pm&quot;, &quot;1pm-5pm&quot;, &quot;5pm-9pm&quot;,&quot;9pm-12pm&quot;), 
                       include.lowest = T))
-lst_auc &lt;- split(lst_auc, f=lst_auc$window)
-
+lst_auc &lt;- split(lst_auc, f=lst_auc$window)</code></pre>
+<pre class="r"><code># no interpolation
 # up to 9am
 auc_t540 &lt;- lst_auc[2:4] %&gt;% 
   lapply(function(x)performance(prediction(x$pred_t540, x$Y), measure = &quot;auc&quot;))
@@ -748,6 +788,21 @@ auc_t780 &lt;- lapply(auc_t780, function(x){x@y.values[[1]]}) %&gt;% unlist()
 auc_t1020 &lt;- lst_auc[4] %&gt;% 
   lapply(function(x)performance(prediction(x$pred_t1020, x$Y), measure = &quot;auc&quot;))
 auc_t1020 &lt;- lapply(auc_t1020, function(x){x@y.values[[1]]}) %&gt;% unlist()</code></pre>
+<pre class="r"><code># with interpolation
+# up to 9am
+auc_t540_interp &lt;- lst_auc[2:4] %&gt;% 
+  lapply(function(x)performance(prediction(x$pred_t540_interp, x$Y), measure = &quot;auc&quot;))
+auc_t540_interp &lt;- lapply(auc_t540_interp, function(x){x@y.values[[1]]}) %&gt;% unlist()
+
+# up to 1pm
+auc_t780_interp &lt;- lst_auc[3:4] %&gt;% 
+  lapply(function(x)performance(prediction(x$pred_t780_interp, x$Y), measure = &quot;auc&quot;))
+auc_t780_interp &lt;- lapply(auc_t780_interp, function(x){x@y.values[[1]]}) %&gt;% unlist()
+
+# up to 5pm
+auc_t1020_interp &lt;- lst_auc[4] %&gt;% 
+  lapply(function(x)performance(prediction(x$pred_t1020_interp, x$Y), measure = &quot;auc&quot;))
+auc_t1020_interp &lt;- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %&gt;% unlist()</code></pre>
 </div>
 <div id="glmmadaptvie" class="section level2" number="2.2">
 <h2><span class="header-section-number">2.2</span> GLMMadaptvie</h2>
@@ -805,18 +860,21 @@ GLMMadaptive</h2>
 tb_auc &lt;- data.frame(auc_t540, 
            c(NA, auc_t780), 
            c(NA, NA, auc_t1020), 
+           auc_t540_interp, 
+           c(NA, auc_t780_interp), 
+           c(NA, NA, auc_t1020_interp), 
            auc_t540_adglmm,
            c(NA, auc_t780_adglmm), 
            c(NA, NA, auc_t1020_adglmm))
 
-colnames(tb_auc) &lt;- rep(c(&quot;9am&quot;, &quot;1pm&quot;, &quot;5pm&quot;), 2)
+colnames(tb_auc) &lt;- rep(c(&quot;9am&quot;, &quot;1pm&quot;, &quot;5pm&quot;), 3)
 
 tb_auc %&gt;%
-  kable(digit = 2) %&gt;%
+  kable(digit = 4) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot;Time spent on model fitting&quot; = 1, &quot;3.3&quot; = 3, &quot;20.72&quot; = 3), bold = F) %&gt;%
-  add_header_above(c(&quot;Time spent on prediction&quot; = 1, &quot;20.0&quot; = 3, &quot;12.2&quot; = 3), bold = F) %&gt;% 
-  add_header_above(c(&quot; &quot;=1, &quot;fGPFCA&quot;=3, &quot;GLMMadaptive&quot;=3))</code></pre>
+  add_header_above(c(&quot;Time spent on model fitting&quot; = 1, &quot;3.3&quot; = 6, &quot;20.72&quot; = 3), bold = F) %&gt;%
+  add_header_above(c(&quot;Time spent on prediction&quot; = 1, &quot;20.0&quot; = 6, &quot;12.2&quot; = 3), bold = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot;=3, &quot;fGFPCA+interpolation&quot; = 3, &quot;GLMMadaptive&quot;=3))</code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -824,7 +882,12 @@ tb_auc %&gt;%
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-fGPFCA
+fGFPCA
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+fGFPCA+interpolation
 </div>
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
@@ -839,7 +902,7 @@ GLMMadaptive
 Time spent on prediction
 </div>
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 20.0
 </div>
@@ -856,7 +919,7 @@ Time spent on prediction
 Time spent on model fitting
 </div>
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 3.3
 </div>
@@ -888,6 +951,15 @@ Time spent on model fitting
 <th style="text-align:right;">
 5pm
 </th>
+<th style="text-align:right;">
+9am
+</th>
+<th style="text-align:right;">
+1pm
+</th>
+<th style="text-align:right;">
+5pm
+</th>
 </tr>
 </thead>
 <tbody>
@@ -896,14 +968,21 @@ Time spent on model fitting
 9am-1pm
 </td>
 <td style="text-align:right;">
-0.72
+0.7179
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.68
+0.7178
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.6784
 </td>
 <td style="text-align:right;">
 </td>
@@ -915,18 +994,26 @@ Time spent on model fitting
 1pm-5pm
 </td>
 <td style="text-align:right;">
-0.62
+0.6188
 </td>
 <td style="text-align:right;">
-0.75
+0.7463
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.63
+0.6188
 </td>
 <td style="text-align:right;">
-0.73
+0.7461
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.6279
+</td>
+<td style="text-align:right;">
+0.7258
 </td>
 <td style="text-align:right;">
 </td>
@@ -936,22 +1023,31 @@ Time spent on model fitting
 5pm-9pm
 </td>
 <td style="text-align:right;">
-0.59
+0.5915
 </td>
 <td style="text-align:right;">
-0.63
+0.6340
 </td>
 <td style="text-align:right;">
-0.71
+0.7127
 </td>
 <td style="text-align:right;">
-0.58
+0.5915
 </td>
 <td style="text-align:right;">
-0.64
+0.6339
 </td>
 <td style="text-align:right;">
-0.68
+0.7127
+</td>
+<td style="text-align:right;">
+0.5832
+</td>
+<td style="text-align:right;">
+0.6377
+</td>
+<td style="text-align:right;">
+0.6799
 </td>
 </tr>
 </tbody>
@@ -972,6 +1068,9 @@ do that for this data application (or simulation alone)?</li>
 <li>There are still three folks with numeric problem! Shall we extend
 the observation track even more? I suspect that may cause still the same
 issue just on different subjects.</li>
+<li>Is interplation really necessary? It does not improve performance
+very much but consumes time. Also, should I try more sophisticated
+methods for grid extension?</li>
 </ul>
 </div>
 </div>
