@@ -626,9 +626,11 @@ auc_t1020_interp <- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %>% u
 
 ## GLMMadaptvie
 
-- when fitting model with **random intercept + slope** on the same full training set: Error: vector memory exhausted (limit reached?)
+- when fitting model with **random intercept + slope** on the same full training set (even after scaling covariates): Error: vector memory exhausted (limit reached?). 
 - when fitting model with **only random intercept** on the same full training set: Error regarding a large coefficient value. One fix is to re-scale covariates. So I re-scaled minute index by dividing them by J, so the range is within (0, 1], and tried again. This fitting procedure took 20.72 minutes to finish
 - Out-of-sample prediction took 12.18 minutes. About 0.007 minute per subject.
+- I'd also exclude the subjects with failed Laplace approximation here. 
+- Should I calculate AUC subject-wise? 
 
 ```{r}
 load(here("Data/ApplOutput_GLMMadaptive.RData"))
@@ -637,6 +639,7 @@ load(here("Data/ApplOutput_GLMMadaptive.RData"))
 ```{r}
 # up to 540
 auc_t540_adglmm <- adglmm_pred_t540$newdata2 %>%
+  filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
   mutate(window = cut(sind, breaks = c(540, 780, 1020, 1260, 1440), 
                       labels = c("9am-1pm", "1pm-5pm", "5pm-9pm","9pm-12pm"), 
@@ -648,6 +651,7 @@ auc_t540_adglmm <- lapply(auc_t540_adglmm, function(x){x@y.values[[1]]}) %>% unl
 
 # up to 780
 auc_t780_adglmm <- adglmm_pred_t780$newdata2 %>%
+  filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
   mutate(window = cut(sind, breaks = c(780, 1020, 1260, 1440), 
                       labels = c("1pm-5pm", "5pm-9pm","9pm-12pm"), 
@@ -659,6 +663,7 @@ auc_t780_adglmm <- lapply(auc_t780_adglmm, function(x){x@y.values[[1]]}) %>% unl
 
 # up to 1020
 auc_t1020_adglmm <- adglmm_pred_t1020$newdata2 %>%
+  filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
   mutate(window = cut(sind, breaks = c(1020, 1260, 1440), 
                       labels = c("5pm-9pm","9pm-12pm"), 
