@@ -630,7 +630,7 @@ auc_t1020_interp <- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %>% u
 - when fitting model with **only random intercept** on the same full training set: Error regarding a large coefficient value. One fix is to re-scale covariates. So I re-scaled minute index by dividing them by J, so the range is within (0, 1], and tried again. This fitting procedure took 20.72 minutes to finish
 - Out-of-sample prediction took 12.18 minutes. About 0.007 minute per subject.
 - I'd also exclude the subjects with failed Laplace approximation here. 
-- Should I calculate AUC subject-wise? 
+
 
 ```{r}
 load(here("Data/ApplOutput_GLMMadaptive.RData"))
@@ -712,4 +712,5 @@ tb_auc %>%
 - What would be the reference method to compare our performance to? Original GLMMadaptvie perhaps is feasible on teh entire dataset. But what should we use if we wanna do sub-sample comparison? Should we even do that for this data application (or simulation alone)? 
 - There are still three folks with numeric problem! Shall we extend the observation track even more? I suspect that may cause still the same issue just on different subjects. 
 - Is interplation really necessary? It does not improve performance very much but consumes time. Also, should I try more sophisticated methods for grid extension? 
+- Should I calculate subject-wise AUC and average them? But some subjects are all zero within the predictio window, making AUC for this single subjects impossible to calculate...
 
