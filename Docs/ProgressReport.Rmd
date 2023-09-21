@@ -565,7 +565,7 @@ df_test_full%>%
 ```
 - Subjects with numeric issue
 
-```{r, fig.height=3, fig.width=9}
+```{r, fig.height=6, fig.width=9}
 df %>% filter(id %in% skip_id) %>% 
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
@@ -636,6 +636,39 @@ auc_t1020_interp <- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %>% u
 load(here("Data/ApplOutput_GLMMadaptive.RData"))
 ```
 
+
+
+```{r}
+df_test_full2 <- df_test_full %>%
+  filter(id %in% rand_id2)%>%
+  select(id, sind, Y)
+
+df_test_full2$pred_t540 <- df_test_full2$pred_t780 <- df_test_full2$pred_t1020 <- NA 
+for(i in rand_id2){
+  df_test_full2[df_test_full2$id==i & df_test_full2$sind>540, "pred_t540"]<- adglmm_pred_t540$newdata2 %>% filter(id ==i) %>% select(pred)
+  
+  df_test_full2[df_test_full2$id==i & df_test_full2$sind>780, "pred_t780"]<- adglmm_pred_t780$newdata2 %>% filter(id ==i) %>% select(pred)
+  
+  df_test_full2[df_test_full2$id==i & df_test_full2$sind>1020, "pred_t1020"]<- adglmm_pred_t1020$newdata2 %>% filter(id ==i) %>% select(pred)
+}
+
+# colSums(is.na(df_test_full2))
+```
+
+
+```{r, warning=FALSE}
+df_test_full2 %>% 
+  mutate_at(vars(pred_t540, pred_t780, pred_t1020), 
+            function(x)exp(x)/(1+exp(x))) %>%
+  ggplot()+
+    geom_line(aes(x=sind, y = pred_t540, col = "9am"))+
+    geom_line(aes(x=sind, y = pred_t780, col = "1pm"))+
+    geom_line(aes(x=sind, y = pred_t1020, col = "5pm"))+
+    geom_point(aes(x=sind, y = Y, col = "Outcome"), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = "Time", y = "Estimated latent function (probablity scale)")
+```
+
 ```{r}
 # up to 540
 auc_t540_adglmm <- adglmm_pred_t540$newdata2 %>%
@@ -675,6 +708,7 @@ auc_t1020_adglmm <- lapply(auc_t1020_adglmm, function(x){x@y.values[[1]]}) %>% u
 
 
 ```
+
 
 ## Compare fGFPCA and GLMMadaptive
 

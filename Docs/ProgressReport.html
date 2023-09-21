@@ -821,6 +821,31 @@ subject.</li>
 here.</li>
 </ul>
 <pre class="r"><code>load(here(&quot;Data/ApplOutput_GLMMadaptive.RData&quot;))</code></pre>
+<pre class="r"><code>df_test_full2 &lt;- df_test_full %&gt;%
+  filter(id %in% rand_id2)%&gt;%
+  select(id, sind, Y)
+
+df_test_full2$pred_t540 &lt;- df_test_full2$pred_t780 &lt;- df_test_full2$pred_t1020 &lt;- NA 
+for(i in rand_id2){
+  df_test_full2[df_test_full2$id==i &amp; df_test_full2$sind&gt;540, &quot;pred_t540&quot;]&lt;- adglmm_pred_t540$newdata2 %&gt;% filter(id ==i) %&gt;% select(pred)
+  
+  df_test_full2[df_test_full2$id==i &amp; df_test_full2$sind&gt;780, &quot;pred_t780&quot;]&lt;- adglmm_pred_t780$newdata2 %&gt;% filter(id ==i) %&gt;% select(pred)
+  
+  df_test_full2[df_test_full2$id==i &amp; df_test_full2$sind&gt;1020, &quot;pred_t1020&quot;]&lt;- adglmm_pred_t1020$newdata2 %&gt;% filter(id ==i) %&gt;% select(pred)
+}
+
+# colSums(is.na(df_test_full2))</code></pre>
+<pre class="r"><code>df_test_full2 %&gt;% 
+  mutate_at(vars(pred_t540, pred_t780, pred_t1020), 
+            function(x)exp(x)/(1+exp(x))) %&gt;%
+  ggplot()+
+    geom_line(aes(x=sind, y = pred_t540, col = &quot;9am&quot;))+
+    geom_line(aes(x=sind, y = pred_t780, col = &quot;1pm&quot;))+
+    geom_line(aes(x=sind, y = pred_t1020, col = &quot;5pm&quot;))+
+    geom_point(aes(x=sind, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-35-1.png" width="672" /></p>
 <pre class="r"><code># up to 540
 auc_t540_adglmm &lt;- adglmm_pred_t540$newdata2 %&gt;%
   filter(!id %in% skip_id) %&gt;%
@@ -973,21 +998,21 @@ Time spent on model fitting
 9am-1pm
 </td>
 <td style="text-align:right;">
-0.7179
+0.7153
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.7178
+0.7152
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.6791
+0.6807
 </td>
 <td style="text-align:right;">
 </td>
@@ -999,26 +1024,26 @@ Time spent on model fitting
 1pm-5pm
 </td>
 <td style="text-align:right;">
-0.6188
+0.6228
 </td>
 <td style="text-align:right;">
-0.7463
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-0.6188
-</td>
-<td style="text-align:right;">
-0.7461
+0.7379
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.6284
+0.6227
 </td>
 <td style="text-align:right;">
-0.7264
+0.7377
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.6275
+</td>
+<td style="text-align:right;">
+0.7223
 </td>
 <td style="text-align:right;">
 </td>
@@ -1028,31 +1053,31 @@ Time spent on model fitting
 5pm-9pm
 </td>
 <td style="text-align:right;">
-0.5915
+0.6000
 </td>
 <td style="text-align:right;">
-0.6340
+0.6390
 </td>
 <td style="text-align:right;">
-0.7127
+0.7079
 </td>
 <td style="text-align:right;">
-0.5915
+0.6000
 </td>
 <td style="text-align:right;">
-0.6339
+0.6389
 </td>
 <td style="text-align:right;">
-0.7127
+0.7079
 </td>
 <td style="text-align:right;">
-0.5828
+0.5917
 </td>
 <td style="text-align:right;">
-0.6374
+0.6447
 </td>
 <td style="text-align:right;">
-0.6798
+0.6853
 </td>
 </tr>
 </tbody>

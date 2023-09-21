@@ -221,10 +221,10 @@ save(df_test, skip_id, file = here("Data/ApplOutput_fGFPCA.RData"))
 # fit GLMMadaptvie model on the training set
 head(df_train)
 t1 <- Sys.time()
-# adglmm_mod <- mixed_model(Y ~ sind, random = ~ 1 | id, data = df_train %>% mutate(sind=sind/J),
-#                       family = binomial())
-adglmm_mod <- mixed_model(Y ~ sind, random = ~ sind | id, data = df_train %>% mutate(sind=sind/J),
-                          family = binomial())
+adglmm_mod <- mixed_model(Y ~ sind, random = ~ 1 | id, data = df_train %>% mutate(sind=sind/J),
+                      family = binomial())
+# adglmm_mod <- mixed_model(Y ~ sind, random = ~ sind | id, data = df_train %>% mutate(sind=sind/J),
+#                           family = binomial())
 t2 <- Sys.time()
 t_est_adglmm <- t2-t1 # model fitting took 20.72 mins
 summary(adglmm_mod)
