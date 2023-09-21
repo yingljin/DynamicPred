@@ -821,6 +821,40 @@ subject.</li>
 here.</li>
 </ul>
 <pre class="r"><code>load(here(&quot;Data/ApplOutput_GLMMadaptive.RData&quot;))</code></pre>
+<pre class="r"><code>summary(adglmm_mod)</code></pre>
+<pre><code>## 
+## Call:
+## mixed_model(fixed = Y ~ sind, random = ~1 | id, data = df_train %&gt;% 
+##     mutate(sind = sind/J), family = binomial())
+## 
+## Data Descriptives:
+## Number of Observations: 10094400
+## Number of Groups: 7010 
+## 
+## Model:
+##  family: binomial
+##  link: logit 
+## 
+## Fit statistics:
+##   log.Lik      AIC      BIC
+##  -5215039 10430083 10430104
+## 
+## Random effects covariance matrix:
+##               StdDev
+## (Intercept) 1.108591
+## 
+## Fixed effects:
+##             Estimate Std.Err   z-value p-value
+## (Intercept)  -2.1091  0.0134 -157.7252 &lt; 1e-04
+## sind          1.9038  0.0027  696.8889 &lt; 1e-04
+## 
+## Integration:
+## method: adaptive Gauss-Hermite quadrature rule
+## quadrature points: 11
+## 
+## Optimization:
+## method: hybrid EM and quasi-Newton
+## converged: TRUE</code></pre>
 <pre class="r"><code>df_test_full2 &lt;- df_test_full %&gt;%
   filter(id %in% rand_id2)%&gt;%
   select(id, sind, Y)
@@ -845,7 +879,7 @@ for(i in rand_id2){
     geom_point(aes(x=sind, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
     facet_wrap(~id)+
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-35-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-36-1.png" width="672" /></p>
 <pre class="r"><code># up to 540
 auc_t540_adglmm &lt;- adglmm_pred_t540$newdata2 %&gt;%
   filter(!id %in% skip_id) %&gt;%

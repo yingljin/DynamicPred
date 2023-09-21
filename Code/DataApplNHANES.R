@@ -230,30 +230,40 @@ t_est_adglmm <- t2-t1 # model fitting took 20.72 mins
 summary(adglmm_mod)
 
 # use the fitted model for prediction
-df_test <- df %>% filter(id %in% test_id)
-df_test$sind <- df_test$sind/J
-head(df_test)
+df_test2 <- df %>% filter(id %in% test_id)
+df_test2$sind <- df_test2$sind/J
+head(df_test2)
 
 ## up to 540
 t1 <- Sys.time()
 adglmm_pred_t540 <- predict(adglmm_mod, 
-        newdata = df_test %>% filter(sind <= 540/J),
-        newdata2 =  df_test %>% filter(sind > 540/J), 
+        newdata = df_test2 %>% filter(sind <= 540/J),
+        newdata2 =  df_test2 %>% filter(sind > 540/J), 
         type = "subject_specific", type_pred = "link",
         se.fit = TRUE, return_newdata = TRUE)
 
 adglmm_pred_t780 <- predict(adglmm_mod, 
-                            newdata = df_test %>% filter(sind <= 780/J),
-                            newdata2 =  df_test %>% filter(sind > 780/J), 
+                            newdata = df_test2 %>% filter(sind <= 780/J),
+                            newdata2 =  df_test2 %>% filter(sind > 780/J), 
                             type = "subject_specific", type_pred = "link",
                             se.fit = TRUE, return_newdata = TRUE)
 
 adglmm_pred_t1020 <- predict(adglmm_mod, 
-                            newdata = df_test %>% filter(sind <= 1020/J),
-                            newdata2 =  df_test %>% filter(sind > 1020/J), 
+                            newdata = df_test2 %>% filter(sind <= 1020/J),
+                            newdata2 =  df_test2 %>% filter(sind > 1020/J), 
                             type = "subject_specific", type_pred = "link",
                             se.fit = TRUE, return_newdata = TRUE)
 t2 <- Sys.time()
 t_pred_adglmm <- t2-t1 # 12.18 minutes spent on prediction
 
-save(adglmm_pred_t540, adglmm_pred_t780, adglmm_pred_t1020, file = here("Data/ApplOutput_GLMMadaptive.RData"))
+#### sanity checks ####
+
+id1 <- unique(df_test$id)
+id2 <- unique(adglmm_pred_t540$newdata2$id)
+setdiff(id1, id2)
+setdiff(id1, test_id)
+setdiff(id2, test_id)
+
+
+save(adglmm_pred_t540, adglmm_pred_t780, adglmm_pred_t1020, adglmm_mod,
+     file = here("Data/ApplOutput_GLMMadaptive.RData"))

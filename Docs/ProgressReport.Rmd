@@ -637,6 +637,11 @@ load(here("Data/ApplOutput_GLMMadaptive.RData"))
 ```
 
 
+```{r}
+summary(adglmm_mod)
+```
+
+
 
 ```{r}
 df_test_full2 <- df_test_full %>%
