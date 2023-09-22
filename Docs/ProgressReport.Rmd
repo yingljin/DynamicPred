@@ -488,10 +488,7 @@ nrow = 1, common.legend = T)
 ## fGFPCA
 
 - 80% (7017) subjects for model fitting, 20% (1753) subjects for out-of-sample prediction
-- 3.3 minutes spent on model fitting, 20 minutes spent on prediction (about 0.01 per subject)
-- Three subjects had failed approximation, all happened with the shortest observed track
-- We can either assume that the latent function value is constant within the same bin, or use linear interpolation to fill in the gaps between bin midpoints. Here I wanna compare if this choice would make any different. Also, there are a log of other methods to fill in the gaps, such as projection. 
-- For linear interpolation, I set the edges to be the closest data extreme.
+- Used PIRLS for local GLMMs step
 
 ```{r}
 load(here("Data/ApplOutput_fGFPCA.RData"))
@@ -508,6 +505,7 @@ df_test_full <- df %>%
 df_test_full$pred_t540_interp <- df_test_full$pred_t780_interp <- df_test_full$pred_t1020_interp <- NA 
 
 # interpolation for each subject
+t1 <- Sys.time()
 for(i in unique(df_test_full$id)){
   # interpolation t540
   interp_i_t540 <- approx(x = df_test[df_test$id==i, "bin"], 
@@ -527,10 +525,15 @@ for(i in unique(df_test_full$id)){
                      xout = 1021:J, rule = 2)
   df_test_full$pred_t1020_interp[df_test_full$id==i & df_test_full$sind>1020] <- interp_i_t1020$y
 }
+t2 <- Sys.time()
+t_interp <- t2-t1
 
 ```
 
-Let's look at four subjects as an example: 
+
+- `r round(t_local_glmm, 2)` minutes spent on fitting local GLMMs, `r round(t_fpca, 2)` seconds on FPCA model, `r round(t_pred, 2)` minutes on out-of-sample prediction, `r round(t_interp, 2)` minutes on interpolation to the original grid 
+
+- Let's look at four subjects as an example: 
 
 ```{r message=FALSE, warning=FALSE}
 rand_id2 <- sample(unique(df_test$id), 4)
@@ -548,6 +551,12 @@ df_test_full%>%
          title = "Constant latent function within bin")
 ```
 
+### A closer look at interpolation
+
+- We can either assume that the latent function value is constant within the same bin, or use linear interpolation to fill in the gaps between bin midpoints. Here I wanna compare if this choice would make any different. Also, there are a lot of other methods to fill in the gaps, such as projection. 
+- For linear interpolation, I set the edges to be the closest data extreme.
+- The interpolation itself spent `r round(t_interp, 2)` minutes.
+
 ```{r, warning=FALSE}
 # with interpolation
 df_test_full%>% 
@@ -563,9 +572,14 @@ df_test_full%>%
          title = "Interpolated latent function")
 
 ```
-- Subjects with numeric issue
 
-```{r, fig.height=6, fig.width=9}
+### Numeric problems 
+
+- Three subjects had failed approximation, all happened with the shortest observed track
+- Does it have to do with still the length of observed track? Or the arbitrary choices in the binning procedure (bin width). 
+
+
+```{r, fig.height=3, fig.width=9}
 df %>% filter(id %in% skip_id) %>% 
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
@@ -574,7 +588,7 @@ df %>% filter(id %in% skip_id) %>%
 ```
 
 
-- Calculated AUC
+<!-- Calculate AUC -->
 
 
 ```{r}
@@ -628,14 +642,16 @@ auc_t1020_interp <- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %>% u
 
 - when fitting model with **random intercept + slope** on the same full training set (even after scaling covariates): Error: vector memory exhausted (limit reached?). 
 - when fitting model with **only random intercept** on the same full training set: Error regarding a large coefficient value. One fix is to re-scale covariates. So I re-scaled minute index by dividing them by J, so the range is within (0, 1], and tried again. This fitting procedure took 20.72 minutes to finish
-- Out-of-sample prediction took 12.18 minutes. About 0.007 minute per subject.
-- I'd also exclude the subjects with failed Laplace approximation here. 
+
 
 
 ```{r}
 load(here("Data/ApplOutput_GLMMadaptive.RData"))
 ```
 
+- `r round(t_est_adglmm, 2)` minutes on model fitting and `r round(t_pred_adglmm, 2)` minutes on out-of-sample prediction. 
+
+- Below is the model fit on the trainign set
 
 ```{r}
 summary(adglmm_mod)
@@ -660,6 +676,7 @@ for(i in rand_id2){
 # colSums(is.na(df_test_full2))
 ```
 
+- Below is an example of predicted probablity on four random subjects
 
 ```{r, warning=FALSE}
 df_test_full2 %>% 
@@ -673,6 +690,8 @@ df_test_full2 %>%
     facet_wrap(~id)+
     labs(x = "Time", y = "Estimated latent function (probablity scale)")
 ```
+
+<!-- Calculate AUC  -->
 
 ```{r}
 # up to 540
@@ -717,6 +736,8 @@ auc_t1020_adglmm <- lapply(auc_t1020_adglmm, function(x){x@y.values[[1]]}) %>% u
 
 ## Compare fGFPCA and GLMMadaptive
 
+- To use the same sample for comparison, I'd exclude the subjects with failed Laplace approximation from the test set for both methods
+
 ```{r}
 options(knitr.kable.NA = '')
 tb_auc <- data.frame(auc_t540, 
@@ -730,21 +751,55 @@ tb_auc <- data.frame(auc_t540,
            c(NA, NA, auc_t1020_adglmm))
 
 colnames(tb_auc) <- rep(c("9am", "1pm", "5pm"), 3)
+```
 
-tb_auc %>%
-  kable(digit = 4) %>%
-  kable_styling(full_width = F) %>% 
-  add_header_above(c("Time spent on model fitting" = 1, "3.3" = 6, "20.72" = 3), bold = F) %>%
-  add_header_above(c("Time spent on prediction" = 1, "20.0" = 6, "12.2" = 3), bold = F) %>% 
-  add_header_above(c(" "=1, "fGFPCA"=3, "fGFPCA+interpolation" = 3, "GLMMadaptive"=3))
+
+```{r}
+# time
+t_fit <- c(t_local_glmm+t_fpca, t_local_glmm+t_fpca, t_est_adglmm)
+units(t_fit) <- "mins"
+
+t_test <- c(t_pred, t_pred+t_interp, t_pred_adglmm)
+# units(t_pred)
+
+t_total <- t_fit+t_test
+
+idx1 <- idx2 <- idx3 <- c(1, 3, 3, 3)
+names(idx1) <- c("Total time", as.character(round(t_total, 2)))
+names(idx2) <- c("Time on prediction", as.character(round(t_test, 2)))
+names(idx3) <- c("Time on model fitting", as.character(round(t_fit, 2)))
+
+t_fit <- as.character(round(t_fit, 2))
+t_test <- as.character(round(t_test, 2))
+t_total <- as.character(round(t_total, 2))
+
 ```
 
 
 
-- fGFPCA almost always have higher AUC. It at least is as good as GLMMadaptive.
-- Computationally, fGFPCA is about 10 minute faster (33%). 
+```{r}
+tb_auc %>%
+  kable(digit = 4, table.attr = "style = \"color: black;\"") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(header=idx1) %>%
+  add_header_above(header=idx2) %>%
+  add_header_above(header=idx3) %>%
+  add_header_above(c(" "=1, "fGFPCA"=3, "fGFPCA+interpolation" = 3, "GLMMadaptive"=3))
+```
+
+- fGFPCA does not always have higher AUC, but definitely most of the time. 
+- In fact there are two scenarios where GLMMadaptive overperforms fGFPCA slightly: 1) given 9am to predict 1-5pm; and 2) given 1pm and predict 5-9pm. Both of them have a 4-hour interval apart from the maximum observation time and and prediction window. Could it have anything to do the cyclic trend in the data? Is 4h the length of a cycle? I tried to look at it but really couldn't see anything...there are too many points lumped together! 
 
 
+```{r}
+df %>% filter(id %in% rand_id2) %>%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.2)+
+  geom_vline(xintercept = c(540, 780, 1020, 1260))+
+  scale_x_continuous(breaks = c(540, 780, 1020, 1260),
+                     labels = c("9am", "1pm", "5pm", "9pm"))+
+  facet_wrap(~id)
+```
 
 ## Discussion
 

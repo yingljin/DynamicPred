@@ -688,17 +688,7 @@ output</h1>
 <ul>
 <li>80% (7017) subjects for model fitting, 20% (1753) subjects for
 out-of-sample prediction</li>
-<li>3.3 minutes spent on model fitting, 20 minutes spent on prediction
-(about 0.01 per subject)</li>
-<li>Three subjects had failed approximation, all happened with the
-shortest observed track</li>
-<li>We can either assume that the latent function value is constant
-within the same bin, or use linear interpolation to fill in the gaps
-between bin midpoints. Here I wanna compare if this choice would make
-any different. Also, there are a log of other methods to fill in the
-gaps, such as projection.</li>
-<li>For linear interpolation, I set the edges to be the closest data
-extreme.</li>
+<li>Used PIRLS for local GLMMs step</li>
 </ul>
 <pre class="r"><code>load(here(&quot;Data/ApplOutput_fGFPCA.RData&quot;))</code></pre>
 <pre class="r"><code># linear interpolation
@@ -710,6 +700,7 @@ df_test_full &lt;- df %&gt;%
 df_test_full$pred_t540_interp &lt;- df_test_full$pred_t780_interp &lt;- df_test_full$pred_t1020_interp &lt;- NA 
 
 # interpolation for each subject
+t1 &lt;- Sys.time()
 for(i in unique(df_test_full$id)){
   # interpolation t540
   interp_i_t540 &lt;- approx(x = df_test[df_test$id==i, &quot;bin&quot;], 
@@ -728,8 +719,15 @@ for(i in unique(df_test_full$id)){
                      y = df_test[df_test$id==i, &quot;pred_t1020&quot;],
                      xout = 1021:J, rule = 2)
   df_test_full$pred_t1020_interp[df_test_full$id==i &amp; df_test_full$sind&gt;1020] &lt;- interp_i_t1020$y
-}</code></pre>
-<p>Let’s look at four subjects as an example:</p>
+}
+t2 &lt;- Sys.time()
+t_interp &lt;- t2-t1</code></pre>
+<ul>
+<li><p>3.25 minutes spent on fitting local GLMMs, 3.21 seconds on FPCA
+model, 19.79 minutes on out-of-sample prediction, 1.43 minutes on
+interpolation to the original grid</p></li>
+<li><p>Let’s look at four subjects as an example:</p></li>
+</ul>
 <pre class="r"><code>rand_id2 &lt;- sample(unique(df_test$id), 4)
 # without interpolation, assume constant latent function value in each bin
 df_test_full%&gt;% 
@@ -744,6 +742,20 @@ df_test_full%&gt;%
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;, 
          title = &quot;Constant latent function within bin&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-27-1.png" width="672" /></p>
+<div id="a-closer-look-at-interpolation" class="section level3"
+number="2.1.1">
+<h3><span class="header-section-number">2.1.1</span> A closer look at
+interpolation</h3>
+<ul>
+<li>We can either assume that the latent function value is constant
+within the same bin, or use linear interpolation to fill in the gaps
+between bin midpoints. Here I wanna compare if this choice would make
+any different. Also, there are a lot of other methods to fill in the
+gaps, such as projection.</li>
+<li>For linear interpolation, I set the edges to be the closest data
+extreme.</li>
+<li>The interpolation itself spent 1.43 minutes.</li>
+</ul>
 <pre class="r"><code># with interpolation
 df_test_full%&gt;% 
   filter(id %in% rand_id2) %&gt;%
@@ -756,17 +768,24 @@ df_test_full%&gt;%
     facet_wrap(~id)+
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;, 
          title = &quot;Interpolated latent function&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-28-1.png" width="672" />
-- Subjects with numeric issue</p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-28-1.png" width="672" /></p>
+</div>
+<div id="numeric-problems" class="section level3" number="2.1.2">
+<h3><span class="header-section-number">2.1.2</span> Numeric
+problems</h3>
+<ul>
+<li>Three subjects had failed approximation, all happened with the
+shortest observed track</li>
+<li>Does it have to do with still the length of observed track? Or the
+arbitrary choices in the binning procedure (bin width).</li>
+</ul>
 <pre class="r"><code>df %&gt;% filter(id %in% skip_id) %&gt;% 
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
   facet_wrap(~id)+
   geom_vline(xintercept = c(540))</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-29-1.png" width="864" /></p>
-<ul>
-<li>Calculated AUC</li>
-</ul>
+<!-- Calculate AUC -->
 <pre class="r"><code># break by prediction window
 lst_auc &lt;- df_test_full %&gt;% 
   mutate(window = cut(sind, breaks = c(0, 540, 780, 1020, 1260, 1440), 
@@ -804,6 +823,7 @@ auc_t1020_interp &lt;- lst_auc[4] %&gt;%
   lapply(function(x)performance(prediction(x$pred_t1020_interp, x$Y), measure = &quot;auc&quot;))
 auc_t1020_interp &lt;- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %&gt;% unlist()</code></pre>
 </div>
+</div>
 <div id="glmmadaptvie" class="section level2" number="2.2">
 <h2><span class="header-section-number">2.2</span> GLMMadaptvie</h2>
 <ul>
@@ -815,12 +835,13 @@ the same full training set: Error regarding a large coefficient value.
 One fix is to re-scale covariates. So I re-scaled minute index by
 dividing them by J, so the range is within (0, 1], and tried again. This
 fitting procedure took 20.72 minutes to finish</li>
-<li>Out-of-sample prediction took 12.18 minutes. About 0.007 minute per
-subject.</li>
-<li>I’d also exclude the subjects with failed Laplace approximation
-here.</li>
 </ul>
 <pre class="r"><code>load(here(&quot;Data/ApplOutput_GLMMadaptive.RData&quot;))</code></pre>
+<ul>
+<li><p>20.82 minutes on model fitting and 11.43 minutes on out-of-sample
+prediction.</p></li>
+<li><p>Below is the model fit on the trainign set</p></li>
+</ul>
 <pre class="r"><code>summary(adglmm_mod)</code></pre>
 <pre><code>## 
 ## Call:
@@ -837,16 +858,16 @@ here.</li>
 ## 
 ## Fit statistics:
 ##   log.Lik      AIC      BIC
-##  -5215039 10430083 10430104
+##  -5216266 10432537 10432558
 ## 
 ## Random effects covariance matrix:
 ##               StdDev
-## (Intercept) 1.108591
+## (Intercept) 1.099137
 ## 
 ## Fixed effects:
 ##             Estimate Std.Err   z-value p-value
-## (Intercept)  -2.1091  0.0134 -157.7252 &lt; 1e-04
-## sind          1.9038  0.0027  696.8889 &lt; 1e-04
+## (Intercept)  -2.1130  0.0133 -159.3623 &lt; 1e-04
+## sind          1.9153  0.0027  700.7869 &lt; 1e-04
 ## 
 ## Integration:
 ## method: adaptive Gauss-Hermite quadrature rule
@@ -869,6 +890,10 @@ for(i in rand_id2){
 }
 
 # colSums(is.na(df_test_full2))</code></pre>
+<ul>
+<li>Below is an example of predicted probablity on four random
+subjects</li>
+</ul>
 <pre class="r"><code>df_test_full2 %&gt;% 
   mutate_at(vars(pred_t540, pred_t780, pred_t1020), 
             function(x)exp(x)/(1+exp(x))) %&gt;%
@@ -880,6 +905,7 @@ for(i in rand_id2){
     facet_wrap(~id)+
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-36-1.png" width="672" /></p>
+<!-- Calculate AUC  -->
 <pre class="r"><code># up to 540
 auc_t540_adglmm &lt;- adglmm_pred_t540$newdata2 %&gt;%
   filter(!id %in% skip_id) %&gt;%
@@ -920,6 +946,10 @@ auc_t1020_adglmm &lt;- lapply(auc_t1020_adglmm, function(x){x@y.values[[1]]}) %&
 number="2.3">
 <h2><span class="header-section-number">2.3</span> Compare fGFPCA and
 GLMMadaptive</h2>
+<ul>
+<li>To use the same sample for comparison, I’d exclude the subjects with
+failed Laplace approximation from the test set for both methods</li>
+</ul>
 <pre class="r"><code>options(knitr.kable.NA = &#39;&#39;)
 tb_auc &lt;- data.frame(auc_t540, 
            c(NA, auc_t780), 
@@ -931,15 +961,32 @@ tb_auc &lt;- data.frame(auc_t540,
            c(NA, auc_t780_adglmm), 
            c(NA, NA, auc_t1020_adglmm))
 
-colnames(tb_auc) &lt;- rep(c(&quot;9am&quot;, &quot;1pm&quot;, &quot;5pm&quot;), 3)
+colnames(tb_auc) &lt;- rep(c(&quot;9am&quot;, &quot;1pm&quot;, &quot;5pm&quot;), 3)</code></pre>
+<pre class="r"><code># time
+t_fit &lt;- c(t_local_glmm+t_fpca, t_local_glmm+t_fpca, t_est_adglmm)
+units(t_fit) &lt;- &quot;mins&quot;
 
-tb_auc %&gt;%
-  kable(digit = 4) %&gt;%
+t_test &lt;- c(t_pred, t_pred+t_interp, t_pred_adglmm)
+# units(t_pred)
+
+t_total &lt;- t_fit+t_test
+
+idx1 &lt;- idx2 &lt;- idx3 &lt;- c(1, 3, 3, 3)
+names(idx1) &lt;- c(&quot;Total time&quot;, as.character(round(t_total, 2)))
+names(idx2) &lt;- c(&quot;Time on prediction&quot;, as.character(round(t_test, 2)))
+names(idx3) &lt;- c(&quot;Time on model fitting&quot;, as.character(round(t_fit, 2)))
+
+t_fit &lt;- as.character(round(t_fit, 2))
+t_test &lt;- as.character(round(t_test, 2))
+t_total &lt;- as.character(round(t_total, 2))</code></pre>
+<pre class="r"><code>tb_auc %&gt;%
+  kable(digit = 4, table.attr = &quot;style = \&quot;color: black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot;Time spent on model fitting&quot; = 1, &quot;3.3&quot; = 6, &quot;20.72&quot; = 3), bold = F) %&gt;%
-  add_header_above(c(&quot;Time spent on prediction&quot; = 1, &quot;20.0&quot; = 6, &quot;12.2&quot; = 3), bold = F) %&gt;% 
+  add_header_above(header=idx1) %&gt;%
+  add_header_above(header=idx2) %&gt;%
+  add_header_above(header=idx3) %&gt;%
   add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot;=3, &quot;fGFPCA+interpolation&quot; = 3, &quot;GLMMadaptive&quot;=3))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
@@ -963,34 +1010,66 @@ GLMMadaptive
 <tr>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="1">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Time spent on prediction
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-20.0
+Time on model fitting
 </div>
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-12.2
-</div>
-</th>
-</tr>
-<tr>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="1">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Time spent on model fitting
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 3.3
 </div>
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-20.72
+3.3
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+20.82
+</div>
+</th>
+</tr>
+<tr>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="1">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Time on prediction
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+19.79
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+21.22
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+11.43
+</div>
+</th>
+</tr>
+<tr>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="1">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Total time
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+23.09
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+24.52
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+32.25
 </div>
 </th>
 </tr>
@@ -1032,21 +1111,21 @@ Time spent on model fitting
 9am-1pm
 </td>
 <td style="text-align:right;">
-0.7153
+0.7179
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.7152
+0.7178
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.6807
+0.6930
 </td>
 <td style="text-align:right;">
 </td>
@@ -1058,26 +1137,26 @@ Time spent on model fitting
 1pm-5pm
 </td>
 <td style="text-align:right;">
-0.6228
+0.6188
 </td>
 <td style="text-align:right;">
-0.7379
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-0.6227
-</td>
-<td style="text-align:right;">
-0.7377
+0.7463
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.6275
+0.6188
 </td>
 <td style="text-align:right;">
-0.7223
+0.7461
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.6317
+</td>
+<td style="text-align:right;">
+0.7279
 </td>
 <td style="text-align:right;">
 </td>
@@ -1087,40 +1166,54 @@ Time spent on model fitting
 5pm-9pm
 </td>
 <td style="text-align:right;">
-0.6000
+0.5915
 </td>
 <td style="text-align:right;">
-0.6390
+0.6340
 </td>
 <td style="text-align:right;">
-0.7079
+0.7127
 </td>
 <td style="text-align:right;">
-0.6000
+0.5915
 </td>
 <td style="text-align:right;">
-0.6389
+0.6339
 </td>
 <td style="text-align:right;">
-0.7079
+0.7127
 </td>
 <td style="text-align:right;">
-0.5917
+0.5881
 </td>
 <td style="text-align:right;">
-0.6447
+0.6427
 </td>
 <td style="text-align:right;">
-0.6853
+0.6842
 </td>
 </tr>
 </tbody>
 </table>
 <ul>
-<li>fGFPCA almost always have higher AUC. It at least is as good as
-GLMMadaptive.</li>
-<li>Computationally, fGFPCA is about 10 minute faster (33%).</li>
+<li>fGFPCA does not always have higher AUC, but definitely most of the
+time.</li>
+<li>In fact there are two scenarios where GLMMadaptive overperforms
+fGFPCA slightly: 1) given 9am to predict 1-5pm; and 2) given 1pm and
+predict 5-9pm. Both of them have a 4-hour interval apart from the
+maximum observation time and and prediction window. Could it have
+anything to do the cyclic trend in the data? Is 4h the length of a
+cycle? I tried to look at it but really couldn’t see anything…there are
+too many points lumped together!</li>
 </ul>
+<pre class="r"><code>df %&gt;% filter(id %in% rand_id2) %&gt;%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.2)+
+  geom_vline(xintercept = c(540, 780, 1020, 1260))+
+  scale_x_continuous(breaks = c(540, 780, 1020, 1260),
+                     labels = c(&quot;9am&quot;, &quot;1pm&quot;, &quot;5pm&quot;, &quot;9pm&quot;))+
+  facet_wrap(~id)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-41-1.png" width="672" /></p>
 </div>
 <div id="discussion" class="section level2" number="2.4">
 <h2><span class="header-section-number">2.4</span> Discussion</h2>

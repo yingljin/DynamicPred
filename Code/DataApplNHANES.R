@@ -65,11 +65,11 @@ train_bin_lst <- split(df_train, f = df_train$bin)
 # train_bin_lst[[1]] %>% View()
 
 # local GLMM and estimate latent function
-# near-unidentifiability issues 
+# use PIRLS (nAGQ=0) to avoid near-unidentifiability issues 
 t1=Sys.time()
 df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
 t2= Sys.time()
-t_local_glmm <- t2-t1 # 3.3 minutes for model estimation
+t_local_glmm <- t2-t1 # 3.25 minutes for model estimation
 # no numeric warnings appeared
 
 lapply(df_est_latent, function(x)range(x$eta_hat))
@@ -81,9 +81,8 @@ df_est_latent <- bind_rows(df_est_latent) %>%
   select(-sind, -Y) %>% distinct(.) 
 
 # visualization of the estimated latent function
-rand_id <- sample(train_id, size = 4)
 df %>% 
-  filter(id %in% rand_id) %>%
+  filter(id %in% sample(train_id, size = 4)) %>%
   left_join(df_est_latent, by = c("id", "bin")) %>%
   mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   ggplot()+
@@ -97,7 +96,11 @@ mat_est_unique <- matrix(df_est_latent$eta_hat,
                          nrow=length(train_id), 
                          ncol=n_bin, byrow = F) # row index subject, column binned time
 dim(mat_est_unique)
+
+t1 <- Sys.time()
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T)
+t2 <- Sys.time()
+t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
 
 dim(fpca_mod$efunctions) # 27 eigenfunctions total
 fpca_mod$evalues
@@ -156,7 +159,7 @@ for(i in seq_along(test_id)){
 }
 t2=Sys.time()
 
-t_pred = t2-t1 # total 20min for out-of-sample prediction
+t_pred = t2-t1 # total 19.79 min for out-of-sample prediction
 t_pred/length(test_id) # about 0.01 mins per subject 
 
 
@@ -184,10 +187,9 @@ df_test$pred_t540[df_test$bin<=540] <- NA
 df_test$pred_t780[df_test$bin<=780] <- NA
 df_test$pred_t1020[df_test$bin<=1020] <- NA
 
-rand_id <- sample(test_id, 4)
 
 df %>% 
-  filter(id %in% rand_id) %>%
+  filter(id %in% sample(test_id, 4)) %>%
   left_join(df_test %>% select(id, bin, pred_t540, pred_t780, pred_t1020)) %>%
   mutate_at(vars(pred_t540, pred_t780, pred_t1020), function(x)exp(x)/(1+exp(x))) %>% 
   ggplot()+
@@ -201,7 +203,7 @@ df %>%
 
 # prediction on latent function scale
 df_test %>%
-  filter(id %in% rand_id) %>% 
+  filter(id %in% sample(test_id, 4)) %>% 
   ggplot()+
     geom_line(aes(x=bin, y = pred_t540, col = "9am"), linetype = "dashed")+
     geom_line(aes(x=bin, y = pred_t780, col = "1pm"),linetype = "dashed")+
@@ -213,20 +215,21 @@ df_test %>%
 
 
 # save results
-save(df_test, skip_id, file = here("Data/ApplOutput_fGFPCA.RData"))
+save(df_test, skip_id, t_local_glmm, t_fpca, t_pred, file = here("Data/ApplOutput_fGFPCA.RData"))
 
 
 #### Reference method: GLMMadaptive ####
 
 # fit GLMMadaptvie model on the training set
 head(df_train)
+
 t1 <- Sys.time()
 adglmm_mod <- mixed_model(Y ~ sind, random = ~ 1 | id, data = df_train %>% mutate(sind=sind/J),
                       family = binomial())
 # adglmm_mod <- mixed_model(Y ~ sind, random = ~ sind | id, data = df_train %>% mutate(sind=sind/J),
 #                           family = binomial())
 t2 <- Sys.time()
-t_est_adglmm <- t2-t1 # model fitting took 20.72 mins
+t_est_adglmm <- t2-t1 # model fitting took 20.82 mins
 summary(adglmm_mod)
 
 # use the fitted model for prediction
@@ -234,7 +237,7 @@ df_test2 <- df %>% filter(id %in% test_id)
 df_test2$sind <- df_test2$sind/J
 head(df_test2)
 
-## up to 540
+## prediction
 t1 <- Sys.time()
 adglmm_pred_t540 <- predict(adglmm_mod, 
         newdata = df_test2 %>% filter(sind <= 540/J),
@@ -254,7 +257,7 @@ adglmm_pred_t1020 <- predict(adglmm_mod,
                             type = "subject_specific", type_pred = "link",
                             se.fit = TRUE, return_newdata = TRUE)
 t2 <- Sys.time()
-t_pred_adglmm <- t2-t1 # 12.18 minutes spent on prediction
+t_pred_adglmm <- t2-t1 # 11.43 minutes spent on prediction
 
 #### sanity checks ####
 
@@ -265,5 +268,6 @@ setdiff(id1, test_id)
 setdiff(id2, test_id)
 
 
-save(adglmm_pred_t540, adglmm_pred_t780, adglmm_pred_t1020, adglmm_mod,
+save(adglmm_pred_t540, adglmm_pred_t780, adglmm_pred_t1020, adglmm_mod, 
+     t_est_adglmm, t_pred_adglmm,
      file = here("Data/ApplOutput_GLMMadaptive.RData"))
