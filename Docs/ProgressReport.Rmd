@@ -163,7 +163,10 @@ Let's for now trust the results from PIRLS more than AGQ, if we are using glmer.
 # to avoid near-unidentifiability issues, using PIRLS maximization with nAGQ = 0
 
 # fit local models
+t1 <- Sys.time()
 df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2 <- Sys.time()
+t_pirls <- t2-t1
 df_est_latent <- bind_rows(df_est_latent)
 
 # keep midpoint values
@@ -204,7 +207,7 @@ df %>%
 
 The default optimizer of glmmTMB is nlminb (quasi-Newton BFGS), whereas glmer uses bobyaqa (nAGQ=0) or Nelder_Mead (nAGQ>0)? 
 
-Let's first try to re-do the who local GLMM step using glmmTMB. Looks like no numeric issue occurred. It takes slightly longer time than PIRLS in glmer 
+Let's first try to re-do the who local GLMM step using glmmTMB. Looks like no numeric issue occurred. It takes slightly shorter time (about 1 minute) than PIRLS in glmer 
 
 ```{r, cache=TRUE}
 library(glmmTMB)
@@ -225,8 +228,8 @@ t_tmb <- t2-t1
 mean_tmb <- sapply(try_fit_lst, function(x){coef(summary((x)))$cond[1]})
 ```
 
-- Time: `r t_tmb` minutes
-- Mean/Intercept function: It looks like glmmTMB estimates lie right between PIRLS and AGQ! It takes slightly shorter time than PIRLS and mean function shoots more downward, not as bad as AGQ though. 
+- Time: `r round(t_tmb, 2)` minutes
+- Mean/Intercept function: It looks like glmmTMB estimates lie right between PIRLS and AGQ! It takes slightly shorter time than PIRLS (`r round(t_pirls, 2)` minutes) and mean function shoots more downward, not as bad as AGQ though. 
 
 ```{r, fig.width=12, fig.height=4}
 ggarrange(
@@ -277,8 +280,8 @@ df %>%
             by = c("id", "bin")) %>%
   mutate_at(vars(eta_hat, eta_hat_tmb), function(x){exp(x)/(1+exp(x))}) %>% 
   ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, col = "glmer", alpha = 0.5))+
-  geom_line(aes(x=sind, y=eta_hat_tmb, col = "glmmTMB", alpha = 0.5))+
+  geom_line(aes(x=sind, y=eta_hat, col = "glmer"))+
+  geom_line(aes(x=sind, y=eta_hat_tmb, col = "glmmTMB"))+
   geom_point(aes(x=sind, y = Y), size = 0.5)+
   facet_wrap(~id, scales = "free")+
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
@@ -295,14 +298,14 @@ df %>%
   left_join(df_est_latent_tmb %>% select(id, bin, eta_hat) %>% rename(eta_hat_tmb=eta_hat), 
             by = c("id", "bin")) %>%
   ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, col = "glmer", alpha = 0.5))+
-  geom_line(aes(x=bin, y=eta_hat_tmb, col = "glmmTMB", alpha = 0.5))+
+  geom_line(aes(x=bin, y=eta_hat, col = "glmer"))+
+  geom_line(aes(x=bin, y=eta_hat_tmb, col = "glmmTMB"))+
   geom_point(aes(x=bin, y = num), size = 0.5)+
   facet_wrap(~id, scales = "free")+
   labs(x = "Time", y = "Estimated latent function")
 ```
 
-So it looks like glmmTMB still overshoot downwards. Between the two methods, the mid-day part (active part for most people) seems to be very similar. Difference lies mostly at both ends, with consecutive inactive minutes. 
+So it looks like glmmTMB still overshoots downwards. Between the two methods, the mid-day part (active part for most people) seems to be very similar. Difference lies mostly at both ends, with consecutive inactive minutes. 
 
 ```{r, eval=FALSE}
 # numeric values of individual latent function
@@ -340,7 +343,7 @@ K <- 4
 
 - Population mean function
 
-Hmm...FPCA seems to shoot the population mean downward in both methods, more so for glmmTMB. It looks like more rounds of model would make the population mean function more variable. Does that make sense? 
+Hmm...Compared to conditional intercept, FPCA seems to shoot the population mean downward in PIRLS but upward for glmmTMB. Does that make sense? 
 
 ```{r}
 # population mean
@@ -788,7 +791,7 @@ tb_auc %>%
 ```
 
 - fGFPCA does not always have higher AUC, but definitely most of the time. 
-- In fact there are two scenarios where GLMMadaptive overperforms fGFPCA slightly: 1) given 9am to predict 1-5pm; and 2) given 1pm and predict 5-9pm. Both of them have a 4-hour interval apart from the maximum observation time and and prediction window. Could it have anything to do the cyclic trend in the data? Is 4h the length of a cycle? I tried to look at it but really couldn't see anything...there are too many points lumped together! 
+- In fact there are two scenarios where GLMMadaptive outperforms fGFPCA slightly: 1) given 9am to predict 1-5pm; and 2) given 1pm and predict 5-9pm. Both of them have a 4-hour interval apart from the maximum observation time and and prediction window. Could it have anything to do the cyclic trend in the data? Is 4h the length of a cycle? I tried to look at it but really couldn't see anything...there are too many points lumped together! 
 
 
 ```{r}
@@ -803,8 +806,8 @@ df %>% filter(id %in% rand_id2) %>%
 
 ## Discussion
 
-- What would be the reference method to compare our performance to? Original GLMMadaptvie perhaps is feasible on teh entire dataset. But what should we use if we wanna do sub-sample comparison? Should we even do that for this data application (or simulation alone)? 
-- There are still three folks with numeric problem! Shall we extend the observation track even more? I suspect that may cause still the same issue just on different subjects. 
-- Is interplation really necessary? It does not improve performance very much but consumes time. Also, should I try more sophisticated methods for grid extension? 
-- Should I calculate subject-wise AUC and average them? But some subjects are all zero within the predictio window, making AUC for this single subjects impossible to calculate...
+- What would be the reference method to compare our performance to? Original GLMMadaptvie perhaps is feasible on the entire dataset. But what should we use if we wanna do sub-sample comparison? Should we even do that for this data application (or simulation alone)? 
+- There are still three participants with numeric problem! Shall we extend the observation track even more? I suspect that may cause still the same issue just on different subjects. 
+- Is interpolation really necessary? It does not improve performance very much but consumes time. Also, should I try more sophisticated methods for grid extension? 
+- Should I calculate subject-wise AUC and average them? But some subjects are all zero within the prediction window, making AUC for this single subjects impossible to calculate...
 

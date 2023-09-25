@@ -380,7 +380,10 @@ using glmer.</p>
 # to avoid near-unidentifiability issues, using PIRLS maximization with nAGQ = 0
 
 # fit local models
+t1 &lt;- Sys.time()
 df_est_latent &lt;- lapply(df_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2 &lt;- Sys.time()
+t_pirls &lt;- t2-t1
 df_est_latent &lt;- bind_rows(df_est_latent)
 
 # keep midpoint values
@@ -416,8 +419,8 @@ glmmTMB</h4>
 <p>The default optimizer of glmmTMB is nlminb (quasi-Newton BFGS),
 whereas glmer uses bobyaqa (nAGQ=0) or Nelder_Mead (nAGQ&gt;0)?</p>
 <p>Let’s first try to re-do the who local GLMM step using glmmTMB. Looks
-like no numeric issue occurred. It takes slightly longer time than PIRLS
-in glmer</p>
+like no numeric issue occurred. It takes slightly shorter time (about 1
+minute) than PIRLS in glmer</p>
 <pre class="r"><code>library(glmmTMB)
 # re-fit local GLMM and check numeric issues
 try_fit_lst&lt;-list()
@@ -435,10 +438,11 @@ t_tmb &lt;- t2-t1
 # population mean
 mean_tmb &lt;- sapply(try_fit_lst, function(x){coef(summary((x)))$cond[1]})</code></pre>
 <ul>
-<li>Time: 3.21070526838303 minutes</li>
+<li>Time: 3.21 minutes</li>
 <li>Mean/Intercept function: It looks like glmmTMB estimates lie right
-between PIRLS and AGQ! It takes slightly shorter time than PIRLS and
-mean function shoots more downward, not as bad as AGQ though.</li>
+between PIRLS and AGQ! It takes slightly shorter time than PIRLS (4.15
+minutes) and mean function shoots more downward, not as bad as AGQ
+though.</li>
 </ul>
 <pre class="r"><code>ggarrange(
 df_est_local_marg %&gt;% bind_rows() %&gt;%
@@ -482,8 +486,8 @@ df_est_latent_tmb &lt;- df_est_latent_tmb %&gt;%
             by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
   mutate_at(vars(eta_hat, eta_hat_tmb), function(x){exp(x)/(1+exp(x))}) %&gt;% 
   ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, col = &quot;glmer&quot;, alpha = 0.5))+
-  geom_line(aes(x=sind, y=eta_hat_tmb, col = &quot;glmmTMB&quot;, alpha = 0.5))+
+  geom_line(aes(x=sind, y=eta_hat, col = &quot;glmer&quot;))+
+  geom_line(aes(x=sind, y=eta_hat_tmb, col = &quot;glmmTMB&quot;))+
   geom_point(aes(x=sind, y = Y), size = 0.5)+
   facet_wrap(~id, scales = &quot;free&quot;)+
   labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
@@ -497,13 +501,13 @@ df %&gt;%
   left_join(df_est_latent_tmb %&gt;% select(id, bin, eta_hat) %&gt;% rename(eta_hat_tmb=eta_hat), 
             by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
   ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, col = &quot;glmer&quot;, alpha = 0.5))+
-  geom_line(aes(x=bin, y=eta_hat_tmb, col = &quot;glmmTMB&quot;, alpha = 0.5))+
+  geom_line(aes(x=bin, y=eta_hat, col = &quot;glmer&quot;))+
+  geom_line(aes(x=bin, y=eta_hat_tmb, col = &quot;glmmTMB&quot;))+
   geom_point(aes(x=bin, y = num), size = 0.5)+
   facet_wrap(~id, scales = &quot;free&quot;)+
   labs(x = &quot;Time&quot;, y = &quot;Estimated latent function&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-15-1.png" width="1536" /></p>
-<p>So it looks like glmmTMB still overshoot downwards. Between the two
+<p>So it looks like glmmTMB still overshoots downwards. Between the two
 methods, the mid-day part (active part for most people) seems to be very
 similar. Difference lies mostly at both ends, with consecutive inactive
 minutes.</p>
@@ -540,9 +544,9 @@ K &lt;- 4</code></pre>
 <ul>
 <li>Population mean function</li>
 </ul>
-<p>Hmm…FPCA seems to shoot the population mean downward in both methods,
-more so for glmmTMB. It looks like more rounds of model would make the
-population mean function more variable. Does that make sense?</p>
+<p>Hmm…Compared to conditional intercept, FPCA seems to shoot the
+population mean downward in PIRLS but upward for glmmTMB. Does that make
+sense?</p>
 <pre class="r"><code># population mean
 par(mfrow=c(1, 2))
 plot(mid, fpca_mod$mu, type = &quot;l&quot;, xlab = &quot;bin&quot;, ylab = &quot;mean&quot;, main = &quot;glmer&quot;,
@@ -724,7 +728,7 @@ t2 &lt;- Sys.time()
 t_interp &lt;- t2-t1</code></pre>
 <ul>
 <li><p>3.25 minutes spent on fitting local GLMMs, 3.21 seconds on FPCA
-model, 19.79 minutes on out-of-sample prediction, 1.43 minutes on
+model, 19.79 minutes on out-of-sample prediction, 1.45 minutes on
 interpolation to the original grid</p></li>
 <li><p>Let’s look at four subjects as an example:</p></li>
 </ul>
@@ -754,7 +758,7 @@ any different. Also, there are a lot of other methods to fill in the
 gaps, such as projection.</li>
 <li>For linear interpolation, I set the edges to be the closest data
 extreme.</li>
-<li>The interpolation itself spent 1.43 minutes.</li>
+<li>The interpolation itself spent 1.45 minutes.</li>
 </ul>
 <pre class="r"><code># with interpolation
 df_test_full%&gt;% 
@@ -1042,7 +1046,7 @@ Time on prediction
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-21.22
+21.24
 </div>
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
@@ -1064,7 +1068,7 @@ Total time
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-24.52
+24.54
 </div>
 </th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
@@ -1198,7 +1202,7 @@ Total time
 <ul>
 <li>fGFPCA does not always have higher AUC, but definitely most of the
 time.</li>
-<li>In fact there are two scenarios where GLMMadaptive overperforms
+<li>In fact there are two scenarios where GLMMadaptive outperforms
 fGFPCA slightly: 1) given 9am to predict 1-5pm; and 2) given 1pm and
 predict 5-9pm. Both of them have a 4-hour interval apart from the
 maximum observation time and and prediction window. Could it have
@@ -1219,17 +1223,17 @@ too many points lumped together!</li>
 <h2><span class="header-section-number">2.4</span> Discussion</h2>
 <ul>
 <li>What would be the reference method to compare our performance to?
-Original GLMMadaptvie perhaps is feasible on teh entire dataset. But
+Original GLMMadaptvie perhaps is feasible on the entire dataset. But
 what should we use if we wanna do sub-sample comparison? Should we even
 do that for this data application (or simulation alone)?</li>
-<li>There are still three folks with numeric problem! Shall we extend
-the observation track even more? I suspect that may cause still the same
-issue just on different subjects.</li>
-<li>Is interplation really necessary? It does not improve performance
+<li>There are still three participants with numeric problem! Shall we
+extend the observation track even more? I suspect that may cause still
+the same issue just on different subjects.</li>
+<li>Is interpolation really necessary? It does not improve performance
 very much but consumes time. Also, should I try more sophisticated
 methods for grid extension?</li>
 <li>Should I calculate subject-wise AUC and average them? But some
-subjects are all zero within the predictio window, making AUC for this
+subjects are all zero within the prediction window, making AUC for this
 single subjects impossible to calculate…</li>
 </ul>
 </div>
