@@ -26,6 +26,7 @@ library(lme4)
 library(ROCR)
 library(GLMMadaptive)
 library(kableExtra)
+library(mvtnorm)
 theme_set(theme_minimal())
 
 df <- read_rds(here("Data/nhanes_bi.rds"))
@@ -57,8 +58,7 @@ df %>%
   facet_wrap(~SEQN)+
   labs(x="Time", y = "Activity", title = "A brief overview of the outcome")
 ```
-
-## fGFPCA Estimation
+## fGFPCA
 
 ```{r}
 # code
@@ -66,13 +66,11 @@ source(here("Code/GLMM-FPCA.R"))
 # use pred_latent function to estimate latent function 
 source(here("Code/OutSampMLE.R"))
 # source(here("Code/OutsampBayes.R"))
-
-
 ```
 
-### Binning
+### Bin Data
 
-- Bin every 10 measures 
+- Bin every 10 consecutive observations
 
 ```{r, message=FALSE}
 # bin data
@@ -94,90 +92,44 @@ df %>%
   geom_point(aes(x=bin, y=num), size = 0.5)+
   facet_wrap(~SEQN)+
   labs(x="Time", y = "Activity", title = "Number of active nimutes within each bin")
+
+df <- df %>% rename(id = SEQN, Y=Z)
+```
+### Data split
+
+```{r}
+id_vec <- unique(df$id)
+train_id <- sample(id_vec, size = 0.8*N, replace = FALSE) # 7010 subjects for training
+test_id <- setdiff(id_vec, train_id) # 1753 subjects for testing
 ```
 
+- 80% (7017) subjects for model fitting, 20% (1753) subjects for out-of-sample prediction
 
-### Local GLMMs
+### Local GLMM
 
-Following up on last report, when using glmer, the results from PRILS (nAGQ=0) seems more in line with experiences. As validation, let's fit the marginal model and look at the estimated population-average latent function, and compare it with the FPCA mean function. Specifically, at bin s the model would be $g(E(Y_i(s)))=f_0(s)$, with no subject-specific random effect. 
+- Used glmer with PIRLS (nAGQ=0) for local GLMMs step
+- Fit on the training set
 
-Another validation I came up with is to look at the local intercepts. That is the $\beta_0(s)$ in local mixed models $g(E(Y_i(s)))=\beta_0(s)+b_i(x)$. This should correspond to the FPCA mean functions, as the population average level. 
+```{r, cache=TRUE}
+# fit model on the training set
+df_train <- df %>% filter(id %in% train_id)
+train_bin_lst <- split(df_train, f = df_train$bin)
 
-Since the individual random effects are centered around zero, I believe the marginal $f_0(s)$ should look very much like the conditional $\beta_0(x)$ if the model local fit well. The result obviously is in favor of PRILS.n *But what is the reason for AGQ to overshoot downward?* 
+# local GLMM and estimate latent function
+# use PIRLS (nAGQ=0) to avoid near-unidentifiability issues 
+t1=Sys.time()
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2= Sys.time()
+t_local_glmm <- t2-t1 
+```
 
 
 ```{r}
-# split by each bin
-df <- df %>% rename(id = SEQN, Y=Z)
-df_bin_lst <- split(df, f = df$bin)
-```
-
-
-```{r cache=TRUE}
-# local marginal GLM
-local_marg <- function(df){
-    this_glm <- glm(Y ~ 1, data = df, family = binomial)
-    eta_hat <- predict(this_glm, type = "link")
-    df$eta_hat <- eta_hat
-    return(df)
-}
-
-df_est_local_marg <- lapply(df_bin_lst, function(x){local_marg(x)}) 
-
-# local conditional GLMM
-## PIRLS vs AGQ
-df_est_cond_mean_pirls <- lapply(df_bin_lst, function(x){mean_latent(x, n_node = 0)}) 
-df_est_cond_mean_agq <- lapply(df_bin_lst, function(x){mean_latent(x, n_node = 5)}) 
-```
-
-
-```{r, fig.width=12, fig.height=4}
-ggarrange(
-df_est_local_marg %>% bind_rows() %>%
-  select(bin, eta_hat) %>% distinct(.) %>%
-  ggplot(aes(x=bin, y=eta_hat))+
-  geom_line()+
-  labs(x="local GLM (marginal)", y = "latent mean")+
-  ylim(-25, 1),
-
-data.frame(bin=mid, eta_hat = unlist(df_est_cond_mean_pirls)) %>%
-  ggplot(aes(x=bin, y=eta_hat))+
-  geom_line()+
-  labs(x="local GLMM (conditional) using PRILS", y = "latent mean")+
-  ylim(-25, 1),
-
-data.frame(bin=mid, eta_hat = unlist(df_est_cond_mean_agq)) %>%
-  ggplot(aes(x=bin, y=eta_hat))+
-  geom_line()+
-  labs(x="local GLMM (conditional) using AGQ", y = "latent mean")+
-  ylim(-25, 1),
-
-nrow = 1, align = "h"
-)
-```
-
-Let's for now trust the results from PIRLS more than AGQ, if we are using glmer.  
-
-```{r cache=TRUE}
-# fit local GLMM and estimate latent function
-# to avoid near-unidentifiability issues, using PIRLS maximization with nAGQ = 0
-
-# fit local models
-t1 <- Sys.time()
-df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
-t2 <- Sys.time()
-t_pirls <- t2-t1
-df_est_latent <- bind_rows(df_est_latent)
-
-# keep midpoint values
-df_est_latent <- df_est_latent %>%
-  select(-sind, -Y) %>% distinct(.)
-```
-
-
-```{r, message=FALSE}
+df_est_latent <- bind_rows(df_est_latent) %>% 
+  select(-sind, -Y) %>% distinct(.) 
+# example estimated latent function
 df %>% 
-  filter(id %in% rand_id) %>%
+  filter(id %in% sample(train_id, size = 4)) %>%
   left_join(df_est_latent, by = c("id", "bin")) %>%
   mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   ggplot()+
@@ -187,399 +139,246 @@ df %>%
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
 ```
 
-
 ```{r, message=FALSE}
-# overview at estimated latent function
+
 df %>% 
-  filter(id %in% rand_id) %>%
+  filter(id %in% sample(train_id, size = 4)) %>%
   group_by(id, bin) %>%
   summarise(num = sum(Y)) %>%
   left_join(df_est_latent, by = c("id", "bin")) %>%
-  # mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   ggplot()+
+  geom_point(aes(x=bin, y=num), size = 0.5)+
   geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_point(aes(x=bin, y = num, group = id), size = 0.5)+
-  facet_wrap(~id, scales = "free")+
-  labs(x = "Bin", y = "Estimated latent function/number of active minutes")
+  facet_wrap(~id)+
+  labs(x="Time", y = "Estimated latent function (original scale")
 ```
-
-#### An alternative: glmmTMB
-
-The default optimizer of glmmTMB is nlminb (quasi-Newton BFGS), whereas glmer uses bobyaqa (nAGQ=0) or Nelder_Mead (nAGQ>0)? 
-
-Let's first try to re-do the who local GLMM step using glmmTMB. Looks like no numeric issue occurred. It takes slightly shorter time (about 1 minute) than PIRLS in glmer 
-
-```{r, cache=TRUE}
-library(glmmTMB)
-# re-fit local GLMM and check numeric issues
-try_fit_lst<-list()
-t1=Sys.time()
-for(i in seq_along(df_bin_lst)){
-  # this_glm <- tryCatch({glmer(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial, nAGQ=5)},
-  #                      warning=function(w){NA})
-  this_glm <- glmmTMB(Y ~ 1 + (1|id), data = df_bin_lst[[i]], family = binomial)
-  try_fit_lst[[i]] <- this_glm
-  
-}
-df_est_latent_tmb <- lapply(try_fit_lst, function(x){predict(x, type = "link")})
-t2=Sys.time()
-t_tmb <- t2-t1
-# population mean
-mean_tmb <- sapply(try_fit_lst, function(x){coef(summary((x)))$cond[1]})
-```
-
-- Time: `r round(t_tmb, 2)` minutes
-- Mean/Intercept function: It looks like glmmTMB estimates lie right between PIRLS and AGQ! It takes slightly shorter time than PIRLS (`r round(t_pirls, 2)` minutes) and mean function shoots more downward, not as bad as AGQ though. 
-
-```{r, fig.width=12, fig.height=4}
-ggarrange(
-df_est_local_marg %>% bind_rows() %>%
-  select(bin, eta_hat) %>% distinct(.) %>%
-  ggplot(aes(x=bin, y=eta_hat))+
-  geom_line()+
-  labs(x="local GLM (marginal)", y = "latent mean")+
-  ylim(-15, 1),
-
-data.frame(bin=mid, eta_hat = unlist(df_est_cond_mean_pirls)) %>%
-  ggplot(aes(x=bin, y=eta_hat))+
-  geom_line()+
-  labs(x="local GLMM (conditional) using PRILS (glmer)", y = "latent mean")+
-  ylim(-15, 1),
-
-data.frame(bin=mid, eta_hat = mean_tmb) %>%
-  ggplot(aes(x=bin, y=eta_hat))+
-  geom_line()+
-  labs(x="local GLMM (conditional) using glmmTMB", y = "latent mean")+
-  ylim(-15, 1),
-
-nrow = 1
-)
-```
-
-- Individual latent functions
-
-```{r}
-for(i in seq_along(df_est_latent_tmb)){
-  df_est_latent_tmb[[i]] <- data.frame(df_bin_lst[[i]], eta_hat = df_est_latent_tmb[[i]])
-}
-
-df_est_latent_tmb <- bind_rows(df_est_latent_tmb)
-
-# keep midpoint values
-df_est_latent_tmb <- df_est_latent_tmb %>%
-  select(-sind, -Y) %>% distinct(.)
-
-```
-
-
-```{r, message=FALSE, fig.height=8, fig.width=16}
-df %>% 
-  filter(id %in% rand_id) %>%
-  left_join(df_est_latent %>% select(id, bin, eta_hat), by = c("id", "bin")) %>%
-  left_join(df_est_latent_tmb %>% select(id, bin, eta_hat) %>% rename(eta_hat_tmb=eta_hat), 
-            by = c("id", "bin")) %>%
-  mutate_at(vars(eta_hat, eta_hat_tmb), function(x){exp(x)/(1+exp(x))}) %>% 
-  ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, col = "glmer"))+
-  geom_line(aes(x=sind, y=eta_hat_tmb, col = "glmmTMB"))+
-  geom_point(aes(x=sind, y = Y), size = 0.5)+
-  facet_wrap(~id, scales = "free")+
-  labs(x = "Time", y = "Estimated latent function (probablity scale)")
-```
-
-
-```{r, message=FALSE, fig.height=8, fig.width=16}
-# overview at estimated latent function
-df %>% 
-  filter(id %in% rand_id) %>%
-  group_by(id, bin) %>%
-  summarise(num = sum(Y)) %>%
-  left_join(df_est_latent %>% select(id, bin, eta_hat), by = c("id", "bin")) %>%
-  left_join(df_est_latent_tmb %>% select(id, bin, eta_hat) %>% rename(eta_hat_tmb=eta_hat), 
-            by = c("id", "bin")) %>%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, col = "glmer"))+
-  geom_line(aes(x=bin, y=eta_hat_tmb, col = "glmmTMB"))+
-  geom_point(aes(x=bin, y = num), size = 0.5)+
-  facet_wrap(~id, scales = "free")+
-  labs(x = "Time", y = "Estimated latent function")
-```
-
-So it looks like glmmTMB still overshoots downwards. Between the two methods, the mid-day part (active part for most people) seems to be very similar. Difference lies mostly at both ends, with consecutive inactive minutes. 
-
-```{r, eval=FALSE}
-# numeric values of individual latent function
-df %>% 
-  filter(id %in% rand_id) %>%
-  group_by(id, bin) %>%
-  summarise(num = sum(Y)) %>%
-  left_join(df_est_latent %>% select(id, bin, eta_hat), by = c("id", "bin")) %>%
-  left_join(df_est_latent_tmb %>% select(id, bin, eta_hat) %>% rename(eta_hat_tmb=eta_hat), 
-            by = c("id", "bin")) %>%
-  head(20)
-```
-
 
 ### FPCA
 
-Follow up from late time, let's use PIRLS estimator and fix the number of PC functions instead of using all of them. We start with four PC functions.
-
-I will use estimated latent functions from both glmer (nAGQ=0) and glmmTMB, and compare their results. 
-
 ```{r}
-# glmer nAGQ=0
-mat_est_unique <- matrix(df_est_latent$eta_hat, nrow=N, ncol=n_bin, byrow = F) 
+mat_est_unique <- matrix(df_est_latent$eta_hat,
+                         nrow=length(train_id), 
+                         ncol=n_bin, byrow = F) # row index subject, column binned time
+#dim(mat_est_unique)
+
+t1 <- Sys.time()
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T)
+t2 <- Sys.time()
+t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
 
-
-# lmmTMB
-mat_est_unique2 <- matrix(df_est_latent_tmb$eta_hat, 
-                          nrow=N, ncol=n_bin, byrow = F) 
-fpca_mod2 <- fpca.face(mat_est_unique2, argvals = mid, var=T)
-
-# ncol(fpca_mod$efunctions) # 27 eigenfunctions
+# dim(fpca_mod$efunctions) # 27 eigenfunctions total
+# fpca_mod$evalues
 K <- 4
 ```
 
-- Population mean function
+```{r}
+plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "mean")
+```
 
-Hmm...Compared to conditional intercept, FPCA seems to shoot the population mean downward in PIRLS but upward for glmmTMB. Does that make sense? 
+
+```{r, fig.height=8, fig.width=8}
+par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
+plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
+plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+```
 
 ```{r}
-# population mean
-par(mfrow=c(1, 2))
-plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "mean", main = "glmer",
-     ylim = c(-12, 1))
-plot(mid, fpca_mod2$mu, type = "l", xlab = "bin", ylab = "mean", main = "glmmTMB", ylim = c(-12, 1))
-```
-- PC functions
-
-```{r, fig.height=16, fig.width=8}
-# eigenfunctions
-par(mfrow=c(4,2))
-
-plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1", main = "glmer", ylim = c(-0.21, 0.13))
-plot(mid, fpca_mod2$efunctions[, 1], type="l", xlab="bin", ylab="PC1", main = "glmmTMB", ylim = c(-0.21, 0.13))
-
-plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2", ylim = c(-0.2, 0.14))
-plot(mid, fpca_mod2$efunctions[, 2], type="l", xlab="bin", ylab="PC2",ylim = c(-0.2, 0.14))
-
-plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3", ylim = c(-0.2, 0.2))
-plot(mid, fpca_mod2$efunctions[, 3], type="l", xlab="bin", ylab="PC3",ylim = c(-0.2, 0.2))
-
-plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4", ylim = c(-0.14, 0.23))
-plot(mid, fpca_mod2$efunctions[, 4], type="l", xlab="bin", ylab="PC4",
-     ylim = c(-0.14, 0.23))
+# plot correlation matrix
+sum(fpca_mod$VarMats[[1]]!=fpca_mod$VarMats[[2]]) 
+heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = "Correlation")
 ```
 
-- Individual covariance matrix
+### Debias?
 
-Wow! This covariacne matrix changed a lot from when using all of the PCs! It still looks cyclic, but now off-diagnoal region seems much more stable. Fluctuations mostly centered around diagnoal line. 
+### Out-of-sample prediction
 
-```{r}
-# covariance
-heatmap(fpca_mod$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
-        Rowv = NA, Colv = NA, main = "glmer")
+follow up on the last report, I'll add some details here.
 
-heatmap(fpca_mod2$VarMats[[which(unique(df_est_latent$id)==rand_id[1])]],
-        Rowv = NA, Colv = NA, main = "glmmTMB")
+Let's set: 
 
-```
+- $s$: bin index
+- $t_{m_s}$: midpoint time of bin s
+- $\mathcal{T}_s$: all observation points in bin s
+- $Y_i^s)$ all observations in bin s from subject i
 
-## Dynamic prediction
+Let's assume we have a new subject $u$ with maximum observation time $T_u$. Then the log-likelihood of this new subject would be:
 
-Still from last time, we're gonna focus on Bayes methods now! 
-
-We are also going to extend the observed track, so that there are some variation in the observed data (instead of all zeros). I am going to start with 9am (540), 1pm (780),  5pm (1020)
-
-Extending the track seems to solve the problem with failed Laplace Approximation. Not sure. Should try on the full sample.
+$$
+l_u=\sum_{t_{m_s}<T_u}log(h(Y_u^s))+\hat{\eta}_u(t_{m_s})T(Y_u^s)-log(A[\hat{\eta}_u(t_{m_s})])
+$$
 
 
-```{r, warning=FALSE, message=FALSE}
-df_pred <- df_est_latent %>% filter(id %in% rand_id)
-df_pred[, 'pred_t540'] <- df_pred[, 'pred_t780'] <- df_pred[, 'pred_t1020'] <- NA
-score_out_mat <- array(NA, dim = c(length(rand_id), K, 3))
+where $\hat{\eta}_u(t_{m_s}) = \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})$. 
+
+From FPCA model (or the debias step to be added), we obtain $\hat{\mu}_0$, $\hat{\phi}_k$, as well as the variance estimates of $\xi_k$: $\hat{\lambda}_k$, and variance of residual process $\hat{\sigma}^2$.
+
+With all these estimates, we wanna use Laplace approximation to find the $\xi_{uk}$ that maximizes $l_u$. 
+
+
+I am using a package called **LaplacesDemon**, following this example https://cran.r-project.org/web/packages/LaplacesDemon/vignettes/LaplacesDemonTutorial.pdf
+
+```{r, class.source = "fold-show"}
+library(LaplacesDemon)
 ```
 
 
-```{r, results='hide'}
-# unique id
-# prediction for a single subject
-source(here("Code/OutsampBayes.R"))
+Now I am going to use one subject as an example to go over the approximation procedure:
 
-# PRILS
-for(i in rand_id){
-  df_i <- df %>% filter(id==i) 
+First we write out the model: 
+
+- Prior distribution: $\xi_{uk} \sim N(0, \hat{\lambda}_k)$
+- Posterior distribution: 
+
+For a single bin
+$$
+\begin{aligned}
+l(\mathbf{Y_u}|\mathbf{\xi}_u) &= \sum_{t_{m_s}<T_u}l(Y_u^s|\mathbf{\xi}_u) \\
+
+Y_u^s|\mathbf{\xi}_u & \sim Binomial(n_s, p_s) \\
+
+g^{-1}(p_s) = \hat{\eta}(t_{m_s}) &= \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})
+\end{aligned}
+$$
+And $n_s$ is the number of observations in bin s. 
+
+Bayes theroem:
+
+$$
+l(\mathbf{\xi}_u|\mathbf{Y}_u) \propto l(\mathbf{Y}_u|\mathbf{\xi}_u)+l(\mathbf{\xi}_u)
+$$
+
+
+```{r, class.source = "fold-show"}
+## model
+Model <- function(parm, Data){
+  xi <- parm[Data$pos.xi]
   
-  # prediction 
-  ## up to 360
-  pred_t1 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=540), kpc=K)
-  eta_pred_t1 <- fpca_mod$mu+fpca_mod$efunctions[, 1:K]%*%pred_t1$score_out
-  df_pred[df_pred$id == i, 'pred_t540'] <- eta_pred_t1
-  ## up to 720
-  pred_t2 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=780), kpc=K)
-  eta_pred_t2 <- fpca_mod$mu+fpca_mod$efunctions[, 1:K]%*%pred_t2$score_out
-  df_pred[df_pred$id == i, 'pred_t780'] <- eta_pred_t2
-  ## up to 1080
-  pred_t3 <- out_pred_laplace(fpca_mod, df_i %>% filter(sind<=1020), kpc = K)
-  eta_pred_t3 <- fpca_mod$mu+fpca_mod$efunctions[, 1:K]%*%pred_t3$score_out
-  df_pred[df_pred$id == i, 'pred_t1020'] <- eta_pred_t3
-
-}
-
-df_pred$pred_t540[df_pred$bin<=540] <- NA
-df_pred$pred_t780[df_pred$bin<=780] <- NA
-df_pred$pred_t1020[df_pred$bin<=1020] <- NA
-```
-
-
-
-```{r, results='hide'}
-# glmmTMB
-df_pred2 <- df_est_latent %>% filter(id %in% rand_id)
-df_pred2[, 'pred_t540'] <- df_pred2[, 'pred_t780'] <- df_pred2[, 'pred_t1020'] <- NA
-
-
-for(i in rand_id){
-  df_i <- df %>% filter(id==i) 
+  # log-prior
+  xi.prior <- dmvnorm(xi, mean = rep(0, Data$J), sigma=Data$tao, log = TRUE)
   
-  # prediction 
-  ## up to 360
-  pred_t1 <- out_pred_laplace(fpca_mod2, df_i %>% filter(sind<=540), kpc=K)
-  eta_pred_t1 <- fpca_mod2$mu+fpca_mod2$efunctions[, 1:K]%*%pred_t1$score_out
-  df_pred2[df_pred$id == i, 'pred_t540'] <- eta_pred_t1
-  ## up to 720
-  pred_t2 <- out_pred_laplace(fpca_mod2, df_i %>% filter(sind<=780), kpc=K)
-  eta_pred_t2 <- fpca_mod2$mu+fpca_mod2$efunctions[, 1:K]%*%pred_t2$score_out
-  df_pred2[df_pred$id == i, 'pred_t780'] <- eta_pred_t2
-  ## up to 1080
-  pred_t3 <- out_pred_laplace(fpca_mod2, df_i %>% filter(sind<=1020), kpc = K)
-  eta_pred_t3 <- fpca_mod2$mu+fpca_mod2$efunctions[, 1:K]%*%pred_t3$score_out
-  df_pred2[df_pred$id == i, 'pred_t1020'] <- eta_pred_t3
-
+  # log-posterior likelihood
+  eta <- Data$f0+Data$X %*% xi
+  p <- exp(eta)/(1+exp(eta))
+  LL <- sum(dbinom(x=Data$y, size = Data$n, prob=p, log = TRUE)) # log likelihood of Y|xi
+  LP <- LL+sum(xi.prior) # unnormalized joint log likelihood of (Y, xi)
+  
+  # output
+  Modelout <- list(LP=LP, Dev=-2*LL, Monitor=LP,
+                   yhat=Data$y, parm=parm)
+  return(Modelout)
 }
-
-df_pred2$pred_t540[df_pred$bin<=540] <- NA
-df_pred2$pred_t780[df_pred$bin<=780] <- NA
-df_pred2$pred_t1020[df_pred$bin<=1020] <- NA
 ```
 
 
-```{r, warning=FALSE, fig.width=16, fig.height=8}
-ggarrange(
-df_pred %>%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_line(aes(x=bin, y = pred_t540, col = "540", group = id))+
-  geom_line(aes(x=bin, y = pred_t780, col = "780", group = id))+
-  geom_line(aes(x=bin, y = pred_t1020, col = "1020", group = id))+
-  facet_wrap(~id,scales = "free")+labs(title = "glmer"),
+- Then we feed in data for one observation
 
-df_pred2 %>%
-  ggplot()+
-  geom_line(aes(x=bin, y=eta_hat, group = id))+
-  geom_line(aes(x=bin, y = pred_t540, col = "540", group = id))+
-  geom_line(aes(x=bin, y = pred_t780, col = "780", group = id))+
-  geom_line(aes(x=bin, y = pred_t1020, col = "1020", group = id))+
-  facet_wrap(~id,scales = "free")+labs(title = "glmmTMB"),
-nrow = 1, common.legend = T)
+```{r, class.source = "fold-show"}
+rand_id <- sample(test_id, 1)
+df_new <- df %>% filter(id == rand_id & sind <= 540) # observation until 9am
+
+# put data into correct format
+ns <- as.vector(table(df_new$bin)) # number of observations
+hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% select(Y) %>% unlist()# number of success
+nf <- ns-hs # number of failure
+max_bin <- length(unique(df_new$bin)) # assume new skipped bins  
+df_new2 <- data.frame(bin = unique(df_new$bin), ns, hs, nf)  
+  
+# extract estimates from FPCA model to be used in prior distribution
+tao <- diag(fpca_mod$evalues[1:K]) # variance of xi
+
+# extract estimates from FPCA model to be used in posterior distribution
+f0 <- fpca_mod$mu[1:max_bin]
+N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
+n <- df_new2$ns # number of experiements at each bin
+y <- df_new2$hs # outcome, number of 1
+X <- fpca_mod$efunctions[1:max_bin, 1:K] # eigen/PC functions
+J <- K # number of parameters/scores
+mon.names <- "LP"
+
+# parameter names
+name_lst <- as.list(rep(0, J))
+names(name_lst) <- paste("xi", 1:J, sep = "")
+parm.names <- as.parm.names(name_lst) # names of parameters to estimate
+pos.xi <- grep("xi", parm.names)
+
+# data
+MyData <- list(J=J, X=X, mon.names=mon.names,
+                 parm.names=parm.names, pos.xi=pos.xi, y=y, n=n, tao=tao, f0=f0)
 ```
 
 
-# NHANES data application output
+```{r, class.source = "fold-show"}
+# fit laplace approximation
+# initial values generated by GIV function in the same package
+Fit <- LaplaceApproximation(Model, Data=MyData)
+```
 
-## fGFPCA
+- Summarizing output
 
-- 80% (7017) subjects for model fitting, 20% (1753) subjects for out-of-sample prediction
-- Used PIRLS for local GLMMs step
+```{r, class.source = "fold-show", fig.height=8, fig.width=8}
+# summarizing output
+print(Fit)
+plot(Fit, MyData)
+```
 
 ```{r}
+# prediction
+eta_pred_out <- fpca_mod$mu+fpca_mod$efunctions[, 1:K]%*%Fit$Summary1[, "Mode"]
+
+data.frame(bin = mid, eta_pred = eta_pred_out) %>% 
+  right_join(df %>% filter(id==rand_id) %>%  select(Y, sind, bin), by = "bin") %>%
+  ggplot()+
+  geom_point(aes(x=sind, y = Y))+
+  geom_line(aes(x=sind, y = exp(eta_pred)/1+exp(eta_pred)))+
+  labs(title = rand_id)
+  
+```
+
+
+
+## Full data application output
+
+### fGFPCA
+
+- Still need to project eigenfunctions to the full grid
+
+```{r}
+# results generated from DataApplNHANES.R
 load(here("Data/ApplOutput_fGFPCA.RData"))
 ```
 
 
-```{r}
-# linear interpolation
-# remove subjects with numeric problem
-df_test_full <- df %>% 
-  filter(id %in% unique(df_test$id)) %>%
-  filter(!id %in% skip_id) %>%
-  left_join(df_test %>% select(id, bin, pred_t540, pred_t780, pred_t1020), by = c("id", "bin"))
-df_test_full$pred_t540_interp <- df_test_full$pred_t780_interp <- df_test_full$pred_t1020_interp <- NA 
 
-# interpolation for each subject
-t1 <- Sys.time()
-for(i in unique(df_test_full$id)){
-  # interpolation t540
-  interp_i_t540 <- approx(x = df_test[df_test$id==i, "bin"], 
-                     y = df_test[df_test$id==i, "pred_t540"],
-                     xout = 541:J, rule = 2)
-  df_test_full$pred_t540_interp[df_test_full$id==i & df_test_full$sind>540] <- interp_i_t540$y
-  
-  # interpolation t780
-  interp_i_t780 <- approx(x = df_test[df_test$id==i, "bin"], 
-                     y = df_test[df_test$id==i, "pred_t780"],
-                     xout = 781:J, rule = 2)
-  df_test_full$pred_t780_interp[df_test_full$id==i & df_test_full$sind>780] <- interp_i_t780$y
-  
-  # interpolation t1020
-  interp_i_t1020 <- approx(x = df_test[df_test$id==i, "bin"], 
-                     y = df_test[df_test$id==i, "pred_t1020"],
-                     xout = 1021:J, rule = 2)
-  df_test_full$pred_t1020_interp[df_test_full$id==i & df_test_full$sind>1020] <- interp_i_t1020$y
-}
-t2 <- Sys.time()
-t_interp <- t2-t1
-
-```
-
-
-- `r round(t_local_glmm, 2)` minutes spent on fitting local GLMMs, `r round(t_fpca, 2)` seconds on FPCA model, `r round(t_pred, 2)` minutes on out-of-sample prediction, `r round(t_interp, 2)` minutes on interpolation to the original grid 
-
-- Let's look at four subjects as an example: 
 
 ```{r message=FALSE, warning=FALSE}
+df_test_full <- df %>% 
+  filter(id %in% test_id) %>%
+  filter(!id %in% skip_id) %>%
+  left_join(df_test %>% select(id, bin, pred_t540, pred_t780, pred_t1020), by = c("id", "bin"))
+
 rand_id2 <- sample(unique(df_test$id), 4)
 # without interpolation, assume constant latent function value in each bin
-df_test_full%>% 
+df_test_full%>%
   filter(id %in% rand_id2) %>%
-  mutate_at(vars(pred_t540, pred_t780, pred_t1020), function(x)exp(x)/(1+exp(x))) %>% 
+  mutate_at(vars(pred_t540, pred_t780, pred_t1020), function(x)exp(x)/(1+exp(x))) %>%
   ggplot()+
     geom_line(aes(x=bin, y = pred_t540, col = "9am"))+
     geom_line(aes(x=bin, y = pred_t780, col = "1pm"))+
     geom_line(aes(x=bin, y = pred_t1020, col = "5pm"))+
     geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.2)+
     facet_wrap(~id)+
-    labs(x = "Time", y = "Estimated latent function (probablity scale)", 
+    labs(x = "Time", y = "Estimated latent function (probablity scale)",
          title = "Constant latent function within bin")
-```
-
-### A closer look at interpolation
-
-- We can either assume that the latent function value is constant within the same bin, or use linear interpolation to fill in the gaps between bin midpoints. Here I wanna compare if this choice would make any different. Also, there are a lot of other methods to fill in the gaps, such as projection. 
-- For linear interpolation, I set the edges to be the closest data extreme.
-- The interpolation itself spent `r round(t_interp, 2)` minutes.
-
-```{r, warning=FALSE}
-# with interpolation
-df_test_full%>% 
-  filter(id %in% rand_id2) %>%
-  mutate_at(vars(pred_t540_interp, pred_t780_interp, pred_t1020_interp), function(x)exp(x)/(1+exp(x))) %>% 
-  ggplot()+
-    geom_line(aes(x=bin, y = pred_t540_interp, col = "9am"))+
-    geom_line(aes(x=bin, y = pred_t780_interp, col = "1pm"))+
-    geom_line(aes(x=bin, y = pred_t1020_interp, col = "5pm"))+
-    geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.2)+
-    facet_wrap(~id)+
-    labs(x = "Time", y = "Estimated latent function (probablity scale)", 
-         title = "Interpolated latent function")
-
 ```
 
 ### Numeric problems 
 
 - Three subjects had failed approximation, all happened with the shortest observed track
 - Does it have to do with still the length of observed track? Or the arbitrary choices in the binning procedure (bin width). 
+- Per last meeting, adding some details on laplace approximation
 
 
 ```{r, fig.height=3, fig.width=9}
@@ -622,28 +421,12 @@ auc_t1020 <- lst_auc[4] %>%
 auc_t1020 <- lapply(auc_t1020, function(x){x@y.values[[1]]}) %>% unlist()
 ```
 
-```{r}
-# with interpolation
-# up to 9am
-auc_t540_interp <- lst_auc[2:4] %>% 
-  lapply(function(x)performance(prediction(x$pred_t540_interp, x$Y), measure = "auc"))
-auc_t540_interp <- lapply(auc_t540_interp, function(x){x@y.values[[1]]}) %>% unlist()
 
-# up to 1pm
-auc_t780_interp <- lst_auc[3:4] %>% 
-  lapply(function(x)performance(prediction(x$pred_t780_interp, x$Y), measure = "auc"))
-auc_t780_interp <- lapply(auc_t780_interp, function(x){x@y.values[[1]]}) %>% unlist()
-
-# up to 5pm
-auc_t1020_interp <- lst_auc[4] %>% 
-  lapply(function(x)performance(prediction(x$pred_t1020_interp, x$Y), measure = "auc"))
-auc_t1020_interp <- lapply(auc_t1020_interp, function(x){x@y.values[[1]]}) %>% unlist()
-```
 
 
 ## GLMMadaptvie
 
-- when fitting model with **random intercept + slope** on the same full training set (even after scaling covariates): Error: vector memory exhausted (limit reached?). 
+- when fitting model with **random intercept + slope** on the same full training set (even after scaling covariates): Error: vector memory exhausted (limit reached?).
 - when fitting model with **only random intercept** on the same full training set: Error regarding a large coefficient value. One fix is to re-scale covariates. So I re-scaled minute index by dividing them by J, so the range is within (0, 1], and tried again. This fitting procedure took 20.72 minutes to finish
 
 
@@ -654,7 +437,7 @@ load(here("Data/ApplOutput_GLMMadaptive.RData"))
 
 - `r round(t_est_adglmm, 2)` minutes on model fitting and `r round(t_pred_adglmm, 2)` minutes on out-of-sample prediction. 
 
-- Below is the model fit on the trainign set
+- Below is the model fit on the training set
 
 ```{r}
 summary(adglmm_mod)
@@ -679,6 +462,8 @@ for(i in rand_id2){
 # colSums(is.na(df_test_full2))
 ```
 
+
+
 - Below is an example of predicted probablity on four random subjects
 
 ```{r, warning=FALSE}
@@ -696,8 +481,11 @@ df_test_full2 %>%
 
 <!-- Calculate AUC  -->
 
+
+
 ```{r}
 # up to 540
+J <- 1440
 auc_t540_adglmm <- adglmm_pred_t540$newdata2 %>%
   filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
@@ -746,28 +534,27 @@ options(knitr.kable.NA = '')
 tb_auc <- data.frame(auc_t540, 
            c(NA, auc_t780), 
            c(NA, NA, auc_t1020), 
-           auc_t540_interp, 
-           c(NA, auc_t780_interp), 
-           c(NA, NA, auc_t1020_interp), 
+        
            auc_t540_adglmm,
            c(NA, auc_t780_adglmm), 
            c(NA, NA, auc_t1020_adglmm))
 
-colnames(tb_auc) <- rep(c("9am", "1pm", "5pm"), 3)
+colnames(tb_auc) <- rep(c("9am", "1pm", "5pm"), 2)
 ```
 
 
 ```{r}
 # time
-t_fit <- c(t_local_glmm+t_fpca, t_local_glmm+t_fpca, t_est_adglmm)
+t_fit <- c(t_local_glmm+t_fpca, t_est_adglmm)
 units(t_fit) <- "mins"
 
-t_test <- c(t_pred, t_pred+t_interp, t_pred_adglmm)
+t_test <- c(t_pred, t_pred_adglmm)
 # units(t_pred)
 
 t_total <- t_fit+t_test
 
-idx1 <- idx2 <- idx3 <- c(1, 3, 3, 3)
+
+idx1 <- idx2 <- idx3 <- c(1, 3, 3)
 names(idx1) <- c("Total time", as.character(round(t_total, 2)))
 names(idx2) <- c("Time on prediction", as.character(round(t_test, 2)))
 names(idx3) <- c("Time on model fitting", as.character(round(t_fit, 2)))
@@ -787,7 +574,7 @@ tb_auc %>%
   add_header_above(header=idx1) %>%
   add_header_above(header=idx2) %>%
   add_header_above(header=idx3) %>%
-  add_header_above(c(" "=1, "fGFPCA"=3, "fGFPCA+interpolation" = 3, "GLMMadaptive"=3))
+  add_header_above(c(" "=1, "fGFPCA"=3, "GLMMadaptive"=3))
 ```
 
 - fGFPCA does not always have higher AUC, but definitely most of the time. 
