@@ -58,7 +58,7 @@ df %>%
   facet_wrap(~SEQN)+
   labs(x="Time", y = "Activity", title = "A brief overview of the outcome")
 ```
-## fGFPCA
+## fGFPCA model fitting
 
 ```{r}
 # code
@@ -193,7 +193,7 @@ heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = "Correlatio
 
 ### Debias?
 
-### Out-of-sample prediction
+## Out-of-sample prediction
 
 follow up on the last report, I'll add some details here.
 
@@ -201,8 +201,8 @@ Let's set:
 
 - $s$: bin index
 - $t_{m_s}$: midpoint time of bin s
-- $\mathcal{T}_s$: all observation points in bin s
-- $Y_i^s)$ all observations in bin s from subject i
+- $\mathscr{T}_s$: all observation points in bin s
+- $Y_i^s$ all observations in bin s from subject i
 
 Let's assume we have a new subject $u$ with maximum observation time $T_u$. Then the log-likelihood of this new subject would be:
 
@@ -332,16 +332,16 @@ data.frame(bin = mid, eta_pred = eta_pred_out) %>%
   right_join(df %>% filter(id==rand_id) %>%  select(Y, sind, bin), by = "bin") %>%
   ggplot()+
   geom_point(aes(x=sind, y = Y))+
-  geom_line(aes(x=sind, y = exp(eta_pred)/1+exp(eta_pred)))+
+  geom_line(aes(x=sind, y = exp(eta_pred)/(1+exp(eta_pred))))+
   labs(title = rand_id)
   
 ```
 
 
 
-## Full data application output
+# Full data application output
 
-### fGFPCA
+## fGFPCA
 
 - Still need to project eigenfunctions to the full grid
 

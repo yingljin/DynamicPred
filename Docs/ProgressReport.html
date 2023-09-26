@@ -278,7 +278,7 @@ df %&gt;%
   facet_wrap(~SEQN)+
   labs(x=&quot;Time&quot;, y = &quot;Activity&quot;, title = &quot;A brief overview of the outcome&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-2-1.png" width="672" />
-## fGFPCA</p>
+## fGFPCA model fitting</p>
 <pre class="r"><code># code
 source(here(&quot;Code/GLMM-FPCA.R&quot;)) 
 # use pred_latent function to estimate latent function 
@@ -395,20 +395,20 @@ sum(fpca_mod$VarMats[[1]]!=fpca_mod$VarMats[[2]]) </code></pre>
 <div id="debias" class="section level3" number="1.1.5">
 <h3><span class="header-section-number">1.1.5</span> Debias?</h3>
 </div>
-<div id="out-of-sample-prediction" class="section level3"
-number="1.1.6">
-<h3><span class="header-section-number">1.1.6</span> Out-of-sample
-prediction</h3>
+</div>
+<div id="out-of-sample-prediction" class="section level2" number="1.2">
+<h2><span class="header-section-number">1.2</span> Out-of-sample
+prediction</h2>
 <p>follow up on the last report, I’ll add some details here.</p>
 <p>Let’s set:</p>
 <ul>
 <li><span class="math inline">\(s\)</span>: bin index</li>
 <li><span class="math inline">\(t_{m_s}\)</span>: midpoint time of bin
 s</li>
-<li><span class="math inline">\(\mathcal{T}_s\)</span>: all observation
+<li><span class="math inline">\(\mathscr{T}_s\)</span>: all observation
 points in bin s</li>
-<li><span class="math inline">\(Y_i^s)\)</span> all observations in bin
-s from subject i</li>
+<li><span class="math inline">\(Y_i^s\)</span> all observations in bin s
+from subject i</li>
 </ul>
 <p>Let’s assume we have a new subject <span
 class="math inline">\(u\)</span> with maximum observation time <span
@@ -597,17 +597,17 @@ data.frame(bin = mid, eta_pred = eta_pred_out) %&gt;%
   right_join(df %&gt;% filter(id==rand_id) %&gt;%  select(Y, sind, bin), by = &quot;bin&quot;) %&gt;%
   ggplot()+
   geom_point(aes(x=sind, y = Y))+
-  geom_line(aes(x=sind, y = exp(eta_pred)/1+exp(eta_pred)))+
+  geom_line(aes(x=sind, y = exp(eta_pred)/(1+exp(eta_pred))))+
   labs(title = rand_id)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
 </div>
 </div>
-<div id="full-data-application-output" class="section level2"
-number="1.2">
-<h2><span class="header-section-number">1.2</span> Full data application
-output</h2>
-<div id="fgfpca" class="section level3" number="1.2.1">
-<h3><span class="header-section-number">1.2.1</span> fGFPCA</h3>
+<div id="full-data-application-output" class="section level1"
+number="2">
+<h1><span class="header-section-number">2</span> Full data application
+output</h1>
+<div id="fgfpca" class="section level2" number="2.1">
+<h2><span class="header-section-number">2.1</span> fGFPCA</h2>
 <ul>
 <li>Still need to project eigenfunctions to the full grid</li>
 </ul>
@@ -632,9 +632,8 @@ df_test_full%&gt;%
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;,
          title = &quot;Constant latent function within bin&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
-</div>
-<div id="numeric-problems" class="section level3" number="1.2.2">
-<h3><span class="header-section-number">1.2.2</span> Numeric
+<div id="numeric-problems" class="section level3" number="2.1.1">
+<h3><span class="header-section-number">2.1.1</span> Numeric
 problems</h3>
 <ul>
 <li>Three subjects had failed approximation, all happened with the
@@ -673,8 +672,8 @@ auc_t1020 &lt;- lst_auc[4] %&gt;%
 auc_t1020 &lt;- lapply(auc_t1020, function(x){x@y.values[[1]]}) %&gt;% unlist()</code></pre>
 </div>
 </div>
-<div id="glmmadaptvie" class="section level2" number="1.3">
-<h2><span class="header-section-number">1.3</span> GLMMadaptvie</h2>
+<div id="glmmadaptvie" class="section level2" number="2.2">
+<h2><span class="header-section-number">2.2</span> GLMMadaptvie</h2>
 <ul>
 <li>when fitting model with <strong>random intercept + slope</strong> on
 the same full training set (even after scaling covariates): Error:
@@ -793,8 +792,8 @@ auc_t1020_adglmm &lt;- auc_t1020_adglmm[1] %&gt;%
 auc_t1020_adglmm &lt;- lapply(auc_t1020_adglmm, function(x){x@y.values[[1]]}) %&gt;% unlist()</code></pre>
 </div>
 <div id="compare-fgfpca-and-glmmadaptive" class="section level2"
-number="1.4">
-<h2><span class="header-section-number">1.4</span> Compare fGFPCA and
+number="2.3">
+<h2><span class="header-section-number">2.3</span> Compare fGFPCA and
 GLMMadaptive</h2>
 <ul>
 <li>To use the same sample for comparison, I’d exclude the subjects with
@@ -1011,8 +1010,8 @@ too many points lumped together!</li>
   facet_wrap(~id)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-32-1.png" width="672" /></p>
 </div>
-<div id="discussion" class="section level2" number="1.5">
-<h2><span class="header-section-number">1.5</span> Discussion</h2>
+<div id="discussion" class="section level2" number="2.4">
+<h2><span class="header-section-number">2.4</span> Discussion</h2>
 <ul>
 <li>What would be the reference method to compare our performance to?
 Original GLMMadaptvie perhaps is feasible on the entire dataset. But
