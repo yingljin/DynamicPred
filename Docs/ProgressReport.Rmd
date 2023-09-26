@@ -58,6 +58,7 @@ df %>%
   facet_wrap(~SEQN)+
   labs(x="Time", y = "Activity", title = "A brief overview of the outcome")
 ```
+
 ## fGFPCA model fitting
 
 ```{r}
@@ -129,7 +130,7 @@ df_est_latent <- bind_rows(df_est_latent) %>%
   select(-sind, -Y) %>% distinct(.) 
 # example estimated latent function
 df %>% 
-  filter(id %in% sample(train_id, size = 4)) %>%
+  filter(id %in% rand_id) %>%
   left_join(df_est_latent, by = c("id", "bin")) %>%
   mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   ggplot()+
@@ -187,7 +188,6 @@ plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
 
 ```{r}
 # plot correlation matrix
-sum(fpca_mod$VarMats[[1]]!=fpca_mod$VarMats[[2]]) 
 heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = "Correlation")
 ```
 
@@ -202,7 +202,7 @@ Let's set:
 - $s$: bin index
 - $t_{m_s}$: midpoint time of bin s
 - $\mathscr{T}_s$: all observation points in bin s
-- $Y_i^s$ all observations in bin s from subject i
+- $Y_i^s$ all observations in bin s from subject i. $Y_i^S := \{Y_i(t_j), t_j \in \mathscr{T}_s\}$
 
 Let's assume we have a new subject $u$ with maximum observation time $T_u$. Then the log-likelihood of this new subject would be:
 
@@ -213,7 +213,7 @@ $$
 
 where $\hat{\eta}_u(t_{m_s}) = \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})$. 
 
-From FPCA model (or the debias step to be added), we obtain $\hat{\mu}_0$, $\hat{\phi}_k$, as well as the variance estimates of $\xi_k$: $\hat{\lambda}_k$, and variance of residual process $\hat{\sigma}^2$.
+From FPCA model (or the debias step to be added), we obtain $\hat{\mu}_0$, $\hat{\phi}_k$, as well as the variance estimates of $\xi_k$: $\hat{\lambda}_k$, and variance of residual process $\hat{\sigma^2}$.
 
 With all these estimates, we wanna use Laplace approximation to find the $\xi_{uk}$ that maximizes $l_u$. 
 
@@ -232,16 +232,17 @@ First we write out the model:
 - Prior distribution: $\xi_{uk} \sim N(0, \hat{\lambda}_k)$
 - Posterior distribution: 
 
-For a single bin
-$$
-\begin{aligned}
+
+$$\begin{aligned}
 l(\mathbf{Y_u}|\mathbf{\xi}_u) &= \sum_{t_{m_s}<T_u}l(Y_u^s|\mathbf{\xi}_u) \\
 
 Y_u^s|\mathbf{\xi}_u & \sim Binomial(n_s, p_s) \\
 
 g^{-1}(p_s) = \hat{\eta}(t_{m_s}) &= \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})
-\end{aligned}
-$$
+\end{aligned}$$
+
+
+
 And $n_s$ is the number of observations in bin s. 
 
 Bayes theroem:
@@ -276,7 +277,7 @@ Model <- function(parm, Data){
 - Then we feed in data for one observation
 
 ```{r, class.source = "fold-show"}
-rand_id <- sample(test_id, 1)
+rand_id <- test_id[15]
 df_new <- df %>% filter(id == rand_id & sind <= 540) # observation until 9am
 
 # put data into correct format

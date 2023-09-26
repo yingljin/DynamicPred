@@ -277,15 +277,18 @@ df %&gt;%
   geom_point(aes(x=sind, y=Z), size = 0.5)+
   facet_wrap(~SEQN)+
   labs(x=&quot;Time&quot;, y = &quot;Activity&quot;, title = &quot;A brief overview of the outcome&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-2-1.png" width="672" />
-## fGFPCA model fitting</p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+</div>
+<div id="fgfpca-model-fitting" class="section level2" number="1.2">
+<h2><span class="header-section-number">1.2</span> fGFPCA model
+fitting</h2>
 <pre class="r"><code># code
 source(here(&quot;Code/GLMM-FPCA.R&quot;)) 
 # use pred_latent function to estimate latent function 
 source(here(&quot;Code/OutSampMLE.R&quot;))
 # source(here(&quot;Code/OutsampBayes.R&quot;))</code></pre>
-<div id="bin-data" class="section level3" number="1.1.1">
-<h3><span class="header-section-number">1.1.1</span> Bin Data</h3>
+<div id="bin-data" class="section level3" number="1.2.1">
+<h3><span class="header-section-number">1.2.1</span> Bin Data</h3>
 <ul>
 <li>Bin every 10 consecutive observations</li>
 </ul>
@@ -311,8 +314,8 @@ df %&gt;%
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
 <pre class="r"><code>df &lt;- df %&gt;% rename(id = SEQN, Y=Z)</code></pre>
 </div>
-<div id="data-split" class="section level3" number="1.1.2">
-<h3><span class="header-section-number">1.1.2</span> Data split</h3>
+<div id="data-split" class="section level3" number="1.2.2">
+<h3><span class="header-section-number">1.2.2</span> Data split</h3>
 <pre class="r"><code>id_vec &lt;- unique(df$id)
 train_id &lt;- sample(id_vec, size = 0.8*N, replace = FALSE) # 7010 subjects for training
 test_id &lt;- setdiff(id_vec, train_id) # 1753 subjects for testing</code></pre>
@@ -321,8 +324,8 @@ test_id &lt;- setdiff(id_vec, train_id) # 1753 subjects for testing</code></pre>
 out-of-sample prediction</li>
 </ul>
 </div>
-<div id="local-glmm" class="section level3" number="1.1.3">
-<h3><span class="header-section-number">1.1.3</span> Local GLMM</h3>
+<div id="local-glmm" class="section level3" number="1.2.3">
+<h3><span class="header-section-number">1.2.3</span> Local GLMM</h3>
 <ul>
 <li>Used glmer with PIRLS (nAGQ=0) for local GLMMs step</li>
 <li>Fit on the training set</li>
@@ -341,7 +344,7 @@ t_local_glmm &lt;- t2-t1 </code></pre>
   select(-sind, -Y) %&gt;% distinct(.) 
 # example estimated latent function
 df %&gt;% 
-  filter(id %in% sample(train_id, size = 4)) %&gt;%
+  filter(id %in% rand_id) %&gt;%
   left_join(df_est_latent, by = c(&quot;id&quot;, &quot;bin&quot;)) %&gt;%
   mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
   ggplot()+
@@ -349,6 +352,7 @@ df %&gt;%
   geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
   facet_wrap(~id, scales = &quot;free&quot;)+
   labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
+<pre><code>## Warning: Removed 1440 rows containing missing values (`geom_line()`).</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
 <pre class="r"><code>df %&gt;% 
   filter(id %in% sample(train_id, size = 4)) %&gt;%
@@ -362,8 +366,8 @@ df %&gt;%
   labs(x=&quot;Time&quot;, y = &quot;Estimated latent function (original scale&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
 </div>
-<div id="fpca" class="section level3" number="1.1.4">
-<h3><span class="header-section-number">1.1.4</span> FPCA</h3>
+<div id="fpca" class="section level3" number="1.2.4">
+<h3><span class="header-section-number">1.2.4</span> FPCA</h3>
 <pre class="r"><code>mat_est_unique &lt;- matrix(df_est_latent$eta_hat,
                          nrow=length(train_id), 
                          ncol=n_bin, byrow = F) # row index subject, column binned time
@@ -387,17 +391,15 @@ plot(mid, fpca_mod$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, yl
 plot(mid, fpca_mod$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-11-1.png" width="768" /></p>
 <pre class="r"><code># plot correlation matrix
-sum(fpca_mod$VarMats[[1]]!=fpca_mod$VarMats[[2]]) </code></pre>
-<pre><code>## [1] 0</code></pre>
-<pre class="r"><code>heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = &quot;Correlation&quot;)</code></pre>
+heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = &quot;Correlation&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 </div>
-<div id="debias" class="section level3" number="1.1.5">
-<h3><span class="header-section-number">1.1.5</span> Debias?</h3>
+<div id="debias" class="section level3" number="1.2.5">
+<h3><span class="header-section-number">1.2.5</span> Debias?</h3>
 </div>
 </div>
-<div id="out-of-sample-prediction" class="section level2" number="1.2">
-<h2><span class="header-section-number">1.2</span> Out-of-sample
+<div id="out-of-sample-prediction" class="section level2" number="1.3">
+<h2><span class="header-section-number">1.3</span> Out-of-sample
 prediction</h2>
 <p>follow up on the last report, I’ll add some details here.</p>
 <p>Let’s set:</p>
@@ -408,7 +410,8 @@ s</li>
 <li><span class="math inline">\(\mathscr{T}_s\)</span>: all observation
 points in bin s</li>
 <li><span class="math inline">\(Y_i^s\)</span> all observations in bin s
-from subject i</li>
+from subject i. <span class="math inline">\(Y_i^S := \{Y_i(t_j), t_j \in
+\mathscr{T}_s\}\)</span></li>
 </ul>
 <p>Let’s assume we have a new subject <span
 class="math inline">\(u\)</span> with maximum observation time <span
@@ -425,7 +428,7 @@ class="math inline">\(\hat{\mu}_0\)</span>, <span
 class="math inline">\(\hat{\phi}_k\)</span>, as well as the variance
 estimates of <span class="math inline">\(\xi_k\)</span>: <span
 class="math inline">\(\hat{\lambda}_k\)</span>, and variance of residual
-process <span class="math inline">\(\hat{\sigma}^2\)</span>.</p>
+process <span class="math inline">\(\hat{\sigma^2}\)</span>.</p>
 <p>With all these estimates, we wanna use Laplace approximation to find
 the <span class="math inline">\(\xi_{uk}\)</span> that maximizes <span
 class="math inline">\(l_u\)</span>.</p>
@@ -453,7 +456,7 @@ approximation procedure:</p>
 \hat{\lambda}_k)\)</span></li>
 <li>Posterior distribution:</li>
 </ul>
-For a single bin $$
+$$
 <span class="math display">\[\begin{aligned}
 l(\mathbf{Y_u}|\mathbf{\xi}_u) &amp;=
 \sum_{t_{m_s}&lt;T_u}l(Y_u^s|\mathbf{\xi}_u) \\
@@ -463,7 +466,8 @@ Y_u^s|\mathbf{\xi}_u &amp; \sim Binomial(n_s, p_s) \\
 g^{-1}(p_s) = \hat{\eta}(t_{m_s}) &amp;=
 \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})
 \end{aligned}\]</span>
-<p>$$ And <span class="math inline">\(n_s\)</span> is the number of
+<p>$$</p>
+<p>And <span class="math inline">\(n_s\)</span> is the number of
 observations in bin s.</p>
 <p>Bayes theroem:</p>
 <p><span class="math display">\[
@@ -491,7 +495,7 @@ Model &lt;- function(parm, Data){
 <ul>
 <li>Then we feed in data for one observation</li>
 </ul>
-<pre class="r fold-show"><code>rand_id &lt;- sample(test_id, 1)
+<pre class="r fold-show"><code>rand_id &lt;- test_id[15]
 df_new &lt;- df %&gt;% filter(id == rand_id &amp; sind &lt;= 540) # observation until 9am
 
 # put data into correct format
@@ -529,11 +533,12 @@ Fit &lt;- LaplaceApproximation(Model, Data=MyData)</code></pre>
 ## have been set to zero prior to LaplaceApproximation().
 ## Sample Size:  54 
 ## Laplace Approximation begins...
-## Iteration:  10  of  100 ,   LP:  -55.7 
-## Iteration:  20  of  100 ,   LP:  -55.6 
-## Iteration:  30  of  100 ,   LP:  -55.6 
-## Iteration:  40  of  100 ,   LP:  -55.6 
-## Iteration:  50  of  100 ,   LP:  -55.6 
+## Iteration:  10  of  100 ,   LP:  -72.4 
+## Iteration:  20  of  100 ,   LP:  -68.7 
+## Iteration:  30  of  100 ,   LP:  -68.6 
+## Iteration:  40  of  100 ,   LP:  -68.5 
+## Iteration:  50  of  100 ,   LP:  -68.5 
+## Iteration:  60  of  100 ,   LP:  -68.5 
 ## Estimating the Covariance Matrix
 ## Sampling from Posterior with Sampling Importance Resampling
 ## Creating Summary from Point-Estimates
@@ -552,17 +557,17 @@ print(Fit)</code></pre>
 ## Converged: TRUE
 ## Covariance Matrix: (NOT SHOWN HERE; diagonal shown instead)
 ##       xi1       xi2       xi3       xi4 
-## 52.078028 48.809826  7.015795  8.307940 
+## 43.853857 39.604572  7.058457 10.894559 
 ## 
-## Deviance (Final):  83.26895 
+## Deviance (Final):  100.8664 
 ## History: (NOT SHOWN HERE)
 ## Initial Values:
 ## [1] 0 0 0 0
 ## 
-## Iterations: 53
-## Log(Marginal Likelihood): -33.32948
-## Log-Posterior (Final): -55.63272
-## Log-Posterior (Initial): -174.2045
+## Iterations: 63
+## Log(Marginal Likelihood): -36.37464
+## Log-Posterior (Final): -68.49917
+## Log-Posterior (Initial): -169.8166
 ## Minutes of run-time: 0
 ## Monitor: (NOT SHOWN HERE)
 ## Posterior: (NOT SHOWN HERE)
@@ -570,24 +575,24 @@ print(Fit)</code></pre>
 ## Step Size (Initial): 1
 ## Summary1: (SHOWN BELOW)
 ## Summary2: (SHOWN BELOW)
-## Tolerance (Final): 8.114398e-06
+## Tolerance (Final): 1.932676e-06
 ## Tolerance (Stop): 1e-05
 ## 
 ## Summary1:
-##          Mode       SD          LB        UB
-## xi1  2.968409 7.216511 -11.4646125 17.401431
-## xi2 -8.431582 6.986403 -22.4043882  5.541223
-## xi3  4.369053 2.648735  -0.9284162  9.666522
-## xi4  8.057258 2.882350   2.2925579 13.821957
+##          Mode       SD        LB        UB
+## xi1 31.548354 6.622224 18.303905 44.792803
+## xi2 14.247931 6.293216  1.661498 26.834363
+## xi3  1.778145 2.656776 -3.535406  7.091696
+## xi4 10.146144 3.300691  3.544763 16.747526
 ## 
 ## Summary2:
-##                Mode       SD       MCSE  ESS         LB     Median         UB
-## xi1        2.699169 7.022473 0.22207010 1000 -10.849711   2.604072  15.937089
-## xi2       -8.942338 6.819014 0.21563615 1000 -22.236861  -8.954071   4.130742
-## xi3        3.988738 2.603018 0.08231465 1000  -1.926881   3.986919   8.845341
-## xi4        8.226220 2.741981 0.08670905 1000   2.847593   8.178359  13.650594
-## Deviance  85.935749 2.982565 0.09431700 1000  82.340217  85.188970  93.528917
-## LP       -57.653994 1.537207 0.04861074 1000 -61.821235 -57.233324 -55.873086</code></pre>
+##                Mode       SD       MCSE  ESS         LB    Median         UB
+## xi1       31.464763 6.684349 0.21137767 1000  17.976682  31.31260  44.140356
+## xi2       13.680542 6.281579 0.19864096 1000   1.438422  13.61012  25.713624
+## xi3        1.263562 2.742649 0.08673019 1000  -4.962504   1.35873   6.351043
+## xi4       10.152744 3.242481 0.10253627 1000   3.556399  10.19438  16.769759
+## Deviance 103.939259 5.946755 0.18805291 1000  93.027527 103.63877 116.187683
+## LP       -70.560984 1.501012 0.04746616 1000 -74.430162 -70.21294 -68.724827</code></pre>
 <pre class="r fold-show"><code>plot(Fit, MyData)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-17-1.png" width="768" /><img src="ProgressReport_files/figure-html/unnamed-chunk-17-2.png" width="768" /><img src="ProgressReport_files/figure-html/unnamed-chunk-17-3.png" width="768" /></p>
 <pre class="r"><code># prediction
