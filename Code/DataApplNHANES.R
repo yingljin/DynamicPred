@@ -8,6 +8,7 @@ library(refund)
 library(lme4)
 library(ROCR)
 library(GLMMadaptive)
+library(mgcv)
 theme_set(theme_minimal())
 
 # code
@@ -105,6 +106,36 @@ t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
 dim(fpca_mod$efunctions) # 27 eigenfunctions total
 fpca_mod$evalues
 K <- 4 # use for eigen functions for prediction
+
+
+# from here, I'd like to add step 4 or re-evaluating subject specific scores
+# following example code in fGFPCA manuscript
+# data frame of eigenfunctions (take the first four)
+phi_mat <- data.frame("bin" = mid, fpca_mod$efunctions[ ,1:K])
+colnames(phi_mat)[2:5] <- paste0("phi", 1:4)
+# merge the data
+df_train <- df_train %>% left_join(phi_mat, by="bin") %>% mutate(id = factor(id))
+# first, project eigenfunctions to the original grid
+# reeval_efunctions ?
+
+# then, fit bam model to re-estimate variance parameters
+# re-fit the model using mgcv::bam()
+# try this without interpolation for now
+# was not able to fit: vector memory exhausted (limit reached?)
+# maybe we don't need to do this for the training samples 
+# since the out-of-sample subjects are those who really need bias correction
+t1 <- Sys.time()
+fast_GFPCA <- bam(Y ~ s(bin, bs="cc") +
+                    s(id, by=phi1, bs="re") +
+                    s(id, by=phi2, bs="re") +
+                    s(id, by=phi3, bs="re") +
+                    s(id, by=phi4, bs="re"),
+                  data=df_train, family=binomial, discrete=TRUE, method="fREML")
+t2 <- Sys.time()
+
+
+
+# project eigenfunctions back to the original grid
 
 #### Dynamic prediction ####
 # Out-of-sample prediction
