@@ -394,8 +394,79 @@ plot(mid, fpca_mod$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, yl
 heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = &quot;Correlation&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 </div>
-<div id="debias" class="section level3" number="1.2.5">
-<h3><span class="header-section-number">1.2.5</span> Debias?</h3>
+<div id="debias-step-4" class="section level3" number="1.2.5">
+<h3><span class="header-section-number">1.2.5</span> Debias (step
+4)</h3>
+<p>According to the fGFPCA paper, in this step we do two things:</p>
+<ol style="list-style-type: decimal">
+<li>Interpolate the eigenfunctions with B-spline basis back to the
+original grid</li>
+<li>Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or
+gamm4:gamm) to be used for Laplace approximation</li>
+</ol>
+<ul>
+<li>we do not need to debias individual scores because the scores for
+training sample will not be used for out-of-sample prediction</li>
+</ul>
+<p>First I’d like to try to fit the debias GLMM model on the full
+training set with un-interpolated eigenfunctions. The model failed
+because of vector memory exhaustion. Shall I: - Decrease the density of
+grid (increase bin width) - Increase memory (re-set to 100GB). But still
+took a lot of time (more than one hour). The model actually did not
+finish fitting.</p>
+<p>The bias was caused by the misspecification of latent process (assume
+constant effect over smooth function). And what needs re-evaluation are
+eigenvalues. Basis functions and mean functions are not biased.</p>
+<pre class="r"><code>df_phi &lt;- data.frame(bin=mid, fpca_mod$efunctions[, 1:4])
+colnames(df_phi) &lt;- c(&quot;bin&quot;, paste0(&quot;phi&quot;, 1:4))
+
+df_train &lt;- df_train %&gt;% left_join(df_phi, by = &quot;bin&quot;)
+df_train$id &lt;- as.factor(df_train$id)
+
+# usethis::edit_r_environ()
+t1 &lt;- Sys.time()
+debias_glmm &lt;- bam(Y ~ s(bin, bs=&quot;cr&quot;, k=10)+
+                     s(id, by=phi1, bs=&quot;re&quot;)+
+                     s(id, by=phi2, bs=&quot;re&quot;)+
+                     s(id, by=phi3, bs=&quot;re&quot;)+
+                     s(id, by=phi4, bs=&quot;re&quot;), 
+                   family = binomial, data=df_train, method = &quot;fREML&quot;)
+t2 &lt;- Sys.time()
+t_debias &lt;- t2=t1</code></pre>
+<p>Then I would like to interpolate eigenfunctions using B-spline basis
+functions:</p>
+<ul>
+<li>Would you interpolate mean and eigenfunctions separately (in my
+case, five interpolations)?</li>
+<li>I did not find the reeval_efunctions function</li>
+</ul>
+<pre class="r"><code># mean
+interp_mean &lt;- interpSpline(mid, fpca_mod$mu)
+full_mean &lt;- predict(interp_mean, x=1:J)
+plot(mid, fpca_mod$mu, ylab = &quot;mean&quot;, pch = 20)
+lines(full_mean$x, full_mean$y, col = &quot;blue&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-1.png" width="480" /></p>
+<pre class="r"><code># PCs
+interp_phi1 &lt;- interpSpline(mid, fpca_mod$efunctions[, 1])
+full_phi1 &lt;- predict(interp_phi1, x=1:J)
+plot(mid, fpca_mod$efunctions[, 1], ylab = &quot;pc1&quot;, pch=20)
+lines(full_phi1$x, full_phi1$y, col = &quot;blue&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-2.png" width="480" /></p>
+<pre class="r"><code>interp_phi2 &lt;- interpSpline(mid, fpca_mod$efunctions[, 2])
+full_phi2 &lt;- predict(interp_phi2, x=1:J)
+plot(mid, fpca_mod$efunctions[, 2], ylab = &quot;pc2&quot;, pch=20)
+lines(full_phi2$x, full_phi2$y, col = &quot;blue&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-3.png" width="480" /></p>
+<pre class="r"><code>interp_phi3 &lt;- interpSpline(mid, fpca_mod$efunctions[, 3])
+full_phi3 &lt;- predict(interp_phi3, x=1:J)
+plot(mid, fpca_mod$efunctions[, 3], ylab = &quot;pc3&quot;, pch=20)
+lines(full_phi3$x, full_phi3$y, col = &quot;blue&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-4.png" width="480" /></p>
+<pre class="r"><code>interp_phi4 &lt;- interpSpline(mid, fpca_mod$efunctions[, 4])
+full_phi4 &lt;- predict(interp_phi4, x=1:J)
+plot(mid, fpca_mod$efunctions[, 4], ylab = &quot;pc4&quot;, pch=20)
+lines(full_phi4$x, full_phi4$y, col = &quot;blue&quot;)</code></pre>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-5.png" width="480" /></p>
 </div>
 </div>
 <div id="out-of-sample-prediction" class="section level2" number="1.3">
@@ -439,6 +510,9 @@ class="uri">https://cran.r-project.org/web/packages/LaplacesDemon/vignettes/Lapl
 <pre class="r fold-show"><code>library(LaplacesDemon)</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;LaplacesDemon&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:mgcv&#39;:
+## 
+##     dmvn, rmvn</code></pre>
 <pre><code>## The following objects are masked from &#39;package:mvtnorm&#39;:
 ## 
 ##     dmvt, rmvt</code></pre>
@@ -594,7 +668,7 @@ print(Fit)</code></pre>
 ## Deviance 103.939259 5.946755 0.18805291 1000  93.027527 103.63877 116.187683
 ## LP       -70.560984 1.501012 0.04746616 1000 -74.430162 -70.21294 -68.724827</code></pre>
 <pre class="r fold-show"><code>plot(Fit, MyData)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-17-1.png" width="768" /><img src="ProgressReport_files/figure-html/unnamed-chunk-17-2.png" width="768" /><img src="ProgressReport_files/figure-html/unnamed-chunk-17-3.png" width="768" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-19-1.png" width="768" /><img src="ProgressReport_files/figure-html/unnamed-chunk-19-2.png" width="768" /><img src="ProgressReport_files/figure-html/unnamed-chunk-19-3.png" width="768" /></p>
 <pre class="r"><code># prediction
 eta_pred_out &lt;- fpca_mod$mu+fpca_mod$efunctions[, 1:K]%*%Fit$Summary1[, &quot;Mode&quot;]
 
@@ -604,7 +678,7 @@ data.frame(bin = mid, eta_pred = eta_pred_out) %&gt;%
   geom_point(aes(x=sind, y = Y))+
   geom_line(aes(x=sind, y = exp(eta_pred)/(1+exp(eta_pred))))+
   labs(title = rand_id)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
 </div>
 </div>
 <div id="full-data-application-output" class="section level1"
@@ -636,7 +710,7 @@ df_test_full%&gt;%
     facet_wrap(~id)+
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;,
          title = &quot;Constant latent function within bin&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
 <div id="numeric-problems" class="section level3" number="2.1.1">
 <h3><span class="header-section-number">2.1.1</span> Numeric
 problems</h3>
@@ -652,7 +726,7 @@ arbitrary choices in the binning procedure (bin width).</li>
   geom_point(aes(x=sind, y=Y), size = 0.2)+
   facet_wrap(~id)+
   geom_vline(xintercept = c(540))</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-21-1.png" width="864" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-23-1.png" width="864" /></p>
 <!-- Calculate AUC -->
 <pre class="r"><code># break by prediction window
 lst_auc &lt;- df_test_full %&gt;% 
@@ -757,7 +831,7 @@ subjects</li>
     geom_point(aes(x=sind, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
     facet_wrap(~id)+
     labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-27-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-29-1.png" width="672" /></p>
 <!-- Calculate AUC  -->
 <pre class="r"><code># up to 540
 J &lt;- 1440
@@ -1013,7 +1087,7 @@ too many points lumped together!</li>
   scale_x_continuous(breaks = c(540, 780, 1020, 1260),
                      labels = c(&quot;9am&quot;, &quot;1pm&quot;, &quot;5pm&quot;, &quot;9pm&quot;))+
   facet_wrap(~id)</code></pre>
-<p><img src="ProgressReport_files/figure-html/unnamed-chunk-32-1.png" width="672" /></p>
+<p><img src="ProgressReport_files/figure-html/unnamed-chunk-34-1.png" width="672" /></p>
 </div>
 <div id="discussion" class="section level2" number="2.4">
 <h2><span class="header-section-number">2.4</span> Discussion</h2>

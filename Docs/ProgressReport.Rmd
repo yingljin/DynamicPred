@@ -27,6 +27,8 @@ library(ROCR)
 library(GLMMadaptive)
 library(kableExtra)
 library(mvtnorm)
+library(mgcv)
+library(splines)
 theme_set(theme_minimal())
 
 df <- read_rds(here("Data/nhanes_bi.rds"))
@@ -191,7 +193,74 @@ plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
 heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = "Correlation")
 ```
 
-### Debias?
+### Debias (step 4)
+
+According to the fGFPCA paper, in this step we do two things: 
+
+1. Interpolate the eigenfunctions with B-spline basis back to the original grid
+2. Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or gamm4:gamm) to be used for Laplace approximation
+- we do not need to debias individual scores because the scores for training sample will not be used for out-of-sample prediction
+
+First I'd like to try to fit the debias GLMM model on the full training set with un-interpolated eigenfunctions. The model failed because of vector memory exhaustion. Shall I: 
+- Decrease the density of grid (increase bin width)
+- Increase memory (re-set to 100GB). But still took a lot of time (more than one hour). The model actually did not finish fitting. 
+
+The bias was caused by the misspecification of latent process (assume constant effect over smooth function). And what needs re-evaluation are eigenvalues. Basis functions and mean functions are not biased. 
+
+
+```{r, eval=FALSE}
+df_phi <- data.frame(bin=mid, fpca_mod$efunctions[, 1:4])
+colnames(df_phi) <- c("bin", paste0("phi", 1:4))
+
+df_train <- df_train %>% left_join(df_phi, by = "bin")
+df_train$id <- as.factor(df_train$id)
+
+# usethis::edit_r_environ()
+t1 <- Sys.time()
+debias_glmm <- bam(Y ~ s(bin, bs="cr", k=10)+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"), 
+                   family = binomial, data=df_train, method = "fREML")
+t2 <- Sys.time()
+t_debias <- t2=t1
+
+```
+
+Then I would like to interpolate eigenfunctions using B-spline basis functions: 
+
+- Would you interpolate mean and eigenfunctions separately (in my case, five interpolations)? 
+- I did not find the reeval_efunctions function
+
+```{r, fig.height=5, fig.width=5}
+# mean
+interp_mean <- interpSpline(mid, fpca_mod$mu)
+full_mean <- predict(interp_mean, x=1:J)
+plot(mid, fpca_mod$mu, ylab = "mean", pch = 20)
+lines(full_mean$x, full_mean$y, col = "blue")
+
+# PCs
+interp_phi1 <- interpSpline(mid, fpca_mod$efunctions[, 1])
+full_phi1 <- predict(interp_phi1, x=1:J)
+plot(mid, fpca_mod$efunctions[, 1], ylab = "pc1", pch=20)
+lines(full_phi1$x, full_phi1$y, col = "blue")
+
+interp_phi2 <- interpSpline(mid, fpca_mod$efunctions[, 2])
+full_phi2 <- predict(interp_phi2, x=1:J)
+plot(mid, fpca_mod$efunctions[, 2], ylab = "pc2", pch=20)
+lines(full_phi2$x, full_phi2$y, col = "blue")
+
+interp_phi3 <- interpSpline(mid, fpca_mod$efunctions[, 3])
+full_phi3 <- predict(interp_phi3, x=1:J)
+plot(mid, fpca_mod$efunctions[, 3], ylab = "pc3", pch=20)
+lines(full_phi3$x, full_phi3$y, col = "blue")
+
+interp_phi4 <- interpSpline(mid, fpca_mod$efunctions[, 4])
+full_phi4 <- predict(interp_phi4, x=1:J)
+plot(mid, fpca_mod$efunctions[, 4], ylab = "pc4", pch=20)
+lines(full_phi4$x, full_phi4$y, col = "blue")
+```
 
 ## Out-of-sample prediction
 
