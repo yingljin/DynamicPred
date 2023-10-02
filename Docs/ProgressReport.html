@@ -405,19 +405,24 @@ original grid</li>
 gamm4:gamm) to be used for Laplace approximation</li>
 </ol>
 <ul>
-<li>we do not need to debias individual scores because the scores for
+<li>The bias was caused by the misspecification of latent process
+(assume constant effect over smooth function).</li>
+<li>What needs re-evaluation are eigenvalues (variance estimates). They
+will be used in Laplace Approximation for out-of-sample prediction.</li>
+<li>We do not need to debias individual scores because the scores for
 training sample will not be used for out-of-sample prediction</li>
+<li>How are the eigenvalues biased?</li>
+<li>It looks like the FPCA step now estimates mean and eigenfunctions,
+while each eigenfunction serves as a random slope. Can we fit such model
+with an offset of mean/intercept function?</li>
 </ul>
 <p>First I’d like to try to fit the debias GLMM model on the full
 training set with un-interpolated eigenfunctions. The model failed
 because of vector memory exhaustion. Shall I: - Decrease the density of
-grid (increase bin width) - Increase memory (re-set to 100GB). But still
-took a lot of time (more than one hour). The model actually did not
-finish fitting.</p>
-<p>The bias was caused by the misspecification of latent process (assume
-constant effect over smooth function). And what needs re-evaluation are
-eigenvalues. Basis functions and mean functions are not biased.</p>
-<pre class="r"><code>df_phi &lt;- data.frame(bin=mid, fpca_mod$efunctions[, 1:4])
+grid (increase bin width)? - Decrease sample size? - Increase memory
+(re-set to 100GB). But still took a lot of time (more than one hour).
+The model actually did not finish fitting.</p>
+<pre class="r fold-show"><code>df_phi &lt;- data.frame(bin=mid, fpca_mod$efunctions[, 1:4])
 colnames(df_phi) &lt;- c(&quot;bin&quot;, paste0(&quot;phi&quot;, 1:4))
 
 df_train &lt;- df_train %&gt;% left_join(df_phi, by = &quot;bin&quot;)
@@ -440,33 +445,34 @@ functions:</p>
 case, five interpolations)?</li>
 <li>I did not find the reeval_efunctions function</li>
 </ul>
-<pre class="r"><code># mean
+<pre class="r fold-show"><code># mean
 interp_mean &lt;- interpSpline(mid, fpca_mod$mu)
 full_mean &lt;- predict(interp_mean, x=1:J)
 plot(mid, fpca_mod$mu, ylab = &quot;mean&quot;, pch = 20)
 lines(full_mean$x, full_mean$y, col = &quot;blue&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-1.png" width="480" /></p>
-<pre class="r"><code># PCs
+<pre class="r fold-show"><code># PCs
 interp_phi1 &lt;- interpSpline(mid, fpca_mod$efunctions[, 1])
 full_phi1 &lt;- predict(interp_phi1, x=1:J)
 plot(mid, fpca_mod$efunctions[, 1], ylab = &quot;pc1&quot;, pch=20)
 lines(full_phi1$x, full_phi1$y, col = &quot;blue&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-2.png" width="480" /></p>
-<pre class="r"><code>interp_phi2 &lt;- interpSpline(mid, fpca_mod$efunctions[, 2])
+<pre class="r fold-show"><code>interp_phi2 &lt;- interpSpline(mid, fpca_mod$efunctions[, 2])
 full_phi2 &lt;- predict(interp_phi2, x=1:J)
 plot(mid, fpca_mod$efunctions[, 2], ylab = &quot;pc2&quot;, pch=20)
 lines(full_phi2$x, full_phi2$y, col = &quot;blue&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-3.png" width="480" /></p>
-<pre class="r"><code>interp_phi3 &lt;- interpSpline(mid, fpca_mod$efunctions[, 3])
+<pre class="r fold-show"><code>interp_phi3 &lt;- interpSpline(mid, fpca_mod$efunctions[, 3])
 full_phi3 &lt;- predict(interp_phi3, x=1:J)
 plot(mid, fpca_mod$efunctions[, 3], ylab = &quot;pc3&quot;, pch=20)
 lines(full_phi3$x, full_phi3$y, col = &quot;blue&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-4.png" width="480" /></p>
-<pre class="r"><code>interp_phi4 &lt;- interpSpline(mid, fpca_mod$efunctions[, 4])
+<pre class="r fold-show"><code>interp_phi4 &lt;- interpSpline(mid, fpca_mod$efunctions[, 4])
 full_phi4 &lt;- predict(interp_phi4, x=1:J)
 plot(mid, fpca_mod$efunctions[, 4], ylab = &quot;pc4&quot;, pch=20)
 lines(full_phi4$x, full_phi4$y, col = &quot;blue&quot;)</code></pre>
 <p><img src="ProgressReport_files/figure-html/unnamed-chunk-14-5.png" width="480" /></p>
+<p>Perhaps I should try with the simulation data.</p>
 </div>
 </div>
 <div id="out-of-sample-prediction" class="section level2" number="1.3">
@@ -530,7 +536,6 @@ approximation procedure:</p>
 \hat{\lambda}_k)\)</span></li>
 <li>Posterior distribution:</li>
 </ul>
-$$
 <span class="math display">\[\begin{aligned}
 l(\mathbf{Y_u}|\mathbf{\xi}_u) &amp;=
 \sum_{t_{m_s}&lt;T_u}l(Y_u^s|\mathbf{\xi}_u) \\
@@ -540,7 +545,6 @@ Y_u^s|\mathbf{\xi}_u &amp; \sim Binomial(n_s, p_s) \\
 g^{-1}(p_s) = \hat{\eta}(t_{m_s}) &amp;=
 \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})
 \end{aligned}\]</span>
-<p>$$</p>
 <p>And <span class="math inline">\(n_s\)</span> is the number of
 observations in bin s.</p>
 <p>Bayes theroem:</p>

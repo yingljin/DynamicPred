@@ -199,16 +199,19 @@ According to the fGFPCA paper, in this step we do two things:
 
 1. Interpolate the eigenfunctions with B-spline basis back to the original grid
 2. Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or gamm4:gamm) to be used for Laplace approximation
-- we do not need to debias individual scores because the scores for training sample will not be used for out-of-sample prediction
+
+- The bias was caused by the misspecification of latent process (assume constant effect over smooth function). 
+- What needs re-evaluation are eigenvalues (variance estimates). They will be used in Laplace Approximation for out-of-sample prediction. 
+- We do not need to debias individual scores because the scores for training sample will not be used for out-of-sample prediction
+- How are the eigenvalues biased? 
+- It looks like the FPCA step now estimates mean and eigenfunctions, while each eigenfunction serves as a random slope. Can we fit such model with an offset of mean/intercept function? 
 
 First I'd like to try to fit the debias GLMM model on the full training set with un-interpolated eigenfunctions. The model failed because of vector memory exhaustion. Shall I: 
-- Decrease the density of grid (increase bin width)
+- Decrease the density of grid (increase bin width)?
+- Decrease sample size? 
 - Increase memory (re-set to 100GB). But still took a lot of time (more than one hour). The model actually did not finish fitting. 
 
-The bias was caused by the misspecification of latent process (assume constant effect over smooth function). And what needs re-evaluation are eigenvalues. Basis functions and mean functions are not biased. 
-
-
-```{r, eval=FALSE}
+```{r, eval=FALSE, class.source = "fold-show"}
 df_phi <- data.frame(bin=mid, fpca_mod$efunctions[, 1:4])
 colnames(df_phi) <- c("bin", paste0("phi", 1:4))
 
@@ -233,7 +236,7 @@ Then I would like to interpolate eigenfunctions using B-spline basis functions:
 - Would you interpolate mean and eigenfunctions separately (in my case, five interpolations)? 
 - I did not find the reeval_efunctions function
 
-```{r, fig.height=5, fig.width=5}
+```{r, fig.height=5, fig.width=5, class.source = "fold-show"}
 # mean
 interp_mean <- interpSpline(mid, fpca_mod$mu)
 full_mean <- predict(interp_mean, x=1:J)
@@ -261,6 +264,8 @@ full_phi4 <- predict(interp_phi4, x=1:J)
 plot(mid, fpca_mod$efunctions[, 4], ylab = "pc4", pch=20)
 lines(full_phi4$x, full_phi4$y, col = "blue")
 ```
+
+Perhaps I should try with the simulation data. 
 
 ## Out-of-sample prediction
 
@@ -302,13 +307,13 @@ First we write out the model:
 - Posterior distribution: 
 
 
-$$\begin{aligned}
+\begin{aligned}
 l(\mathbf{Y_u}|\mathbf{\xi}_u) &= \sum_{t_{m_s}<T_u}l(Y_u^s|\mathbf{\xi}_u) \\
 
 Y_u^s|\mathbf{\xi}_u & \sim Binomial(n_s, p_s) \\
 
 g^{-1}(p_s) = \hat{\eta}(t_{m_s}) &= \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_{m_s})
-\end{aligned}$$
+\end{aligned}
 
 
 

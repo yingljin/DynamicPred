@@ -1,16 +1,17 @@
 # This script implements simulation for WNAR manuscript
 
-set.seed(314)
+set.seed(516)
 
 library(here)
 library(tidyverse)
-# library(ggplot2)
-# theme_set(theme_minimal())
+theme_set(theme_minimal())
 # library(fcr)
 library(refund)
 library(lme4)
 library(ROCR)
 library(GLMMadaptive)
+library(mgcv)
+library(splines)
 # library(ggpubr)
 # library(gridExtra)
 # library(kableExtra)
@@ -22,13 +23,27 @@ library(GLMMadaptive)
 
 load(here("Data/sim_data.RData"))
 
+# data structure
+M <- length(sim_data) # number of simulation
+N <- length(unique(sim_data[[1]]$id))
+J <- length(unique(sim_data[[1]]$sind))
 
-#### simulation set up ####
+# data preview
+rand_id <- sample(as.numeric(unique(sim_data[[1]]$id)), size=4)
 
-J <- 1000 # number of observations points
-N <- 500 # sample size
-K <- 4 # number of eigenfunctions
-M <- 50 # number of simulation
+sim_data[[1]] %>% 
+  filter(id %in% rand_id) %>%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.5)+
+  geom_line(aes(x=sind, y=exp(eta_i)/(1+exp(eta_i))))+
+  facet_wrap(~id)
+
+
+##### fGFPCA Model estimation #####
+
+source(here("Code/GLMM-FPCA.R")) # use pred_latent function to estimate latent function 
+# source(here("Code/OutSampMLE.R"))
+
 
 # bin data
 bin_w <- 10 # bin width
@@ -36,16 +51,13 @@ n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
 
-#### fGFPCA ####
-source(here("Code/GLMM-FPCA.R")) # use pred_latent function to estimate latent function 
-source(here("Code/OutSampMLE.R"))
 
 # result container
 pred_lst <- list()
 score_lst <- list()
 runtime <- rep(NA, M)
 
-
+m <- 1
 
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 
@@ -62,12 +74,40 @@ for(m in 1:M){
   df_bin_lst <- split(df, f = df$bin)
   
   # fit local GLMM and estimate latent function
-  df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x)}) 
+  df_est_latent <- lapply(df_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
   df_est_latent <- bind_rows(df_est_latent) %>% select(id, bin, eta_hat) %>% distinct() # on the binned grid, one unique value each bin
   mat_est_unique <- matrix(df_est_latent$eta_hat, nrow=N, ncol=n_bin, byrow = F) # row index subject, column binned time
   
   # fPCA
-  fpca_mod <- fpca.face(mat_est_unique, pve = 0.95, argvals = mid, knots=20, var=T)
+  fpca_mod <- fpca.face(mat_est_unique, argvals = mid, knots=20, var=T)
+  
+  ###### debias? #######
+  # first, try on the binned grid
+  df_phi <- data.frame(bin=mid, fpca_mod$efunctions[, 1:4])
+  colnames(df_phi) <- c("bin", paste0("phi", 1:4))
+  
+  df <- df %>% left_join(df_phi, by = "bin")
+  df$id <- as.factor(df$id)
+  # length(unique(df$id))
+  
+  # usethis::edit_r_environ()
+  
+  t1 <- Sys.time()
+  debias_glmm <- bam(Y ~ s(bin, bs="cr", k=10)+
+                       s(id, by=phi1, bs="re", k=10)+
+                       s(id, by=phi2, bs="re", k=10)+
+                       s(id, by=phi3, bs="re", k=10)+
+                       s(id, by=phi4, bs="re", k=10), 
+                     family = binomial, data=df %>% filter(id %in% sample(N, size = 100)), method = "fREML")
+  t2 <- Sys.time()
+  t_debias <- t2=t1
+  ## still takes a really long time (more than 15 minutes), probably won't finish fitting. 
+  ## 10 subjects are doable
+  
+  
+  # then, try on the original grid? 
+  #####################
+  
   
   # Out-of-sample prediction
   df_est_latent[, 'pred_t200'] <- df_est_latent[, 'pred_t400'] <- df_est_latent[, 'pred_t600'] <- df_est_latent[, 'pred_t800'] <- NA 
