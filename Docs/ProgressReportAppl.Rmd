@@ -2,17 +2,50 @@
 title: "Progress Report on NHANES Data"
 author: "Ying Jin"
 date: "2023-10-03"
-output: html_document
+output: 
+  html_document:
+    self_contained: no
+    number_sections: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    font: 12pt
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(516)
+
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(refund)
+library(lme4)
+library(ROCR)
+library(GLMMadaptive)
+library(kableExtra)
+library(mvtnorm)
+library(mgcv)
+library(splines)
+theme_set(theme_minimal())
 ```
 
 
-# NHANES data
+```{r}
+# load data
+df <- read_rds(here("Data/nhanes_bi.rds"))
 
-## Data overview
+# code
+source(here("Code/GLMM-FPCA.R")) 
+# use pred_latent function to estimate latent function 
+source(here("Code/OutSampMLE.R"))
+# source(here("Code/OutsampBayes.R"))
+```
+
+
+# Data overview
 
 - 8763 subjects, 1440 measures each
 - no missingness
@@ -34,9 +67,133 @@ df %>%
   labs(x="Time", y = "Activity", title = "A brief overview of the outcome")
 ```
 
+# Fit fGFPCA model
+
+## Bin data
+
+- Bin every 10 observations
+
+```{r, message=FALSE}
+# bin data
+bin_w <- 10 # bin width
+n_bin <- J/bin_w # number of bins
+brks <- seq(0, J, by = bin_w) # cutoff points
+mid <- (brks+bin_w/2)[1:n_bin] # mid points
+
+df$bin <- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
+df$bin <- as.numeric(as.character(df$bin))
+# unique(df$bin)
+
+df %>% 
+  filter(SEQN %in% rand_id) %>%
+  group_by(SEQN, bin) %>%
+  summarise(num = sum(Z)) %>%
+  ggplot()+
+  geom_point(aes(x=bin, y=num), size = 0.5)+
+  facet_wrap(~SEQN)+
+  labs(x="Time", y = "Activity", title = "Number of active nimutes within each bin")
+```
+## Data split
+
+- 80% (7010) subjects for training, 20% (1753) for out-of-sample prediction
+
+```{r}
+# head(df)
+df <- df %>% rename(id=SEQN, Y=Z)
+
+train_id <- sample(unique(df$id), size = N*0.8)
+test_id <- setdiff(unique(df$id), train_id)
+
+train_df <- df %>% filter(id %in% train_id)
+test_df <- df %>% filter(id %in% test_id)
+```
 
 
-## Out-of-sample prediction
+## Local GLMM
+
+- Used glmer with PIRLS (nAGQ=0) for local GLMMs step
+- Fit on the training set
+
+```{r, cache=TRUE}
+# fit model on the training set
+train_bin_lst <- split(train_df, f = train_df$bin)
+
+# local GLMM and estimate latent function
+# use PIRLS (nAGQ=0) to avoid near-unidentifiability issues 
+t1=Sys.time()
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2= Sys.time()
+t_local_glmm <- t2-t1 
+```
+
+
+```{r}
+df_est_latent <- bind_rows(df_est_latent) 
+# head(df_est_latent)
+
+# example estimated latent function
+rand_id <- sample(train_id, 4)
+
+df_est_latent %>% 
+  filter(id %in% rand_id) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id, col = "estimated"))+
+  geom_point(aes(x=sind, y = Y, group = id, col = "outcome"), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  labs(x = "Time", y = "Estimated latent function (probablity scale)")
+```
+
+## FPCA
+
+```{r}
+uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+# head(uni_eta_hat)
+
+mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                         nrow=length(train_id), 
+                         ncol=n_bin, byrow = F) 
+# row index subject, column binned time
+# dim(mat_est_unique)
+
+t1 <- Sys.time()
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T)
+t2 <- Sys.time()
+t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
+
+# dim(fpca_mod$efunctions) # 27 eigenfunctions
+K <- 4
+```
+
+```{r}
+plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "mean")
+```
+
+
+```{r, fig.height=8, fig.width=8}
+par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
+plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
+plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+```
+
+```{r}
+# plot correlation matrix
+heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = "Correlation")
+```
+
+## Debias (step 4)
+
+According to the fGFPCA paper, in this step we do two things: 
+
+1. Project the eigenfunctions with B-spline basis back to the original grid
+2. Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or gamm4:gamm) to be used for Laplace approximation
+
+Becuase I would like to focus this report on subjects with failed Laplace approximation, I will not do these two things for now. 
+
+# Out-of-sample prediction
 
 follow up on the last report, I'll add some details here.
 
@@ -68,8 +225,6 @@ library(LaplacesDemon)
 ```
 
 
-Now I am going to use one subject as an example to go over the approximation procedure:
-
 First we write out the model: 
 
 - Prior distribution: $\xi_{uk} \sim N(0, \hat{\lambda}_k)$
@@ -85,7 +240,6 @@ g^{-1}(p_s) = \hat{\eta}(t_{m_s}) &= \hat{\mu}_0(t_{m_s})+\sum_{k=1}^K \xi_{uk}\
 \end{aligned}
 
 
-
 And $n_s$ is the number of observations in bin s. 
 
 Bayes theroem:
@@ -95,6 +249,9 @@ l(\mathbf{\xi}_u|\mathbf{Y}_u) \propto l(\mathbf{Y}_u|\mathbf{\xi}_u)+l(\mathbf{
 $$
 
 
+## One subject example
+
+Now I am going to use one subject as an example to go over the approximation procedure:
 ```{r, class.source = "fold-show"}
 ## model
 Model <- function(parm, Data){
@@ -183,11 +340,10 @@ data.frame(bin = mid, eta_pred = eta_pred_out) %>%
 
 
 
-# Full data application output
+## Full data application output
 
-## fGFPCA
+### fGFPCA
 
-- Still need to project eigenfunctions to the full grid
 
 ```{r}
 # results generated from DataApplNHANES.R
@@ -195,12 +351,10 @@ load(here("Data/ApplOutput_fGFPCA.RData"))
 ```
 
 
-
-
 ```{r message=FALSE, warning=FALSE}
 df_test_full <- df %>% 
   filter(id %in% test_id) %>%
-  filter(!id %in% skip_id) %>%
+  # filter(!id %in% skip_id) %>%
   left_join(df_test %>% select(id, bin, pred_t540, pred_t780, pred_t1020), by = c("id", "bin"))
 
 rand_id2 <- sample(unique(df_test$id), 4)
@@ -216,21 +370,6 @@ df_test_full%>%
     facet_wrap(~id)+
     labs(x = "Time", y = "Estimated latent function (probablity scale)",
          title = "Constant latent function within bin")
-```
-
-### Numeric problems 
-
-- Three subjects had failed approximation, all happened with the shortest observed track
-- Does it have to do with still the length of observed track? Or the arbitrary choices in the binning procedure (bin width). 
-- Per last meeting, adding some details on laplace approximation
-
-
-```{r, fig.height=3, fig.width=9}
-df %>% filter(id %in% skip_id) %>% 
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  facet_wrap(~id)+
-  geom_vline(xintercept = c(540))
 ```
 
 
@@ -331,7 +470,7 @@ df_test_full2 %>%
 # up to 540
 J <- 1440
 auc_t540_adglmm <- adglmm_pred_t540$newdata2 %>%
-  filter(!id %in% skip_id) %>%
+  # filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
   mutate(window = cut(sind, breaks = c(540, 780, 1020, 1260, 1440), 
                       labels = c("9am-1pm", "1pm-5pm", "5pm-9pm","9pm-12pm"), 
@@ -343,7 +482,7 @@ auc_t540_adglmm <- lapply(auc_t540_adglmm, function(x){x@y.values[[1]]}) %>% unl
 
 # up to 780
 auc_t780_adglmm <- adglmm_pred_t780$newdata2 %>%
-  filter(!id %in% skip_id) %>%
+  # filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
   mutate(window = cut(sind, breaks = c(780, 1020, 1260, 1440), 
                       labels = c("1pm-5pm", "5pm-9pm","9pm-12pm"), 
@@ -355,7 +494,7 @@ auc_t780_adglmm <- lapply(auc_t780_adglmm, function(x){x@y.values[[1]]}) %>% unl
 
 # up to 1020
 auc_t1020_adglmm <- adglmm_pred_t1020$newdata2 %>%
-  filter(!id %in% skip_id) %>%
+  # filter(!id %in% skip_id) %>%
   mutate(sind=sind*J) %>%
   mutate(window = cut(sind, breaks = c(1020, 1260, 1440), 
                       labels = c("5pm-9pm","9pm-12pm"), 
@@ -368,8 +507,7 @@ auc_t1020_adglmm <- lapply(auc_t1020_adglmm, function(x){x@y.values[[1]]}) %>% u
 
 ```
 
-
-## Compare fGFPCA and GLMMadaptive
+### AUC
 
 - To use the same sample for comparison, I'd exclude the subjects with failed Laplace approximation from the test set for both methods
 
@@ -435,10 +573,18 @@ df %>% filter(id %in% rand_id2) %>%
   facet_wrap(~id)
 ```
 
+
+
+## Failed Laplace approximation
+
+- This problem seems to be solved after changing the optimizer? (Method = "BFGS")
+- The new optimizer also took less time
+- The old one was SPG (large scale optimization). The new one is BFGS (quasi-newton, the same in glmmTMB)
+
+
 ## Discussion
 
 - What would be the reference method to compare our performance to? Original GLMMadaptvie perhaps is feasible on the entire dataset. But what should we use if we wanna do sub-sample comparison? Should we even do that for this data application (or simulation alone)? 
-- There are still three participants with numeric problem! Shall we extend the observation track even more? I suspect that may cause still the same issue just on different subjects. 
-- Is interpolation really necessary? It does not improve performance very much but consumes time. Also, should I try more sophisticated methods for grid extension? 
-- Should I calculate subject-wise AUC and average them? But some subjects are all zero within the prediction window, making AUC for this single subjects impossible to calculate...
+<!-- - There are still three participants with numeric problem! Shall we extend the observation track even more? I suspect that may cause still the same issue just on different subjects.  -->
+<!-- - Is interpolation really necessary? It does not improve perfor- Should I calculate subject-wise AUC and average them? But some subjects are all zero within the prediction window, making AUC for this single subjects impossible to calculate...
 

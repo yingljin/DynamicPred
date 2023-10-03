@@ -99,7 +99,7 @@ out_pred_laplace <- function(fpca_fit, df_new, kpc){
   
   
   # fit laplace approximation
-  Fit <- LaplaceApproximation(Model, parm = rep(0, J), Data=MyData)
+  Fit <- LaplaceApproximation(Model, parm = rep(0, J), Data=MyData, Method = "BFGS")
   score <- Fit$Summary1[, "Mode"]
   
   # prediction
