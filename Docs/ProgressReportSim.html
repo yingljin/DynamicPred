@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Ying Jin" />
+
+<meta name="date" content="2023-09-15" />
+
+<title>Progress Report on Simulation</title>
+
+<script src="ProgressReportSim_files/header-attrs-2.21/header-attrs.js"></script>
+<script src="ProgressReportSim_files/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="ProgressReportSim_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="ProgressReportSim_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="ProgressReportSim_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="ProgressReportSim_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="ProgressReportSim_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="ProgressReportSim_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="ProgressReportSim_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="ProgressReportSim_files/navigation-1.1/tabsets.js"></script>
+<script src="ProgressReportSim_files/navigation-1.1/codefolding.js"></script>
+<link href="ProgressReportSim_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="ProgressReportSim_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div id="header">
+
+<div class="btn-group pull-right float-right">
+<button type="button" class="btn btn-default btn-xs btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu dropdown-menu-right" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">Progress Report on Simulation</h1>
+<h4 class="author">Ying Jin</h4>
+<h4 class="date">2023-09-15</h4>
+
+</div>
+
+
+<p>I am now on the way to add the debias step to the whole algorithm.
+Just so that I have a set of “true parameters” for comparison, I am
+gonna use the simulation dataset for this part.</p>
+<div id="generation-mechanism" class="section level1" number="1">
+<h1><span class="header-section-number">1</span> Generation
+mechanism</h1>
+<ul>
+<li>I am gonna generate only one dataset as an example</li>
+<li>500 individuals each with 1000 measures</li>
+</ul>
+<p><span class="math display">\[\begin{aligned}
+Y_i(t) &amp; \sim Bernoulli(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
+\eta_i(t) &amp;= f_0(t)+ \xi_{i1}\sqrt{2}sin(2\pi
+t)+\xi_{i2}\sqrt{2}cos(2\pi t)+\xi_{i3}\sqrt{2}sin(4\pi
+t)+\xi_{i4}\sqrt{2}cos(4\pi t)
+\end{aligned}\]</span></p>
+<p>where:</p>
+<ul>
+<li><span class="math inline">\(t\)</span> is equal-spaced on <span
+class="math inline">\([0, 1]\)</span></li>
+<li><span class="math inline">\(f_0(t)=0\)</span></li>
+<li><span class="math inline">\(\xi_k \sim N(0, \lambda_k)\)</span>, and
+<span class="math inline">\(\lambda_k = 1, 0.5, 0.25, 0.125\)</span> for
+k = 1, 2, 3, 4 respectively.</li>
+</ul>
+<pre class="r show"><code>N &lt;- 500 # sample size
+J &lt;- 1000 # number of observation points
+
+t = seq(0,1,len=J) # observations points
+
+# mean function
+f_0 &lt;- function(s) 0 
+
+#eigenfunctions 
+K &lt;- 4 # number of eigenfunctions
+phi &lt;- sqrt(2)*cbind(sin(2*pi*t),cos(2*pi*t),
+                     sin(4*pi*t),cos(4*pi*t))
+
+# eigenvalues
+lambda = 0.5^(0:(K-1)) 
+
+# generated data 
+## score
+xi &lt;- matrix(rnorm(N*K),N,K)
+xi &lt;- xi %*% diag(sqrt(lambda))
+  
+# subject-specific random effect
+b_i &lt;- xi %*% t(phi); # of size N by J
+  
+# latent gaussian function
+eta_i &lt;- t(vapply(1:N, function(x){
+    f_0(t) + b_i[x,]
+  }, numeric(J)))
+  
+# outcome binary function
+Y_i &lt;- matrix(rbinom(N*J, size=1, prob=plogis(eta_i)), 
+                N, J, byrow=FALSE)
+  
+# format into dataframe
+# id = subject identifier (factor variable)
+# sind = numeric value corresponding to the observed functional domain
+# Y = functional response (binary)
+# sind_inx = numeric value associated with order of &quot;sind&quot;
+#            this is not necessary, but may be of convenience when you implement the method
+df &lt;- data.frame(id = factor(rep(1:N, each=J)),
+                 t = rep(t, N), 
+                 Y = as.vector(t(Y_i)),
+                 eta_i = as.vector(t(eta_i)),
+                 sind = rep(1:J, N))
+# visualization
+rand_id &lt;- sample(N, size = 4)
+df %&gt;% filter(id %in% rand_id) %&gt;% 
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.5)+
+  geom_line(aes(x=sind, y=plogis(eta_i)), col = &quot;red&quot;)+
+  #geom_line(aes(x=sind_inx, y=eta_i), col = &quot;blue&quot;)+
+  facet_wrap(~id)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/gen_data-1.png" width="672" /></p>
+</div>
+<div id="fgfpca-model-fitting" class="section level1" number="2">
+<h1><span class="header-section-number">2</span> fGFPCA model
+fitting</h1>
+<div id="bin-data" class="section level2" number="2.1">
+<h2><span class="header-section-number">2.1</span> Bin data</h2>
+<ul>
+<li>Bin every 10 consecutive observations</li>
+</ul>
+<pre class="r"><code># bin data
+bin_w &lt;- 10 # bin width
+n_bin &lt;- J/bin_w # number of bins
+brks &lt;- seq(0, J, by = bin_w) # cutoff points
+mid &lt;- (brks+bin_w/2)[1:n_bin] # mid points
+
+df$bin &lt;- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
+df$bin &lt;- as.numeric(as.character(df$bin))
+# unique(df$bin)
+
+df %&gt;% 
+  filter(id %in% rand_id) %&gt;%
+  group_by(id, bin) %&gt;%
+  summarise(num = sum(Y)) %&gt;%
+  ggplot()+
+  geom_point(aes(x=bin, y=num), size = 0.5)+
+  facet_wrap(~id)+
+  labs(x=&quot;Time&quot;, y = &quot;Activity&quot;, title = &quot;Number of active nimutes within each bin&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+</div>
+<div id="data-split" class="section level2" number="2.2">
+<h2><span class="header-section-number">2.2</span> Data split</h2>
+<ul>
+<li>400 subjects for training, 100 for out-of-sample prediction</li>
+</ul>
+<pre class="r"><code>train_id &lt;- sample(unique(df$id), size = N*0.8)
+test_id &lt;- setdiff(unique(df$id), train_id)
+
+train_df &lt;- df %&gt;% filter(id %in% train_id)
+test_df &lt;- df %&gt;% filter(id %in% test_id)</code></pre>
+</div>
+<div id="local-glmm" class="section level2" number="2.3">
+<h2><span class="header-section-number">2.3</span> Local GLMM</h2>
+<ul>
+<li>Used glmer with PIRLS (nAGQ=0) for local GLMMs step</li>
+<li>Fit on the training set</li>
+</ul>
+<pre class="r"><code># fit model on the training set
+train_bin_lst &lt;- split(train_df, f = train_df$bin)
+
+# local GLMM and estimate latent function
+# use PIRLS (nAGQ=0) to avoid near-unidentifiability issues 
+t1=Sys.time()
+df_est_latent &lt;- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2= Sys.time()
+t_local_glmm &lt;- t2-t1 </code></pre>
+<pre class="r"><code>df_est_latent &lt;- bind_rows(df_est_latent) 
+# head(df_est_latent)
+
+# example estimated latent function
+rand_id &lt;- sample(train_id, 4)
+
+df_est_latent %&gt;% 
+  filter(id %in% rand_id) %&gt;%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %&gt;%
+  mutate(eta_i = exp(eta_i)/(1+exp(eta_i))) %&gt;%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id, col = &quot;estimated&quot;))+
+  geom_line(aes(x=sind, y=eta_i, group = id, col = &quot;true&quot;))+
+  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
+  facet_wrap(~id, scales = &quot;free&quot;)+
+  labs(x = &quot;Time&quot;, y = &quot;Estimated latent function (probablity scale)&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+</div>
+<div id="fpca" class="section level2" number="2.4">
+<h2><span class="header-section-number">2.4</span> FPCA</h2>
+<pre class="r"><code>uni_eta_hat &lt;- df_est_latent %&gt;% filter(bin==sind)
+
+mat_est_unique &lt;- matrix(uni_eta_hat$eta_hat,
+                         nrow=length(train_id), 
+                         ncol=n_bin, byrow = F) 
+# row index subject, column binned time
+# dim(mat_est_unique)
+
+t1 &lt;- Sys.time()
+fpca_mod &lt;- fpca.face(mat_est_unique, argvals = mid, var=T)
+t2 &lt;- Sys.time()
+t_fpca &lt;- t2-t1 # 3.21 seconds to fit fPCA model</code></pre>
+<pre class="r"><code>plot(mid, fpca_mod$mu, type = &quot;l&quot;, xlab = &quot;bin&quot;, ylab = &quot;mean&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<pre class="r"><code>par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;)
+plot(mid, fpca_mod$efunctions[, 2], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;)
+plot(mid, fpca_mod$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
+plot(mid, fpca_mod$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-7-1.png" width="768" /></p>
+<pre class="r"><code># plot correlation matrix
+heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = &quot;Correlation&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+</div>
+<div id="debias-step-4" class="section level2" number="2.5">
+<h2><span class="header-section-number">2.5</span> Debias (step 4)</h2>
+<p>According to the fGFPCA paper, in this step we do two things:</p>
+<ol style="list-style-type: decimal">
+<li>Project the eigenfunctions with B-spline basis back to the original
+grid</li>
+<li>Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or
+gamm4:gamm) to be used for Laplace approximation</li>
+</ol>
+<div id="porjection-with-b-spline-basis" class="section level3"
+number="2.5.1">
+<h3><span class="header-section-number">2.5.1</span> Porjection with
+B-spline basis</h3>
+<ul>
+<li>Use fastGFPCA::reeval_efunctions. Cannot install the package so used
+the source code directly</li>
+<li>Not sure how to decide the knots. I am using the bin boundaries for
+now (0, 10, 20, …,1000), which is 101 knots.</li>
+</ul>
+<pre class="r fold-show"><code># order of b splines
+p &lt;- 3 
+
+# number of knots
+# not sure how to determine
+# maybe for now use the bin endpoints? 
+# knot_pos &lt;- seq(0, J, by = 50)
+knot_pos &lt;- brks
+
+# evaluate B-splines on binned grid
+B &lt;- spline.des(knots = knot_pos, x = mid, ord = p + 1,
+                            outer.ok = TRUE)$design
+# evaluate B-splines on original grid
+Bnew &lt;- spline.des(knots = knot_pos, x = 1:J, ord = p + 1,
+                  outer.ok = TRUE)$design
+
+# project binned eigenfunctions onto the original grid
+efunctions_new &lt;- matrix(NA, J, K)
+for(k in 1:K){
+    lm_mod &lt;- lm(fpca_mod$efunctions[,k] ~ B-1)
+    efunctions_new[,k] &lt;- Bnew %*% coef(lm_mod)
+}</code></pre>
+<pre class="r"><code># visualization
+par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new[, 1], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 2], xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new[, 2], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 3], xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new[, 3], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 4], xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new[, 4], col=&quot;blue&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-10-1.png" width="768" /></p>
+<ul>
+<li>The projected eigenfunctions seem to be more wiggly than we would
+like?</li>
+<li>What is the reason for choosing projection over linear/spline
+interpolation?</li>
+</ul>
+<div id="number-of-knots" class="section level4" number="2.5.1.1">
+<h4><span class="header-section-number">2.5.1.1</span> Number of
+knots</h4>
+<ul>
+<li>Try fewer knots?</li>
+</ul>
+<pre class="r"><code>knot_pos &lt;- seq(0, J, by = 100)
+
+# evaluate B-splines on binned grid
+B &lt;- spline.des(knots = knot_pos, x = mid, ord = p + 1,
+                            outer.ok = TRUE)$design
+# evaluate B-splines on original grid
+Bnew &lt;- spline.des(knots = knot_pos, x = 1:J, ord = p + 1,
+                  outer.ok = TRUE)$design
+
+# project binned eigenfunctions onto the original grid
+efunctions_new_11knots &lt;- matrix(NA, J, K)
+for(k in 1:K){
+    lm_mod &lt;- lm(fpca_mod$efunctions[,k] ~ B-1)
+    efunctions_new_11knots[,k] &lt;- Bnew %*% coef(lm_mod)
+}</code></pre>
+<pre class="r"><code># visualization
+par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_11knots[, 1], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 2], xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_11knots[, 2], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 3], xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_11knots[, 3], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 4], xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_11knots[, 4], col=&quot;blue&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-12-1.png" width="768" /></p>
+</div>
+<div id="order-of-spline" class="section level4" number="2.5.1.2">
+<h4><span class="header-section-number">2.5.1.2</span> Order of
+spline</h4>
+<ul>
+<li>Try lower order? (order = 3)</li>
+</ul>
+<pre class="r"><code>knot_pos &lt;- brks
+
+# evaluate B-splines on binned grid
+B &lt;- spline.des(knots = knot_pos, x = mid, ord = 3,
+                            outer.ok = TRUE)$design
+# evaluate B-splines on original grid
+Bnew &lt;- spline.des(knots = knot_pos, x = 1:J, ord = 3,
+                  outer.ok = TRUE)$design
+
+# project binned eigenfunctions onto the original grid
+efunctions_new_2p &lt;- matrix(NA, J, K)
+for(k in 1:K){
+    lm_mod &lt;- lm(fpca_mod$efunctions[,k] ~ B-1)
+    efunctions_new_2p[,k] &lt;- Bnew %*% coef(lm_mod)
+}</code></pre>
+<pre class="r"><code># visualization
+par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], xlab=&quot;bin&quot;, ylab=&quot;PC1&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_2p[, 1], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 2], xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_2p[, 2], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 3], xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_2p[, 3], col=&quot;blue&quot;)
+
+plot(mid, fpca_mod$efunctions[, 4], xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;, pch=20, cex = 0.5)
+lines(1:J, efunctions_new_2p[, 4], col=&quot;blue&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-14-1.png" width="768" /></p>
+</div>
+</div>
+<div id="debias-with-glmm-model" class="section level3" number="2.5.2">
+<h3><span class="header-section-number">2.5.2</span> Debias with GLMM
+model</h3>
+<ul>
+<li>The bias was caused by the misspecification of latent process
+(assume constant effect over smooth function).</li>
+<li>What needs re-evaluation are eigenvalues (variance estimates). They
+will be used in Laplace Approximation for out-of-sample prediction.</li>
+<li>We do not need to debias individual scores because the scores for
+training sample will not be used for out-of-sample prediction</li>
+<li>I will try to fit the model with projected eigenfunctions as above
+(with 101 knots). I am using mgcv::bam and setting method = “fREML” and
+discrete = TRUE to speed up computation</li>
+</ul>
+<pre class="r"><code>df_phi &lt;- data.frame(sind = 1:J, efunctions_new)
+colnames(df_phi) &lt;- c(&quot;sind&quot;, paste0(&quot;phi&quot;, 1:4))
+
+# train_df$bin &lt;- as.numeric(as.character(train_df$bin))
+train_df &lt;- train_df %&gt;% left_join(df_phi, by = &quot;sind&quot;)
+train_df$id &lt;- as.factor(train_df$id)</code></pre>
+<ul>
+<li>Here, what if I replace “bin” with “t”? Should I regress of Y on t
+or sind?</li>
+</ul>
+<pre class="r fold-show"><code># usethis::edit_r_environ()
+t1 &lt;- Sys.time()
+debias_glmm &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=10)+
+                     s(id, by=phi1, bs=&quot;re&quot;)+
+                     s(id, by=phi2, bs=&quot;re&quot;)+
+                     s(id, by=phi3, bs=&quot;re&quot;)+
+                     s(id, by=phi4, bs=&quot;re&quot;), 
+                   family = binomial, data=train_df, 
+                   method = &quot;fREML&quot;,
+                   discrete = TRUE)
+t2 &lt;- Sys.time()
+t_debias &lt;- t2-t1</code></pre>
+<ul>
+<li>And now I try to extract the variance of scores (debiased
+eigenvalues).</li>
+<li>Use the conclusion that connects smoothing parameters to
+variance</li>
+</ul>
+<p><span
+class="math display">\[\hat{p}_k=1/\hat{\lambda}_k^2\]</span></p>
+<pre class="r fold-show"><code># eigenvalues from FPCA
+fpca_mod$evalues[1:4]</code></pre>
+<pre><code>## [1] 49.969461 23.573965 11.524905  6.185602</code></pre>
+<pre class="r fold-show"><code># transformed smoothing parameters
+new_lambda &lt;- 1/debias_glmm$sp[2:5]
+new_lambda</code></pre>
+<pre><code>## s(id):phi1 s(id):phi2 s(id):phi3 s(id):phi4 
+##   95.03010   37.75872   25.20164   10.52371</code></pre>
+<pre class="r fold-show"><code># true eigenvalues
+lambda</code></pre>
+<pre><code>## [1] 1.000 0.500 0.250 0.125</code></pre>
+<ul>
+<li>Looks like the re-evaluated variance is still inflated from the true
+eigenvalues, but indeed doubled the result of FPCA.</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
