@@ -579,7 +579,8 @@ df %>% filter(id %in% rand_id2) %>%
 
 - This problem seems to be solved after changing the optimizer? (Method = "BFGS")
 - The new optimizer also took less time
-- The old one was SPG (large scale optimization). The new one is BFGS (quasi-newton, the same in glmmTMB)
+- The old one was SPG (Spectral projected gradient), which is a non-monotone line search. 
+- The new one is BFGS (quasi-newton, the same in glmmTMB)
 
 
 ## Discussion

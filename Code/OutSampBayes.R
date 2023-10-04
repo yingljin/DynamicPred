@@ -65,7 +65,7 @@ Model <- function(parm, Data){
 
 
 # data: 
-out_pred_laplace <- function(fpca_fit, df_new, kpc){
+out_pred_laplace <- function(mu, evalues, phi_mat, df_new, kpc){
   
   # put data into correct format
   ns <- as.vector(table(df_new$bin)) # number of observations
@@ -75,12 +75,12 @@ out_pred_laplace <- function(fpca_fit, df_new, kpc){
   df_new2 <- data.frame(bin = unique(df_new$bin), ns, hs, nf)  
   
   # into a list
-  tao <- diag(fpca_fit$evalues[1:kpc])
-  f0 <- fpca_fit$mu[1:max_bin]
+  tao <- diag(evalues)
+  f0 <- mu[1:max_bin]
   N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
   n <- df_new2$ns # number of experiements at each bin
   y <- df_new2$hs # outcome, number of 1
-  X <- fpca_fit$efunctions[1:max_bin, 1:kpc] # "covariates", in this case PC functions
+  X <- phi_mat[1:max_bin, ] # "covariates", in this case PC functions
   J <- kpc # number of parameters/scores
   mon.names <- "LP"
   
@@ -103,7 +103,7 @@ out_pred_laplace <- function(fpca_fit, df_new, kpc){
   score <- Fit$Summary1[, "Mode"]
   
   # prediction
-  eta_pred_out <- fpca_fit$mu+fpca_fit$efunctions[, 1:kpc]%*%score
+  eta_pred_out <- mu+phi_mat%*%score
   
   return(list(eta_pred = eta_pred_out,
                score_out = score))
