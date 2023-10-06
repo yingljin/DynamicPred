@@ -651,50 +651,63 @@ ise %>%
 
 ```{r}
 # calcualte AUC
-auc1 <- test_df %>%
+# FPCA eigenvalues
+auc_df1 <- test_df %>%
   left_join(bind_rows(pred_list), by = c("id", "bin")) %>%
   filter(bin==sind) %>%
   mutate(window = cut(bin, breaks = seq(0, 1000, by = 200), include.lowest = T)) %>%
   select(Y, starts_with("pred"), window)
 
-auc1 <- split(auc1, f = auc1$window)
+obs_track <- seq(200, 800, by = 200)
+pred_window <- unique(auc_df1$window)
+auc_mat <- matrix(NA, length(pred_window), length(obs_track))
 
-tb_auc1 <- matrix(NA, 5, 4)
-
-for(i in 2:4=5){
-  
-  this_lst <- auc1[i:5]
-  
-  for(j in seq_along(this_lst)){
-     tb_auc[ ,i]
-    
+for(j in seq_along(obs_track)){
+  for(i in (j+1):5){
+    this_Y <- auc_df1$Y[auc_df1$window==pred_window[i]]
+    this_pred <- auc_df1[auc_df1$window==pred_window[i],
+                         paste0("pred", j)]
+    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
+    auc_mat[i ,j] <- this_perf@y.values[[1]]
   }
-  
-  
-  
-  
-  tb_auc1[(i+1):5, i]
 }
-
-
 ```
+
+
+```{r}
+# calcualte AUC
+# FPCA eigenvalues
+auc_df2 <- test_df %>%
+  left_join(bind_rows(pred_list2), by = c("id", "bin")) %>%
+  filter(bin==sind) %>%
+  mutate(window = cut(bin, breaks = seq(0, 1000, by = 200), include.lowest = T)) %>%
+  select(Y, starts_with("pred"), window)
+
+auc_mat2 <- matrix(NA, length(pred_window), length(obs_track))
+
+for(j in seq_along(obs_track)){
+  for(i in (j+1):5){
+    this_Y <- auc_df2$Y[auc_df2$window==pred_window[i]]
+    this_pred <- auc_df2[auc_df2$window==pred_window[i],
+                         paste0("pred", j)]
+    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
+    auc_mat2[i ,j] <- this_perf@y.values[[1]]
+  }
+}
+```
+
 
 ```{r}
 # calcualte ISE
-err2 <- test_df %>%
-  left_join(bind_rows(pred_list2), by = c("id", "bin")) %>%
-  filter(bin==sind) %>%
-  mutate(err1 = (pred1-eta_i)^2,
-         err2 = (pred2-eta_i)^2,
-         err3 = (pred3-eta_i)^2,
-         err4 = (pred4-eta_i)^2) %>%
-  select(id, bin, starts_with("err"))
+options(knitr.kable.NA = "")
 
-err2$window = cut(err2$bin, breaks = seq(0, 1000, by = 200), include.lowest = T)
-err2 <- split(err2, f = err2$window)
+auc <- cbind(auc_mat, auc_mat2)
+rownames(auc) <- unique(auc_df1$window)
+colnames(auc) <-c(rep(seq(200, 800, by =200), 2))
+auc %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "FPCA eigenvalues" = 4, "Debiased eigenvalues" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
+```
 
-tb2 <- lapply(err2, function(x){
-  x %>%  group_by(id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>%
-    summarise_at(vars(err1, err2, err3, err4), mean)
-}) %>% bind_rows(.id="Window")
