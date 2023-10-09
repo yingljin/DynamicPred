@@ -583,7 +583,7 @@ t_1sim <- (t_local_glmm+t_fpca+t_debias+t_pred)
 ```
 
 - Time spent on one iteration: `r round(t_1sim, 2)` seconds
-- Did bias improved performance? The lines above look like so. I also wanna see the squared errors and AUC.
+- Did debiased eigenvalues improve performance? The lines above look like so. I also wanna see the squared errors and AUC.
 
 ## ISE
 
