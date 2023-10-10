@@ -45,6 +45,8 @@ library(LaplacesDemon)
 library(mvtnorm)
 
 ## model
+## now, with expanded mean and eigenfuncitons
+## a Bernoulli distribution at each time point
 Model <- function(parm, Data){
   xi <- parm[Data$pos.xi]
   
@@ -54,7 +56,7 @@ Model <- function(parm, Data){
   # log-posterior likelihood
   eta <- Data$f0+Data$X %*% xi
   p <- exp(eta)/(1+exp(eta))
-  LL <- sum(dbinom(x=Data$y, size = Data$n, prob=p, log = TRUE)) # log likelihood of Y|xi
+  LL <- sum(dbern(x=Data$y, prob=p, log = TRUE)) # log likelihood of Y|xi
   LP <- LL+sum(xi.prior) # joint log likelihood of (Y, xi)
   
   # output
@@ -65,21 +67,25 @@ Model <- function(parm, Data){
 
 
 # data: 
-out_pred_laplace <- function(mu, evalues, phi_mat, df_new, kpc){
+out_pred_laplace <- function(mu, evalues, phi_mat, df_new, kpc, max_t){
   
   # put data into correct format
-  ns <- as.vector(table(df_new$bin)) # number of observations
-  hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% select(Y) %>% unlist()# number of success
-  nf <- ns-hs # number of failure
-  max_bin <- length(unique(df_new$bin)) # assume new skipped bins  
-  df_new2 <- data.frame(bin = unique(df_new$bin), ns, hs, nf)  
+  # ns <- as.vector(table(df_new$bin)) # number of observations
+  # hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% select(Y) %>% unlist()# number of success
+  # nf <- ns-hs # number of failure
+  # max_bin <- length(unique(df_new$bin)) # assume new skipped bins  
+  # df_new2 <- data.frame(bin = unique(df_new$bin), ns, hs, nf)  
+  
+  # truncate data
+  df_new <- df_new[df_new$t<=max_t, ]
+  y <- df_new$Y[df_new$t<=max_t] 
   
   # into a list
   tao <- diag(evalues)
-  f0 <- mu[1:max_bin]
-  N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
-  n <- df_new2$ns # number of experiements at each bin
-  y <- df_new2$hs # outcome, number of 1
+  f0 <- mu[1:max_t*J]
+  # N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
+  # n <- df_new2$ns # number of experiements at each bin
+  y <- df_new$Y[df_new$t<=max_t] # outcome, number of 1
   X <- phi_mat[1:max_bin, ] # "covariates", in this case PC functions
   J <- kpc # number of parameters/scores
   mon.names <- "LP"

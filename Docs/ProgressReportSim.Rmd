@@ -61,8 +61,7 @@ where:
 - $t$ is equal-spaced on $[0, 1]$
 - $f_0(t)=0$
 - $\xi_k \sim N(0, \lambda_k)$, and $\lambda_k = 1, 0.5, 0.25, 0.125$ for k = 1, 2, 3, 4 respectively. 
-- In fact, since there is a constant factor $\sqrt{2}$ before each eigenfunction, perhaps the real eigenvalues are $2, 1, 0,5, 0.25$. 
-
+- In fact, since there is a constant factor $\sqrt{2}$ before each eigenfunction so that they are orthogonal
 
 ```{r gen_data, class.source='show'}
 N <- 500 # sample size
@@ -80,8 +79,10 @@ phi <- sqrt(2)*cbind(sin(2*pi*t),cos(2*pi*t),
 
 # eigenvalues
 lambda = 0.5^(0:(K-1)) 
+```
 
-# generated data 
+```{r}
+# generated training data 
 ## score
 xi <- matrix(rnorm(N*K),N,K)
 xi <- xi %*% diag(sqrt(lambda))
@@ -104,14 +105,15 @@ Y_i <- matrix(rbinom(N*J, size=1, prob=plogis(eta_i)),
 # Y = functional response (binary)
 # sind_inx = numeric value associated with order of "sind"
 #            this is not necessary, but may be of convenience when you implement the method
-df <- data.frame(id = factor(rep(1:N, each=J)),
+train_df <- data.frame(id = factor(rep(1:N, each=J)),
                  t = rep(t, N), 
                  Y = as.vector(t(Y_i)),
                  eta_i = as.vector(t(eta_i)),
                  sind = rep(1:J, N))
+
 # visualization
 rand_id <- sample(N, size = 4)
-df %>% filter(id %in% rand_id) %>% 
+train_df %>% filter(id %in% rand_id) %>% 
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.5)+
   geom_line(aes(x=sind, y=plogis(eta_i)), col = "red")+
@@ -119,7 +121,11 @@ df %>% filter(id %in% rand_id) %>%
   facet_wrap(~id)
 ```
 
+
+
 # fGFPCA model fitting
+
+- Training sample: N=500
 
 ## Bin data
 
@@ -132,11 +138,11 @@ n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
 
-df$bin <- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
-df$bin <- as.numeric(as.character(df$bin))
+train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
+train_df$bin <- as.numeric(as.character(train_df$bin))
 # unique(df$bin)
 
-df %>% 
+train_df %>% 
   filter(id %in% rand_id) %>%
   group_by(id, bin) %>%
   summarise(num = sum(Y)) %>%
@@ -146,34 +152,25 @@ df %>%
   labs(x="Time", y = "Activity", title = "Number of active nimutes within each bin")
 ```
 
-## Data split
-
-- 400 (80%) subjects for training, 100 (20%) for out-of-sample prediction
-
-```{r}
-train_id <- sample(unique(df$id), size = N*0.8)
-# length(train_id)
-test_id <- setdiff(unique(df$id), train_id)
-
-train_df <- df %>% filter(id %in% train_id)
-test_df <- df %>% filter(id %in% test_id)
-```
-
 ## Local GLMM
 
 - Used glmer with PIRLS (nAGQ=0) for local GLMMs step
-- Fit on the training set
+- Fit on the training set (N=500)
+- Use original time index ([0, 1]) as independent variable
+
 
 ```{r, cache=TRUE}
 # fit model on the training set
 train_bin_lst <- split(train_df, f = train_df$bin)
+# length(train_bin_lst)
+# lapply(train_bin_lst, dim)
 
 # local GLMM and estimate latent function
 # use PIRLS (nAGQ=0) to avoid near-unidentifiability issues 
 t1=Sys.time()
 df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
 t2= Sys.time()
-t_local_glmm <- t2-t1 
+t_local_glmm <- t2-t1 # less than 5 seconds
 ```
 
 
@@ -182,6 +179,7 @@ df_est_latent <- bind_rows(df_est_latent)
 # head(df_est_latent)
 
 # example estimated latent function
+train_id <- unique(train_df$id)
 rand_id <- sample(train_id, 4)
 
 df_est_latent %>% 
@@ -189,9 +187,9 @@ df_est_latent %>%
   mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
   mutate(eta_i = exp(eta_i)/(1+exp(eta_i))) %>%
   ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, group = id, col = "estimated"))+
-  geom_line(aes(x=sind, y=eta_i, group = id, col = "true"))+
-  geom_point(aes(x=sind, y = Y, group = id), size = 0.5)+
+  geom_line(aes(x=t, y=eta_hat, group = id, col = "estimated"))+
+  geom_line(aes(x=t, y=eta_i, group = id, col = "true"))+
+  geom_point(aes(x=t, y = Y, group = id), size = 0.5)+
   facet_wrap(~id, scales = "free")+
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
 ```
@@ -200,6 +198,8 @@ df_est_latent %>%
 
 ```{r}
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+mid_t <- df_est_latent$t[df_est_latent$bin==df_est_latent$sind]
+mid_t <- unique(mid_t) # the time points correspoinding to bin midpoints
 
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
                          nrow=length(train_id), 
@@ -208,15 +208,15 @@ mat_est_unique <- matrix(uni_eta_hat$eta_hat,
 # dim(mat_est_unique)
 
 t1 <- Sys.time()
-fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T)
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid_t, var=T)
 t2 <- Sys.time()
-t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
+t_fpca <- t2-t1 # less than one second
 ```
 
 - Estimated mean
 
 ```{r}
-plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "Mean")
+plot(mid_t, fpca_mod$mu, type = "l", xlab = "bin", ylab = "Mean")
 ```
 
 - Estimated eigenfunctions
@@ -224,10 +224,10 @@ plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "Mean")
 ```{r, fig.height=8, fig.width=8}
 par(mfrow=c(2,2))
 
-plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
-plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
-plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
-plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+plot(mid_t, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
+plot(mid_t, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
+plot(mid_t, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+plot(mid_t, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
 ```
 
 - Correlation matrix
@@ -255,23 +255,27 @@ According to the fGFPCA paper, in this step we do two things:
 
 ### Porjection with B-spline basis
 
+<!-- https://bookdown.org/ssjackson300/Machine-Learning-Lecture-Notes/splines.html -->
+
 - Use fastGFPCA::reeval_efunctions. Cannot install the package so used the source code directly
-- Not sure how to decide the knots. I am using the bin boundaries for now (0, 10, 20, ...,1000), which is 101 knots. 
+- I would like to adjust use time points on the [0, 1] scale as evaluation points
+- Also, take number of knots and order from the FPCA model in step 3 (knots = 35, p = 3)
+- Do the same kind of projection to mean functions as well
 
 ```{r, class.source='fold-show'}
 # order of b splines
 p <- 3 
 
-# number of knots
-# not sure how to determine
-# maybe for now use the bin endpoints? 
-# knot_pos <- seq(0, J, by = 50)
+# knots
+knots <- 35
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 # evaluate B-splines on binned grid
-B <- spline.des(knots = brks, x = mid, ord = p + 1,
+B <- spline.des(knots = knots_values, x = mid_t, ord = p + 1,
                             outer.ok = TRUE)$design
 # evaluate B-splines on original grid
-Bnew <- spline.des(knots = brks, x = 1:J, ord = p + 1,
+Bnew <- spline.des(knots = knots_values, x = unique(train_df$t), ord = p + 1,
                   outer.ok = TRUE)$design
 
 # project binned eigenfunctions onto the original grid
@@ -280,6 +284,10 @@ for(k in 1:K){
     lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
     efunctions_new[,k] <- Bnew %*% coef(lm_mod)
 }
+
+# project mean functions 
+lm_mod <- lm(fpca_mod$mu ~ B-1)
+mu_new <- Bnew %*% coef(lm_mod)
 ```
 
 
@@ -287,134 +295,49 @@ for(k in 1:K){
 # visualization
 par(mfrow=c(2,2))
 
-plot(mid, fpca_mod$efunctions[, 1], xlab="bin", ylab="PC1", pch=20, cex = 0.5)
-lines(1:J, efunctions_new[, 1], col="blue")
+plot(mid_t, fpca_mod$efunctions[, 1], xlab="bin", ylab="PC1", pch=20, cex = 0.5)
+lines(t, efunctions_new[, 1], col="blue")
 
-plot(mid, fpca_mod$efunctions[, 2], xlab="bin", ylab="PC2", pch=20, cex = 0.5)
-lines(1:J, efunctions_new[, 2], col="blue")
+plot(mid_t, fpca_mod$efunctions[, 2], xlab="bin", ylab="PC2", pch=20, cex = 0.5)
+lines(t, efunctions_new[, 2], col="blue")
 
-plot(mid, fpca_mod$efunctions[, 3], xlab="bin", ylab="PC3", pch=20, cex = 0.5)
-lines(1:J, efunctions_new[, 3], col="blue")
+plot(mid_t, fpca_mod$efunctions[, 3], xlab="bin", ylab="PC3", pch=20, cex = 0.5)
+lines(t, efunctions_new[, 3], col="blue")
 
-plot(mid, fpca_mod$efunctions[, 4], xlab="bin", ylab="PC4", pch=20, cex = 0.5)
-lines(1:J, efunctions_new[, 4], col="blue")
-
-
+plot(mid_t, fpca_mod$efunctions[, 4], xlab="bin", ylab="PC4", pch=20, cex = 0.5)
+lines(t, efunctions_new[, 4], col="blue")
 ```
-
-- The projected eigenfunctions seem to be more wiggly than we would like.
-- What is the reason for choosing projection over linear/spline interpolation? 
-
-#### Number of knots
-
-- Try fewer knots (11 knots)? 
-- Looks like the shape does not fit to the binned grid very well. 
 
 ```{r}
-# 11 knots
-knot_pos <- seq(0, J, by = 100)
-
-# evaluate B-splines on binned grid
-B <- spline.des(knots = knot_pos, x = mid, ord = p + 1,
-                            outer.ok = TRUE)$design
-# evaluate B-splines on original grid
-Bnew <- spline.des(knots = knot_pos, x = 1:J, ord = p + 1,
-                  outer.ok = TRUE)$design
-
-# project binned eigenfunctions onto the original grid
-efunctions_new_11knots <- matrix(NA, J, K)
-for(k in 1:K){
-    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-    efunctions_new_11knots[,k] <- Bnew %*% coef(lm_mod)
-}
+plot(mid_t, fpca_mod$mu, xlab="bin", ylab="Mean", pch=20, cex = 0.5)
+lines(t, mu_new, col="blue")
 ```
 
-
-```{r, fig.height=8, fig.width=8}
-# visualization
-par(mfrow=c(2,2))
-
-plot(mid, fpca_mod$efunctions[, 1], xlab="bin", ylab="PC1", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_11knots[, 1], col="blue")
-
-plot(mid, fpca_mod$efunctions[, 2], xlab="bin", ylab="PC2", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_11knots[, 2], col="blue")
-
-plot(mid, fpca_mod$efunctions[, 3], xlab="bin", ylab="PC3", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_11knots[, 3], col="blue")
-
-plot(mid, fpca_mod$efunctions[, 4], xlab="bin", ylab="PC4", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_11knots[, 4], col="blue")
-
-
-```
-
-
-#### Order of spline
-
-- Try lower order? (order = 3)
-- While the middle part fits alright, the end really goes crazy off. 
-
-```{r}
-# evaluate B-splines on binned grid
-B <- spline.des(knots = brks, x = mid, ord = 3,
-                            outer.ok = TRUE)$design
-# evaluate B-splines on original grid
-Bnew <- spline.des(knots = brks, x = 1:J, ord = 3,
-                  outer.ok = TRUE)$design
-
-# project binned eigenfunctions onto the original grid
-efunctions_new_2p <- matrix(NA, J, K)
-for(k in 1:K){
-    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-    efunctions_new_2p[,k] <- Bnew %*% coef(lm_mod)
-}
-```
-
-
-```{r, fig.height=8, fig.width=8}
-# visualization
-par(mfrow=c(2,2))
-
-plot(mid, fpca_mod$efunctions[, 1], xlab="bin", ylab="PC1", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_2p[, 1], col="blue")
-
-plot(mid, fpca_mod$efunctions[, 2], xlab="bin", ylab="PC2", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_2p[, 2], col="blue")
-
-plot(mid, fpca_mod$efunctions[, 3], xlab="bin", ylab="PC3", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_2p[, 3], col="blue")
-
-plot(mid, fpca_mod$efunctions[, 4], xlab="bin", ylab="PC4", pch=20, cex = 0.5)
-lines(1:J, efunctions_new_2p[, 4], col="blue")
-
-
-```
-
+- The projection seems to work very well! 
 
 ### Debias with eigenvalues
 
 - The bias was caused by the misspecification of latent process (assume constant effect over smooth function). 
 - What needs re-evaluation are eigenvalues (variance estimates). They will be used in Laplace Approximation for out-of-sample prediction. 
 - We do not need to debias individual scores because the scores for training sample will not be used for out-of-sample prediction. And out-of-sample scores are not estimated by FPCA but Laplace approximation.
-- Since I don't yet know what to do with the projection, I will here use the un-projected basis functions and do things on the binned grid. I am using mgcv::bam and setting method = "fREML" and discrete = TRUE to speed up computation
+- I will use the projected eigenfunctions from above. 
+- I am using mgcv::bam and setting method = "fREML" and discrete = TRUE to speed up computation
 
 ```{r}
 # dim(fpca_mod$efunctions)
-df_phi <- data.frame(bin = mid, fpca_mod$efunctions[, 1:K])
-colnames(df_phi) <- c("bin", paste0("phi", 1:4))
+df_phi <- data.frame(t = t, efunctions_new)
+colnames(df_phi) <- c("t", paste0("phi", 1:4))
 
 # train_df$bin <- as.numeric(as.character(train_df$bin))
-train_df <- train_df %>% left_join(df_phi, by = "bin")
+train_df <- train_df %>% left_join(df_phi, by = "t")
 train_df$id <- as.factor(train_df$id)
 ```
 
-- Also, I am not exactly sure if I should regress on t (original time between 0 and 1) or the index of bin midpoints. I will do the bin midpoints for now because I think that's in the fGFPCA manuscript? 
 
 ```{r, class.source = "fold-show"}
 # usethis::edit_r_environ()
 t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(bin, bs="cr", k=10)+
+debias_glmm <- bam(Y ~ s(t, bs="cr", k=10)+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
@@ -423,7 +346,7 @@ debias_glmm <- bam(Y ~ s(bin, bs="cr", k=10)+
                    method = "fREML",
                    discrete = TRUE)
 t2 <- Sys.time()
-t_debias <- t2-t1
+t_debias <- t2-t1 # less than 45 seconds
 ```
 
 
@@ -439,19 +362,116 @@ new_lambda
 # new_lambda/fpca_mod$evalues[1:4]
 ```
 
-Looks like the re-evaluated variance is still inflated from the true eigenvalues, but indeed doubled the result of FPCA. 
+This eigenvalues, as well as the eigenfunctions, are actually not on the same scale of true values. By looking into the fpca.face source code, eigenfunctions are scaled by the square root of the number of total observations points. Since our model was fitted on the binnd grid, the actual eigenvaleus and eigenfunctions would be:
 
-How can we know this is the actual true eigenvalues? 
+\begin{aligned}
+\phi_k(t) & = \sqrt{n_{bin}}\hat{\phi}_k(t)  \\
+\lambda_k & = \hat{\lambda}_k/n_{bin}
+
+\end{aligned}
+
+Let's rescale these quatities as below
+
+- Re-scaled eigenvalues
+```{r}
+new_lambda/n_bin
+```
+
+- Re-scaled eigenfunctions
+
+```{r, fig.height=8, fig.width=8}
+par(mfrow=c(2,2))
+
+plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
+plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
+plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
+plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+
+```
+
+- Both much closer to their true values
 
 # Out-of-sample prediction with Laplace approximation
 
 I will now estimate individual score of test sample using Laplace Approximation, and calculated the predicted track.
-- Mximum observations time: 200, 400, 600. 800
-- Prediction window: 200-400, 400-600, 600-800, 800-1000
 
-## With eigenvalues from FPCA
+- Generate additional 200 subjects for out-of-sample performance evaluation
+- Maximum observations time: 0.2, 0.4, 0.6, 0.8
+- Prediction window: 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0
+
+## Generate test data 
+
+```{r}
+# generated testing data 
+N_test <- 200
+b_test <- matrix(rnorm(N_test*K), N_test, K) %*% diag(sqrt(lambda)) %*% t(phi) # of size N by J
+# dim(b_test)
+  
+# latent gaussian function
+eta_test <- t(vapply(1:N_test, function(x){
+    f_0(x) + b_i[x,]
+  }, numeric(J)))
+
+# outcome binary function
+Y_test <- matrix(rbinom(N_test*J, size=1, prob=plogis(eta_test)), 
+                N_test, J, byrow=FALSE)
+  
+# format into dataframe
+test_df <- data.frame(id = factor(rep(1:N_test, each=J)),
+                 t = rep(t, N_test), 
+                 Y = as.vector(t(Y_test)),
+                 eta_i = as.vector(t(eta_test)),
+                 sind = rep(1:J, N_test))
+# bin
+test_df$bin <- cut(test_df$sind, breaks = brks, include.lowest = T, labels = mid)
+test_df$bin <- as.numeric(as.character(test_df$bin))
+test_df$id <- as.factor(test_df$id)
+test_id <- unique(test_df$id)
+```
+
+## Laplace approximation
+
+
+```{r}
+# the model
+## now, with expanded mean and eigenfuncitons, a Bernoulli distribution at each time point
+Model <- function(parm, Data){
+  xi <- parm[Data$pos.xi]
+  
+  # log-prior
+  xi.prior <- dmvnorm(xi, mean = rep(0, Data$K), sigma=Data$tao, log = TRUE)
+  
+  # log-posterior likelihood
+  eta <- Data$f0+Data$X %*% xi
+  p <- exp(eta)/(1+exp(eta))
+  LL <- sum(dbern(x=Data$y, prob=p, log = TRUE)) # log likelihood of Y|xi
+  LP <- LL+sum(xi.prior) # joint log likelihood of (Y, xi)
+  
+  # output
+  Modelout <- list(LP=LP, Dev=-2*LL, Monitor=LL,
+                   yhat=Data$y, parm=parm)
+  return(Modelout)
+}
+```
+
+
+```{r}
+# parameter names
+name_lst <- as.list(rep(0, K))
+names(name_lst) <- paste("xi", 1:K, sep = "")
+parm.names <- as.parm.names(name_lst)
+pos.xi <- grep("xi", parm.names)
+PGF <- function(Data) {
+  xi <- rnorm(Data$K)
+  return(xi)
+}
+mon.names <- "LP"
+```
+
+
 
 ```{r, results='hide'}
+# approximation process
 # container
 pred_list <- list()
 # score <- array(NA, dim=c(length(test_id), K, 4))
@@ -459,124 +479,215 @@ pred_list <- list()
 
 # prediction for a single subject
 t1 <- Sys.time()
+# per subject
 for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
-  # prediction 
-  pred1 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = fpca_mod$evalues[1:K], 
-                            phi_mat = fpca_mod$efunctions[, 1:K], 
-                            df_new = df_i %>% filter(sind<=200), kpc = K)
-  pred2 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = fpca_mod$evalues[1:K], 
-                            phi_mat = fpca_mod$efunctions[, 1:K],
-                            df_i %>% filter(sind<=400), kpc = K)
-  pred3 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = fpca_mod$evalues[1:K], 
-                            phi_mat = fpca_mod$efunctions[, 1:K],
-                            df_i %>% filter(sind<=600), kpc = K)
-  pred4 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = fpca_mod$evalues[1:K], 
-                            phi_mat = fpca_mod$efunctions[, 1:K],
-                            df_i %>% filter(sind<=800), kpc = K)
   
+  # per max obs time
+  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+    df_it <- df_i %>% filter(t <= tmax)
+    max_rid <- nrow(df_it)
   
-  pred_i <- data.frame(id = test_id[i], bin=mid, 
-                       pred1=pred1$eta_pred, pred2=pred2$eta_pred,
-                       pred3=pred3$eta_pred, pred4=pred4$eta_pred)
+    # into a list
+    MyData <- list(K=K, PGF=PGF, 
+                   X=efunctions_new[1: max_rid, ], 
+                   mon.names=mon.names,
+                   parm.names=parm.names, 
+                   pos.xi=pos.xi, 
+                   y=df_it$Y, 
+                   tao=diag(new_lambda), f0=mu_new[1:max_rid, ])
+    
+    
+    # fit laplace approximation
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
+    score <- Fit$Summary1[, "Mode"]
+    
+    # prediction
+    eta_pred_out <- mu_new+efunctions_new%*%score
+    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+  }
   
-  pred_i$pred1[pred_i$bin<=200] <- NA
-  pred_i$pred2[pred_i$bin<=400] <- NA
-  pred_i$pred3[pred_i$bin<=600] <- NA
-  pred_i$pred4[pred_i$bin<=800] <- NA
+  # df_i$pred0.2[df_i$t<=0.2] <- NA
+  # df_i$pred0.4[df_i$t<=0.4] <- NA
+  # df_i$pred0.6[df_i$t<=0.6] <- NA
+  # df_i$pred0.8[df_i$t<=0.8] <- NA
   
-  pred_list[[i]] <- pred_i
+  pred_list[[i]] <- df_i
 }
 t2 <- Sys.time()
-t_pred <- t2-t1
+t_pred <- t2-t1 # About 3.5 minutes
 ```
 
 
 ```{r}
-# overview of predicted track
+df_pred <- bind_rows(pred_list)
+
+df_pred$pred0.2[df_pred$t<=0.2] <- NA
+df_pred$pred0.4[df_pred$t<=0.4] <- NA
+df_pred$pred0.6[df_pred$t<=0.6] <- NA
+df_pred$pred0.8[df_pred$t<=0.8] <- NA
+
 rand_test_id <- sample(test_id, 4)
 
-test_df %>%
-  left_join(bind_rows(pred_list), by = c("id", "bin")) %>%
+p1<-df_pred %>%
   filter(id %in% rand_test_id) %>%
-  mutate_at(vars(eta_i, pred1, pred2, pred3, pred4), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=eta_i, col = "True"))+
-  geom_line(aes(x=sind, y=pred1, col = "200"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred2, col = "400"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred3, col = "600"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred4, col = "800"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "Unscaled, debiased eigenvalues")
 
 ```
 
-
-## With debiased eigenvalues
+### Compared to biased eigenvalues
 
 ```{r, results='hide'}
+## With eigenvalues from FPCA
 # container
 pred_list2 <- list()
-# score <- array(NA, dim=c(length(test_id), K, 4))
-# dimensions: subject, eigenfunction, maximum observation time
 
-# prediction for a single subject
-t1 <- Sys.time()
+# per subject
 for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
-  # prediction 
-  pred1 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = new_lambda, 
-                            phi_mat = fpca_mod$efunctions[, 1:K], 
-                            df_new = df_i %>% filter(sind<=200), kpc = K)
-  pred2 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = new_lambda, 
-                            phi_mat = fpca_mod$efunctions[, 1:K],
-                            df_i %>% filter(sind<=400), kpc = K)
-  pred3 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = new_lambda,
-                            phi_mat = fpca_mod$efunctions[, 1:K],
-                            df_i %>% filter(sind<=600), kpc = K)
-  pred4 <- out_pred_laplace(mu = fpca_mod$mu, 
-                            evalues = new_lambda,
-                            phi_mat = fpca_mod$efunctions[, 1:K],
-                            df_i %>% filter(sind<=800), kpc = K)
   
-  pred_i <- data.frame(id = test_id[i], bin=mid, 
-                       pred1=pred1$eta_pred, pred2=pred2$eta_pred,
-                       pred3=pred3$eta_pred, pred4=pred4$eta_pred)
+  # per max obs time
+  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+    df_it <- df_i %>% filter(t <= tmax)
+    max_rid <- nrow(df_it)
   
-  pred_i$pred1[pred_i$bin<=200] <- NA
-  pred_i$pred2[pred_i$bin<=400] <- NA
-  pred_i$pred3[pred_i$bin<=600] <- NA
-  pred_i$pred4[pred_i$bin<=800] <- NA
+    # into a list
+    MyData <- list(K=K, PGF=PGF, 
+                   X=efunctions_new[1: max_rid, ], 
+                   mon.names=mon.names,
+                   parm.names=parm.names, 
+                   pos.xi=pos.xi, 
+                   y=df_it$Y, 
+                   tao=diag(fpca_mod$evalues[1:K]), f0=mu_new[1:max_rid, ])
+    
+    
+    # fit laplace approximation
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
+    score <- Fit$Summary1[, "Mode"]
+    
+    # prediction
+    eta_pred_out <- mu_new+efunctions_new%*%score
+    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+  }
   
-  pred_list2[[i]] <- pred_i
+  # df_i$pred0.2[df_i$t<=0.2] <- NA
+  # df_i$pred0.4[df_i$t<=0.4] <- NA
+  # df_i$pred0.6[df_i$t<=0.6] <- NA
+  # df_i$pred0.8[df_i$t<=0.8] <- NA
+  
+  pred_list2[[i]] <- df_i
 }
-t2 <- Sys.time()
-t_pred <- t2-t1
 ```
 
 
 ```{r}
+df_pred2 <- bind_rows(pred_list2)
+
+df_pred2$pred0.2[df_pred2$t<=0.2] <- NA
+df_pred2$pred0.4[df_pred2$t<=0.4] <- NA
+df_pred2$pred0.6[df_pred2$t<=0.6] <- NA
+df_pred2$pred0.8[df_pred2$t<=0.8] <- NA
 # overview of predicted track
-test_df %>%
-  left_join(bind_rows(pred_list2), by = c("id", "bin")) %>%
+p2<-df_pred2 %>%
   filter(id %in% rand_test_id) %>%
-  mutate_at(vars(eta_i, pred1, pred2, pred3, pred4), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=eta_i, col = "True"))+
-  geom_line(aes(x=sind, y=pred1, col = "200"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred2, col = "400"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred3, col = "600"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred4, col = "800"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "Unscaled, biased eigenvalues")
+
 ```
+
+### Scaled eigenfunctions and eigenvalues
+
+- No need to scale mean functions
+
+```{r, results='hide'}
+## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
+# container
+pred_list3 <- list()
+efunctions_scaled <- efunctions_new*sqrt(n_bin)
+evalues_scaled <- new_lambda/n_bin
+
+# per subject
+for(i in seq_along(test_id)){
+  df_i <- test_df %>% filter(id==test_id[i])
+  
+  # per max obs time
+  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+    df_it <- df_i %>% filter(t <= tmax)
+    max_rid <- nrow(df_it)
+  
+    # into a list
+    MyData <- list(K=K, PGF=PGF, 
+                   X=efunctions_scaled[1: max_rid, ], 
+                   mon.names=mon.names,
+                   parm.names=parm.names, 
+                   pos.xi=pos.xi, 
+                   y=df_it$Y, 
+                   tao=diag(evalues_scaled), f0=mu_new[1:max_rid, ])
+    
+    
+    # fit laplace approximation
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
+    score <- Fit$Summary1[, "Mode"]
+    
+    # prediction
+    eta_pred_out <- mu_new+efunctions_scaled%*%score
+    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+  }
+  
+  # df_i$pred0.2[df_i$t<=0.2] <- NA
+  # df_i$pred0.4[df_i$t<=0.4] <- NA
+  # df_i$pred0.6[df_i$t<=0.6] <- NA
+  # df_i$pred0.8[df_i$t<=0.8] <- NA
+  
+  pred_list3[[i]] <- df_i
+}
+```
+
+
+```{r}
+df_pred3 <- bind_rows(pred_list3)
+
+df_pred3$pred0.2[df_pred3$t<=0.2] <- NA
+df_pred3$pred0.4[df_pred3$t<=0.4] <- NA
+df_pred3$pred0.6[df_pred3$t<=0.6] <- NA
+df_pred3$pred0.8[df_pred3$t<=0.8] <- NA
+# overview of predicted track
+p3 <- df_pred3 %>%
+  filter(id %in% rand_test_id) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "Scaled, unbiased eigenvalues")
+
+```
+
+
 
 ```{r}
 t_1sim <- (t_local_glmm+t_fpca+t_debias+t_pred)
@@ -584,21 +695,25 @@ t_1sim <- (t_local_glmm+t_fpca+t_debias+t_pred)
 
 - Time spent on one iteration: `r round(t_1sim, 2)` seconds
 - Did debiased eigenvalues improve performance? The lines above look like so. I also wanna see the squared errors and AUC.
+- Scaling eigenfunctions and values will change a prediction a little bit
+
+```{r, fig.height=5, fig.width=15}
+ggarrange(p1, p2, p3, nrow = 1, common.legend = T)
+```
 
 ## ISE
 
 ```{r}
 # calcualte ISE
-err1 <- test_df %>%
-  left_join(bind_rows(pred_list), by = c("id", "bin")) %>%
-  filter(bin==sind) %>%
-  mutate(err1 = (pred1-eta_i)^2,
-         err2 = (pred2-eta_i)^2,
-         err3 = (pred3-eta_i)^2,
-         err4 = (pred4-eta_i)^2) %>%
-  select(id, bin, starts_with("err"))
+err1 <- df_pred %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
 
-err1$window = cut(err1$bin, breaks = seq(0, 1000, by = 200), include.lowest = T)
+err1$window = cut(err1$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
 err1 <- split(err1, f = err1$window)
 
 tb1 <- lapply(err1, function(x){
@@ -610,55 +725,72 @@ tb1 <- lapply(err1, function(x){
 
 ```{r}
 # calcualte ISE
-err2 <- test_df %>%
-  left_join(bind_rows(pred_list2), by = c("id", "bin")) %>%
-  filter(bin==sind) %>%
-  mutate(err1 = (pred1-eta_i)^2,
-         err2 = (pred2-eta_i)^2,
-         err3 = (pred3-eta_i)^2,
-         err4 = (pred4-eta_i)^2) %>%
-  select(id, bin, starts_with("err"))
+err2 <- df_pred2 %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
 
-err2$window = cut(err2$bin, breaks = seq(0, 1000, by = 200), include.lowest = T)
+err2$window = cut(err2$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
 err2 <- split(err2, f = err2$window)
 
 tb2 <- lapply(err2, function(x){
   x %>%  group_by(id) %>% 
     summarise_at(vars(err1, err2, err3, err4), sum) %>%
     summarise_at(vars(err1, err2, err3, err4), mean)
-}) %>% bind_rows(.id="Window")
-
+}) %>% bind_rows(.id = "Window")
 ```
 
+```{r}
+# calcualte ISE
+err3 <- df_pred3 %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
+
+err3$window = cut(err3$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err3 <- split(err3, f = err3$window)
+
+tb3 <- lapply(err3, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>%
+    summarise_at(vars(err1, err2, err3, err4), mean)
+}) %>% bind_rows(.id = "Window")
+```
 
 ```{r}
 # calcualte ISE
 options(knitr.kable.NA = "")
 
-ise <- full_join(tb1, tb2, by = "Window")
-colnames(ise) <-c("Window",  rep(seq(200, 800, by =200), 2))
+ise <- full_join(tb1, tb2, by = "Window") %>% full_join(tb3, by = "Window")
+colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 3))
 ise %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "FPCA eigenvalues" = 4, "Debiased eigenvalues" = 4)) %>%
-  add_header_above(c(" "=1, "Maximum observation time" = 8))
+  add_header_above(c(" "= 1, "Unscaled, debiased" = 4, "Unscaled, biased" = 4, "Scaled, debiased" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 12))
 ```
 
 
-- Looks like the debiased eigenvalues helped on most cases except the very last two, when trying to predict (800, 1000].
+- Looks like the debiased eigenvalues helped.
+- Scaling, on the other hand, does seem to help in general. 
+- But shouldn't scaling improve performance? 
+- Also, it seems like the longer the observed track, the closer the three cases are. 
 
 ## AUC
 
 ```{r}
 # calcualte AUC
-# FPCA eigenvalues
-auc_df1 <- test_df %>%
-  left_join(bind_rows(pred_list), by = c("id", "bin")) %>%
-  filter(bin==sind) %>%
-  mutate(window = cut(bin, breaks = seq(0, 1000, by = 200), include.lowest = T)) %>%
+auc_df1 <- df_pred %>%
+  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
   select(Y, starts_with("pred"), window)
 
-obs_track <- seq(200, 800, by = 200)
+obs_track <- seq(0.2, 0.8, by = 0.2)
 pred_window <- unique(auc_df1$window)
 auc_mat <- matrix(NA, length(pred_window), length(obs_track))
 
@@ -666,21 +798,20 @@ for(j in seq_along(obs_track)){
   for(i in (j+1):5){
     this_Y <- auc_df1$Y[auc_df1$window==pred_window[i]]
     this_pred <- auc_df1[auc_df1$window==pred_window[i],
-                         paste0("pred", j)]
+                         paste0("pred", obs_track[j])]
     this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
     auc_mat[i ,j] <- this_perf@y.values[[1]]
   }
 }
+
 ```
+
 
 
 ```{r}
 # calcualte AUC
-# FPCA eigenvalues
-auc_df2 <- test_df %>%
-  left_join(bind_rows(pred_list2), by = c("id", "bin")) %>%
-  filter(bin==sind) %>%
-  mutate(window = cut(bin, breaks = seq(0, 1000, by = 200), include.lowest = T)) %>%
+auc_df2 <- df_pred2 %>%
+  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
   select(Y, starts_with("pred"), window)
 
 auc_mat2 <- matrix(NA, length(pred_window), length(obs_track))
@@ -689,25 +820,46 @@ for(j in seq_along(obs_track)){
   for(i in (j+1):5){
     this_Y <- auc_df2$Y[auc_df2$window==pred_window[i]]
     this_pred <- auc_df2[auc_df2$window==pred_window[i],
-                         paste0("pred", j)]
+                         paste0("pred", obs_track[j])]
     this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
     auc_mat2[i ,j] <- this_perf@y.values[[1]]
   }
 }
+
 ```
 
+```{r}
+# calcualte AUC
+auc_df3 <- df_pred3 %>%
+  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
+  select(Y, starts_with("pred"), window)
+
+
+auc_mat3 <- matrix(NA, length(pred_window), length(obs_track))
+
+for(j in seq_along(obs_track)){
+  for(i in (j+1):5){
+    this_Y <- auc_df3$Y[auc_df3$window==pred_window[i]]
+    this_pred <- auc_df3[auc_df3$window==pred_window[i],
+                         paste0("pred", obs_track[j])]
+    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
+    auc_mat3[i ,j] <- this_perf@y.values[[1]]
+  }
+}
+
+```
 
 ```{r}
 # calcualte ISE
 options(knitr.kable.NA = "")
 
-auc <- cbind(auc_mat, auc_mat2)
+auc <- cbind(auc_mat, auc_mat2, auc_mat3)
 rownames(auc) <- unique(auc_df1$window)
-colnames(auc) <-c(rep(seq(200, 800, by =200), 2))
+colnames(auc) <-c(rep(seq(0.2, 0.8, by = 0.2), 3))
 auc %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "FPCA eigenvalues" = 4, "Debiased eigenvalues" = 4)) %>%
-  add_header_above(c(" "=1, "Maximum observation time" = 8))
+  add_header_above(c(" "= 1, "Unscaled, debiased" = 4, "Unscaled, biased" = 4, "Scaled, debiased" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 12))
 ```
 
