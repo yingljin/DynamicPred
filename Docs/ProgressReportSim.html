@@ -475,6 +475,7 @@ the source code directly</li>
 evaluation points</li>
 <li>Also, take number of knots and order from the FPCA model in step 3
 (knots = 35, p = 3)</li>
+<li>Do the same kind of projection to mean functions as well</li>
 </ul>
 <pre class="r fold-show"><code># order of b splines
 p &lt;- 3 
@@ -516,6 +517,9 @@ lines(t, efunctions_new[, 3], col=&quot;blue&quot;)
 plot(mid_t, fpca_mod$efunctions[, 4], xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;, pch=20, cex = 0.5)
 lines(t, efunctions_new[, 4], col=&quot;blue&quot;)</code></pre>
 <p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-11-1.png" width="768" /></p>
+<pre class="r"><code>plot(mid_t, fpca_mod$mu, xlab=&quot;bin&quot;, ylab=&quot;Mean&quot;, pch=20, cex = 0.5)
+lines(t, mu_new, col=&quot;blue&quot;)</code></pre>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 <ul>
 <li>The projection seems to work very well!</li>
 </ul>
@@ -572,13 +576,11 @@ the same scale of true values. By looking into the fpca.face source
 code, eigenfunctions are scaled by the square root of the number of
 total observations points. Since our model was fitted on the binnd grid,
 the actual eigenvaleus and eigenfunctions would be:</p>
-[
 <span class="math display">\[\begin{aligned}
 \phi_k(t) &amp; = \sqrt{n_{bin}}\hat{\phi}_k(t)  \\
 \lambda_k &amp; = \hat{\lambda}_k/n_{bin}
 
 \end{aligned}\]</span>
-<p>]</p>
 <p>Let’s rescale these quatities as below</p>
 <ul>
 <li>Re-scaled eigenvalues</li>
@@ -595,8 +597,10 @@ plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 1], type=&quot;l&quot;, xlab=&quot
 plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 2], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC2&quot;)
 plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 3], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC3&quot;)
 plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 4], type=&quot;l&quot;, xlab=&quot;bin&quot;, ylab=&quot;PC4&quot;)</code></pre>
-<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-16-1.png" width="768" />
-- Both much closer to their true values</p>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-17-1.png" width="768" /></p>
+<ul>
+<li>Both much closer to their true values</li>
+</ul>
 </div>
 </div>
 </div>
@@ -874,14 +878,14 @@ p3 &lt;- df_pred3 %&gt;%
   labs(title = &quot;Scaled, unbiased eigenvalues&quot;)</code></pre>
 <pre class="r"><code>t_1sim &lt;- (t_local_glmm+t_fpca+t_debias+t_pred)</code></pre>
 <ul>
-<li>Time spent on one iteration: 200.33 seconds</li>
+<li>Time spent on one iteration: 197.13 seconds</li>
 <li>Did debiased eigenvalues improve performance? The lines above look
 like so. I also wanna see the squared errors and AUC.</li>
 <li>Scaling eigenfunctions and values will change a prediction a little
 bit</li>
 </ul>
 <pre class="r"><code>ggarrange(p1, p2, p3, nrow = 1, common.legend = T)</code></pre>
-<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-27-1.png" width="1440" /></p>
+<p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-28-1.png" width="1440" /></p>
 </div>
 </div>
 <div id="ise" class="section level2" number="3.3">
@@ -1200,6 +1204,9 @@ Window
 <ul>
 <li>Looks like the debiased eigenvalues helped.</li>
 <li>Scaling, on the other hand, does seem to help in general.</li>
+<li>But shouldn’t scaling improve performance?</li>
+<li>Also, it seems like the longer the observed track, the closer the
+three cases are.</li>
 </ul>
 </div>
 <div id="auc" class="section level2" number="3.4">
