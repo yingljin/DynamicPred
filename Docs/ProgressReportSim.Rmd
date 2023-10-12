@@ -257,9 +257,9 @@ According to the fGFPCA paper, in this step we do two things:
 
 <!-- https://bookdown.org/ssjackson300/Machine-Learning-Lecture-Notes/splines.html -->
 
-- Use fastGFPCA::reeval_efunctions. Cannot install the package so used the source code directly
-- I would like to adjust use time points on the [0, 1] scale as evaluation points
-- Also, take number of knots and order from the FPCA model in step 3 (knots = 35, p = 3)
+- Use fastGFPCA::reeval_efunctions. Cannot install the package so used the source code directly.
+- I would like to use time points on the [0, 1] scale as evaluation points when creating basis functions.
+- Also, take number of knots and order from the FPCA model in step 3 (knots = 35, cubic spline basis). 
 - Do the same kind of projection to mean functions as well
 
 ```{r, class.source='fold-show'}
@@ -545,7 +545,7 @@ p1<-df_pred %>%
 
 ```
 
-### Compared to biased eigenvalues
+<!-- ### Compared to biased eigenvalues -->
 
 ```{r, results='hide'}
 ## With eigenvalues from FPCA
@@ -614,9 +614,8 @@ p2<-df_pred2 %>%
 
 ```
 
-### Scaled eigenfunctions and eigenvalues
+<!-- ### Scaled eigenfunctions and eigenvalues -->
 
-- No need to scale mean functions
 
 ```{r, results='hide'}
 ## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
@@ -693,13 +692,20 @@ p3 <- df_pred3 %>%
 t_1sim <- (t_local_glmm+t_fpca+t_debias+t_pred)
 ```
 
-- Time spent on one iteration: `r round(t_1sim, 2)` seconds
-- Did debiased eigenvalues improve performance? The lines above look like so. I also wanna see the squared errors and AUC.
-- Scaling eigenfunctions and values will change a prediction a little bit
+
+I would like to see if the following operations can improve predictive performance: 
+
+1. Debiasing eigenvalues from FPCA
+2. Scale the eigenfunctions and debiased eigenvalues (from mgcv::bam) so that they are close to the true values for data generation
+
 
 ```{r, fig.height=5, fig.width=15}
 ggarrange(p1, p2, p3, nrow = 1, common.legend = T)
 ```
+
+- Time spent on one iteration: `r round(t_1sim, 2)` seconds
+- Debiasing eigenvalues helped with prediction. Scaling eigenfunctiosn and eigenvalues, on the other hand, ended up being more complicated. 
+
 
 ## ISE
 
@@ -778,9 +784,8 @@ ise %>%
 
 
 - Looks like the debiased eigenvalues helped.
-- Scaling, on the other hand, does seem to help in general. 
-- But shouldn't scaling improve performance? 
-- Also, it seems like the longer the observed track, the closer the three cases are. 
+- Scaling, on the other hand, doesn't seem to help in general. But shouldn't scaling improve performance? 
+- Also, it seems like the longer the observed track, the less different the performance is. 
 
 ## AUC
 

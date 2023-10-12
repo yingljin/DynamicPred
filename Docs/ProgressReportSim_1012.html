@@ -470,11 +470,11 @@ B-spline basis</h3>
 <!-- https://bookdown.org/ssjackson300/Machine-Learning-Lecture-Notes/splines.html -->
 <ul>
 <li>Use fastGFPCA::reeval_efunctions. Cannot install the package so used
-the source code directly</li>
-<li>I would like to adjust use time points on the [0, 1] scale as
-evaluation points</li>
+the source code directly.</li>
+<li>I would like to use time points on the [0, 1] scale as evaluation
+points when creating basis functions.</li>
 <li>Also, take number of knots and order from the FPCA model in step 3
-(knots = 35, p = 3)</li>
+(knots = 35, cubic spline basis).</li>
 <li>Do the same kind of projection to mean functions as well</li>
 </ul>
 <pre class="r fold-show"><code># order of b splines
@@ -744,10 +744,7 @@ p1&lt;-df_pred %&gt;%
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   facet_wrap(~id)+
   labs(title = &quot;Unscaled, debiased eigenvalues&quot;)</code></pre>
-<div id="compared-to-biased-eigenvalues" class="section level3"
-number="3.2.1">
-<h3><span class="header-section-number">3.2.1</span> Compared to biased
-eigenvalues</h3>
+<!-- ### Compared to biased eigenvalues -->
 <pre class="r"><code>## With eigenvalues from FPCA
 # container
 pred_list2 &lt;- list()
@@ -807,14 +804,7 @@ p2&lt;-df_pred2 %&gt;%
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   facet_wrap(~id)+
   labs(title = &quot;Unscaled, biased eigenvalues&quot;)</code></pre>
-</div>
-<div id="scaled-eigenfunctions-and-eigenvalues" class="section level3"
-number="3.2.2">
-<h3><span class="header-section-number">3.2.2</span> Scaled
-eigenfunctions and eigenvalues</h3>
-<ul>
-<li>No need to scale mean functions</li>
-</ul>
+<!-- ### Scaled eigenfunctions and eigenvalues -->
 <pre class="r"><code>## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
 # container
 pred_list3 &lt;- list()
@@ -877,16 +867,21 @@ p3 &lt;- df_pred3 %&gt;%
   facet_wrap(~id)+
   labs(title = &quot;Scaled, unbiased eigenvalues&quot;)</code></pre>
 <pre class="r"><code>t_1sim &lt;- (t_local_glmm+t_fpca+t_debias+t_pred)</code></pre>
-<ul>
-<li>Time spent on one iteration: 197.13 seconds</li>
-<li>Did debiased eigenvalues improve performance? The lines above look
-like so. I also wanna see the squared errors and AUC.</li>
-<li>Scaling eigenfunctions and values will change a prediction a little
-bit</li>
-</ul>
+<p>I would like to see if the following operations can improve
+predictive performance:</p>
+<ol style="list-style-type: decimal">
+<li>Debiasing eigenvalues from FPCA</li>
+<li>Scale the eigenfunctions and debiased eigenvalues (from mgcv::bam)
+so that they are close to the true values for data generation</li>
+</ol>
 <pre class="r"><code>ggarrange(p1, p2, p3, nrow = 1, common.legend = T)</code></pre>
 <p><img src="ProgressReportSim_files/figure-html/unnamed-chunk-28-1.png" width="1440" /></p>
-</div>
+<ul>
+<li>Time spent on one iteration: 198.36 seconds</li>
+<li>Debiasing eigenvalues helped with prediction. Scaling eigenfunctiosn
+and eigenvalues, on the other hand, ended up being more
+complicated.</li>
+</ul>
 </div>
 <div id="ise" class="section level2" number="3.3">
 <h2><span class="header-section-number">3.3</span> ISE</h2>
@@ -1203,10 +1198,10 @@ Window
 </table>
 <ul>
 <li>Looks like the debiased eigenvalues helped.</li>
-<li>Scaling, on the other hand, does seem to help in general.</li>
-<li>But shouldn’t scaling improve performance?</li>
-<li>Also, it seems like the longer the observed track, the closer the
-three cases are.</li>
+<li>Scaling, on the other hand, doesn’t seem to help in general. But
+shouldn’t scaling improve performance?</li>
+<li>Also, it seems like the longer the observed track, the less
+different the performance is.</li>
 </ul>
 </div>
 <div id="auc" class="section level2" number="3.4">
