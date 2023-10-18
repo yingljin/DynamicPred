@@ -693,6 +693,7 @@ t_1sim <- (t_local_glmm+t_fpca+t_debias+t_pred)
 ```
 
 
+
 I would like to see if the following operations can improve predictive performance: 
 
 1. Debiasing eigenvalues from FPCA
@@ -867,4 +868,184 @@ auc %>%
   add_header_above(c(" "= 1, "Unscaled, debiased" = 4, "Unscaled, biased" = 4, "Scaled, debiased" = 4)) %>%
   add_header_above(c(" "=1, "Maximum observation time" = 12))
 ```
+
+
+# Reference method
+
+## GLMMadaptive
+
+- Here we can fit a model with random intercept and slope for time
+
+$$g(E(Y_i(t))) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$$
+- But this model is obviously too simple for the data generation scheme
+
+
+```{r, class.source='fold-show'}
+# model fit
+t1 <- Sys.time()
+fit_adglmm <- mixed_model(Y ~ t, random = ~ t | id, data =  train_df, family = binomial())
+t2 <- Sys.time()
+# time 
+t2-t1
+# model
+summary(fit_adglmm)
+```
+
+
+## Flexible GLMM
+
+### BAM
+
+- The bam model below couldn't do out-of-sample prediction
+- It also take a long time to fit
+
+```{r,class.source='show', eval=FALSE}
+# try to fit a flexible GLMM
+t1 <- Sys.time()
+fit_glmm_sp <- bam(Y ~ s(t, bs="cr", k=10)+ti(id, t, bs=c("re", "cr"), k = c(5, 5), mc = c(TRUE, FALSE)), 
+                   family = binomial, data=train_df, 
+                   method = "fREML",
+                   discrete = TRUE)
+t2 <- Sys.time()
+```
+
+- I should construct basis functions and fit model with GLMMadaptvie::mixed_model instead
+
+### GLMMadaptive + basis functions
+
+- Fit on all 500 subjects take too long. I reduced the sample size to 10 
+- In fact, 10 samples took more than 30 minutes to fit the model. Therefore, I further reduce the number of observations for each subject. I'll start with only the 1/10 of the time track (100 observations), take observations at bin midpoints 5, 15, 25, ...., 995. This is to preserve the non-linearity of latent function when reducing grid density
+
+$$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)$$
+
+```{r, class.source = "fold-show"}
+# subset 10 subjects from training dataset 
+df_train_sub <- train_df %>% filter(id %in% 1:10 & sind==bin)
+df_train_sub$id <- droplevels(df_train_sub$id)
+# levels(df_train_sub$id)
+# intersect(t, unique(df_train_sub$t))
+```
+
+
+- Below I construct basis functions for the fixed effect/random intercept. Let's use five basis functions to start with. I believe this is far less flexible than the FPCA model, but it still takes a really long time to run. It is actually not realistic to repeat 500 times. 
+
+PS 50 subjects took 1.06 hours to fit with the same model structure. 
+
+
+```{r, class.source="fold-show"}
+# construct design matrix for the fixed effect intercept
+t_sub <- unique(df_train_sub$t)
+fix_xmat <- smoothCon(s(t, bs="cr", k=5), data = data.frame(t=t_sub))
+dim(fix_xmat[[1]]$X)
+
+# basis functions
+fix_xmat <- data.frame(t=t_sub, 
+                       fix_xmat[[1]]$X)
+colnames(fix_xmat) <- c("t", paste0("B", 1:5))
+
+df_train_sub <- df_train_sub %>% left_join(fix_xmat, by = "t")
+```
+
+
+- Below I construct basis functions for the individual random effect (also a functinal intercept), with four basis functions to start with.
+
+
+```{r, class.source = "fold-show"}
+# construct design matrix for the random effect
+rand_xmat <- smoothCon(s(t, bs="cr", k=4), data = data.frame(t=t_sub))
+
+dim(rand_xmat[[1]]$X) # 5 basis functions for each of the 50 subjects
+rand_xmat <- data.frame(t = t, rand_xmat[[1]]$X)
+
+df_train_sub <- df_train_sub %>%
+  left_join(rand_xmat, by = c("t"))
+```
+
+
+- Now I'll fit the model and record the time spent on model fitting
+
+The model fitting took about 6 minutes at this data scale, which obviously is not realistic for 500 simulated datasets. 
+
+```{r, eval=TRUE, class.source = "fold-show"}
+# model fit
+t1 <- Sys.time()
+fit_adglmm <- mixed_model(fixed = Y ~ 0+B1+B2+B3+B4+B5, 
+                          random = ~X1+X2+X3+X4 | id,
+                          data =  df_train_sub, family = binomial())
+t2 <- Sys.time()
+t2-t1
+
+# model
+summary(fit_adglmm)
+```
+
+
+- But anyways, let's try to use this method for prediction. Let's do that for 10 new test subjects. 
+
+
+```{r}
+df_test_sub <- test_df %>% filter(id %in% 1:10 & sind==bin)
+df_test_sub$id <- droplevels(df_test_sub$id)
+# levels(df_test_sub$id)
+
+# basis functions for both fixed and random effects should be shared across sample
+df_test_sub <- df_test_sub %>% left_join(fix_xmat, by = "t") %>%
+  left_join(rand_xmat, by = "t")
+
+# given observation from 0.2, 0.4, 0.6, 0.8, predict the rest
+# this step in fact is very fast
+pred_adglmm1 <- predict(fit_adglmm, 
+                      newdata = df_test_sub %>% filter(t<=0.2),
+                      newdata2 =  df_test_sub %>% filter(t>0.2),
+                      type = "subject_specific", type_pred = "link",
+                      return_newdata = TRUE)
+
+pred_adglmm2 <- predict(fit_adglmm, 
+                      newdata = df_test_sub %>% filter(t<=0.4),
+                      newdata2 =  df_test_sub %>% filter(t>0.4),
+                      type = "subject_specific", type_pred = "link",
+                      return_newdata = TRUE)
+
+pred_adglmm3 <- predict(fit_adglmm, 
+                      newdata = df_test_sub %>% filter(t<=0.6),
+                      newdata2 =  df_test_sub %>% filter(t>0.6),
+                      type = "subject_specific", type_pred = "link",
+                      return_newdata = TRUE)
+
+pred_adglmm4 <- predict(fit_adglmm, 
+                      newdata = df_test_sub %>% filter(t<=0.8),
+                      newdata2 =  df_test_sub %>% filter(t>0.8),
+                      type = "subject_specific", type_pred = "link",
+                      return_newdata = TRUE)
+```
+
+
+```{r}
+pred_adglmm_all <- df_test_sub %>% 
+  left_join(pred_adglmm1$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>% 
+  left_join(pred_adglmm2$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>%
+  left_join(pred_adglmm3$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>%
+  left_join(pred_adglmm4$newdata2 %>% select(id, t, pred), by = c("id", "t"))
+
+colnames(pred_adglmm_all) <- c(colnames(pred_adglmm_all)[1:15], "pred1", "pred2", "pred3", "pred4")
+```
+
+
+```{r}
+
+pred_adglmm_all %>%
+  filter(id %in% 1:4) %>%
+  mutate_at(vars(eta_i, pred1, pred2, pred3, pred4), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred1, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred2, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred3, col = "0.5"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred4, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "GLMMadaptive + spline basis prediction")
+
+```
+
 
