@@ -260,7 +260,7 @@ According to the fGFPCA paper, in this step we do two things:
 - Use fastGFPCA::reeval_efunctions. Cannot install the package so used the source code directly.
 - I would like to use time points on the [0, 1] scale as evaluation points when creating basis functions.
 - Also, take number of knots and order from the FPCA model in step 3 (knots = 35, cubic spline basis). 
-- Do the same kind of projection to mean functions as well
+- We don't project the mean function here. Instead, we will use the re-evaluated mean function from the next part (bam model used for debias)
 
 ```{r, class.source='fold-show'}
 # order of b splines
@@ -286,8 +286,8 @@ for(k in 1:K){
 }
 
 # project mean functions 
-lm_mod <- lm(fpca_mod$mu ~ B-1)
-mu_new <- Bnew %*% coef(lm_mod)
+# lm_mod <- lm(fpca_mod$mu ~ B-1)
+# mu_new <- Bnew %*% coef(lm_mod)
 ```
 
 
@@ -308,17 +308,11 @@ plot(mid_t, fpca_mod$efunctions[, 4], xlab="bin", ylab="PC4", pch=20, cex = 0.5)
 lines(t, efunctions_new[, 4], col="blue")
 ```
 
-```{r}
-plot(mid_t, fpca_mod$mu, xlab="bin", ylab="Mean", pch=20, cex = 0.5)
-lines(t, mu_new, col="blue")
-```
-
-- The projection seems to work very well! 
 
 ### Debias with eigenvalues
 
 - The bias was caused by the misspecification of latent process (assume constant effect over smooth function). 
-- What needs re-evaluation are eigenvalues (variance estimates). They will be used in Laplace Approximation for out-of-sample prediction. 
+- What needs re-evaluation are eigenvalues (variance estimates) and the mean function. They will be used in Laplace Approximation for out-of-sample prediction. 
 - We do not need to debias individual scores because the scores for training sample will not be used for out-of-sample prediction. And out-of-sample scores are not estimated by FPCA but Laplace approximation.
 - I will use the projected eigenfunctions from above. 
 - I am using mgcv::bam and setting method = "fREML" and discrete = TRUE to speed up computation
@@ -349,6 +343,16 @@ t2 <- Sys.time()
 t_debias <- t2-t1 # less than 45 seconds
 ```
 
+We will need the mean function from this model, derived below:
+
+This is pretty much a linear functions. Is that supposed to happen? 
+
+```{r, class.source = "fold-show"}
+new_mu <- predict(debias_glmm, type = "terms")[, 1]
+new_mu <- unique(new_mu)
+plot(unique(train_df$t), new_mu, type = "l")
+```
+
 
 And now I try to extract the variance of scores (debiased eigenvalues), using the conclusion that connects smoothing parameters to variance
 
@@ -362,30 +366,33 @@ new_lambda
 # new_lambda/fpca_mod$evalues[1:4]
 ```
 
+
 This eigenvalues, as well as the eigenfunctions, are actually not on the same scale of true values. By looking into the fpca.face source code, eigenfunctions are scaled by the square root of the number of total observations points. Since our model was fitted on the binnd grid, the actual eigenvaleus and eigenfunctions would be:
 
-\begin{aligned}
+\[\begin{aligned}
 \phi_k(t) & = \sqrt{n_{bin}}\hat{\phi}_k(t)  \\
 \lambda_k & = \hat{\lambda}_k/n_{bin}
-
-\end{aligned}
+\end{aligned}\]
 
 Let's rescale these quatities as below
 
 - Re-scaled eigenvalues
+
 ```{r}
-new_lambda/n_bin
+scaled_lambda <- new_lambda/n_bin
 ```
 
 - Re-scaled eigenfunctions
 
 ```{r, fig.height=8, fig.width=8}
+efunctions_scaled <- efunctions_new*sqrt(n_bin)
+
 par(mfrow=c(2,2))
 
-plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
-plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
-plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
-plot(mid_t, sqrt(n_bin)*fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
+plot(t, efunctions_scaled[, 1], type="l", xlab="bin", ylab="PC1")
+plot(t, efunctions_scaled[, 2], type="l", xlab="bin", ylab="PC2")
+plot(t, efunctions_scaled[, 3], type="l", xlab="bin", ylab="PC3")
+plot(t, efunctions_scaled[, 4], type="l", xlab="bin", ylab="PC4")
 
 ```
 
@@ -470,7 +477,7 @@ mon.names <- "LP"
 
 
 
-```{r, results='hide'}
+```{r pred_debias_unscale, results='hide'}
 # approximation process
 # container
 pred_list <- list()
@@ -490,12 +497,12 @@ for(i in seq_along(test_id)){
   
     # into a list
     MyData <- list(K=K, PGF=PGF, 
-                   X=efunctions_new[1: max_rid, ], 
+                   X=efunctions_new[1:max_rid, ], 
                    mon.names=mon.names,
                    parm.names=parm.names, 
                    pos.xi=pos.xi, 
                    y=df_it$Y, 
-                   tao=diag(new_lambda), f0=mu_new[1:max_rid, ])
+                   tao=diag(new_lambda), f0=new_mu[1:max_rid])
     
     
     # fit laplace approximation
@@ -504,7 +511,7 @@ for(i in seq_along(test_id)){
     score <- Fit$Summary1[, "Mode"]
     
     # prediction
-    eta_pred_out <- mu_new+efunctions_new%*%score
+    eta_pred_out <- new_mu+efunctions_new%*%score
     df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
   }
   
@@ -545,84 +552,14 @@ p1<-df_pred %>%
 
 ```
 
-<!-- ### Compared to biased eigenvalues -->
-
-```{r, results='hide'}
-## With eigenvalues from FPCA
-# container
-pred_list2 <- list()
-
-# per subject
-for(i in seq_along(test_id)){
-  df_i <- test_df %>% filter(id==test_id[i])
-  
-  # per max obs time
-  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
-    df_it <- df_i %>% filter(t <= tmax)
-    max_rid <- nrow(df_it)
-  
-    # into a list
-    MyData <- list(K=K, PGF=PGF, 
-                   X=efunctions_new[1: max_rid, ], 
-                   mon.names=mon.names,
-                   parm.names=parm.names, 
-                   pos.xi=pos.xi, 
-                   y=df_it$Y, 
-                   tao=diag(fpca_mod$evalues[1:K]), f0=mu_new[1:max_rid, ])
-    
-    
-    # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
-    # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
-    score <- Fit$Summary1[, "Mode"]
-    
-    # prediction
-    eta_pred_out <- mu_new+efunctions_new%*%score
-    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
-  }
-  
-  # df_i$pred0.2[df_i$t<=0.2] <- NA
-  # df_i$pred0.4[df_i$t<=0.4] <- NA
-  # df_i$pred0.6[df_i$t<=0.6] <- NA
-  # df_i$pred0.8[df_i$t<=0.8] <- NA
-  
-  pred_list2[[i]] <- df_i
-}
-```
-
-
-```{r}
-df_pred2 <- bind_rows(pred_list2)
-
-df_pred2$pred0.2[df_pred2$t<=0.2] <- NA
-df_pred2$pred0.4[df_pred2$t<=0.4] <- NA
-df_pred2$pred0.6[df_pred2$t<=0.6] <- NA
-df_pred2$pred0.8[df_pred2$t<=0.8] <- NA
-# overview of predicted track
-p2<-df_pred2 %>%
-  filter(id %in% rand_test_id) %>%
-  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = "Unscaled, biased eigenvalues")
-
-```
 
 <!-- ### Scaled eigenfunctions and eigenvalues -->
 
 
-```{r, results='hide'}
+```{r pred_debias_scale, results='hide'}
 ## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
 # container
 pred_list3 <- list()
-efunctions_scaled <- efunctions_new*sqrt(n_bin)
-evalues_scaled <- new_lambda/n_bin
 
 # per subject
 for(i in seq_along(test_id)){
@@ -640,16 +577,15 @@ for(i in seq_along(test_id)){
                    parm.names=parm.names, 
                    pos.xi=pos.xi, 
                    y=df_it$Y, 
-                   tao=diag(evalues_scaled), f0=mu_new[1:max_rid, ])
+                   tao=diag(scaled_lambda), f0=new_mu[1:max_rid])
     
     
     # fit laplace approximation
     Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
-    # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
     score <- Fit$Summary1[, "Mode"]
     
     # prediction
-    eta_pred_out <- mu_new+efunctions_scaled%*%score
+    eta_pred_out <- new_mu+efunctions_scaled%*%score
     df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
   }
   
@@ -700,8 +636,8 @@ I would like to see if the following operations can improve predictive performan
 2. Scale the eigenfunctions and debiased eigenvalues (from mgcv::bam) so that they are close to the true values for data generation
 
 
-```{r, fig.height=5, fig.width=15}
-ggarrange(p1, p2, p3, nrow = 1, common.legend = T)
+```{r, fig.height=5, fig.width=10}
+ggarrange(p1, p3, nrow = 1, common.legend = T)
 ```
 
 - Time spent on one iteration: `r round(t_1sim, 2)` seconds
@@ -730,25 +666,6 @@ tb1 <- lapply(err1, function(x){
 }) %>% bind_rows(.id = "Window")
 ```
 
-```{r}
-# calcualte ISE
-err2 <- df_pred2 %>%
-  mutate(err1 = (pred0.2-eta_i)^2,
-         err2 = (pred0.4-eta_i)^2,
-         err3 = (pred0.6-eta_i)^2,
-         err4 = (pred0.8-eta_i)^2) %>%
-  select(id, t, starts_with("err"))
-
-err2$window = cut(err2$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
-# table(err1$window)
-err2 <- split(err2, f = err2$window)
-
-tb2 <- lapply(err2, function(x){
-  x %>%  group_by(id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>%
-    summarise_at(vars(err1, err2, err3, err4), mean)
-}) %>% bind_rows(.id = "Window")
-```
 
 ```{r}
 # calcualte ISE
@@ -774,13 +691,13 @@ tb3 <- lapply(err3, function(x){
 # calcualte ISE
 options(knitr.kable.NA = "")
 
-ise <- full_join(tb1, tb2, by = "Window") %>% full_join(tb3, by = "Window")
-colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 3))
+ise <- full_join(tb1, tb3, by = "Window")
+colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 2))
 ise %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "Unscaled, debiased" = 4, "Unscaled, biased" = 4, "Scaled, debiased" = 4)) %>%
-  add_header_above(c(" "=1, "Maximum observation time" = 12))
+  add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
 ```
 
 
@@ -814,25 +731,6 @@ for(j in seq_along(obs_track)){
 
 
 
-```{r}
-# calcualte AUC
-auc_df2 <- df_pred2 %>%
-  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
-  select(Y, starts_with("pred"), window)
-
-auc_mat2 <- matrix(NA, length(pred_window), length(obs_track))
-
-for(j in seq_along(obs_track)){
-  for(i in (j+1):5){
-    this_Y <- auc_df2$Y[auc_df2$window==pred_window[i]]
-    this_pred <- auc_df2[auc_df2$window==pred_window[i],
-                         paste0("pred", obs_track[j])]
-    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
-    auc_mat2[i ,j] <- this_perf@y.values[[1]]
-  }
-}
-
-```
 
 ```{r}
 # calcualte AUC
@@ -856,19 +754,34 @@ for(j in seq_along(obs_track)){
 ```
 
 ```{r}
-# calcualte ISE
+# calcualte AUC
 options(knitr.kable.NA = "")
 
-auc <- cbind(auc_mat, auc_mat2, auc_mat3)
+auc <- cbind(auc_mat, auc_mat3)
 rownames(auc) <- unique(auc_df1$window)
-colnames(auc) <-c(rep(seq(0.2, 0.8, by = 0.2), 3))
+colnames(auc) <-c(rep(seq(0.2, 0.8, by = 0.2), 2))
 auc %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "Unscaled, debiased" = 4, "Unscaled, biased" = 4, "Scaled, debiased" = 4)) %>%
-  add_header_above(c(" "=1, "Maximum observation time" = 12))
+  add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
 ```
 
+## Investigate a bit more on the difference in prediction
+
+- The scaled and unscaled parameters seem to make a difference in prediction, which they shouldn't 
+
+```{r, fig.height=8, fig.width=8}
+par(mfrow=c(2, 2))
+plot(df_pred$pred0.2, df_pred3$pred0.2, pch=20, cex = 0.5, 
+     xlab="unscaled", ylab="scaled", main = "Up to 0.2")
+plot(df_pred$pred0.4, df_pred3$pred0.4, pch=20, cex = 0.5,
+     xlab="unscaled", ylab="scaled", main = "Up to 0.4")
+plot(df_pred$pred0.6, df_pred3$pred0.6, pch=20, cex = 0.5,
+     xlab="unscaled", ylab="scaled", main = "Up to 0.6")
+plot(df_pred$pred0.8, df_pred3$pred0.8, pch=20, cex = 0.5,
+     xlab="unscaled", ylab="scaled", main = "Up to 0.8")
+```
 
 # Reference method
 
@@ -894,24 +807,6 @@ summary(fit_adglmm)
 
 ## Flexible GLMM
 
-### BAM
-
-- The bam model below couldn't do out-of-sample prediction
-- It also take a long time to fit
-
-```{r,class.source='show', eval=FALSE}
-# try to fit a flexible GLMM
-t1 <- Sys.time()
-fit_glmm_sp <- bam(Y ~ s(t, bs="cr", k=10)+ti(id, t, bs=c("re", "cr"), k = c(5, 5), mc = c(TRUE, FALSE)), 
-                   family = binomial, data=train_df, 
-                   method = "fREML",
-                   discrete = TRUE)
-t2 <- Sys.time()
-```
-
-- I should construct basis functions and fit model with GLMMadaptvie::mixed_model instead
-
-### GLMMadaptive + basis functions
 
 - Fit on all 500 subjects take too long. I reduced the sample size to 10 
 - In fact, 10 samples took more than 30 minutes to fit the model. Therefore, I further reduce the number of observations for each subject. I'll start with only the 1/10 of the time track (100 observations), take observations at bin midpoints 5, 15, 25, ...., 995. This is to preserve the non-linearity of latent function when reducing grid density
@@ -965,6 +860,8 @@ df_train_sub <- df_train_sub %>%
 - Now I'll fit the model and record the time spent on model fitting
 
 The model fitting took about 6 minutes at this data scale, which obviously is not realistic for 500 simulated datasets. 
+
+Also tried increasing number of basis functions, which ended up with "computationally singular". In fact, this method does not seem very numerically stable. 
 
 ```{r, eval=TRUE, class.source = "fold-show"}
 # model fit

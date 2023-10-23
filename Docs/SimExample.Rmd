@@ -1,0 +1,572 @@
+---
+title: "Example with One simulated data"
+author: "Ying Jin"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    self_contained: no
+    number_sections: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    font: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(516)
+
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(refund)
+library(lme4)
+library(ROCR)
+library(GLMMadaptive)
+library(kableExtra)
+library(knitr)
+library(mvtnorm)
+library(mgcv)
+library(splines)
+library(LaplacesDemon)
+theme_set(theme_minimal())
+```
+
+
+```{r}
+# define a function to fit local GLMM
+# df must have: outcome Y, subject id
+pred_latent <- function(df, n_node){
+    this_glm <- glmer(Y ~ 1 + (1|id), data = df, family = binomial, nAGQ=n_node)
+    eta_hat <- predict(this_glm, type = "link")
+    df$eta_hat <- eta_hat
+    return(df)
+}
+```
+
+
+# Generate one dataset
+
+A dataset with 500 subjects and 1000 measurements on a regular grid is generated as follows: 
+
+\[\begin{aligned}
+Y_i(t) & \sim Bernoulli(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
+\eta_i(t) &= f_0(t)+ \xi_{i1}\sqrt{2}sin(2\pi t)+\xi_{i2}\sqrt{2}cos(2\pi t)+\xi_{i3}\sqrt{2}sin(4\pi t)+\xi_{i4}\sqrt{2}cos(4\pi t)
+\end{aligned}\]
+
+where:
+
+- $t$ is equal-spaced on $[0, 1]$
+- $f_0(t)=0$
+- $\xi_k \sim N(0, \lambda_k)$, and $\lambda_k = 1, 0.5, 0.25, 0.125$ for k = 1, 2, 3, 4 respectively. 
+
+
+```{r gen_data}
+N <- 500 # sample size
+J <- 1000 # number of observation points
+
+t = seq(0,1,len=J) # observations points
+
+# mean function
+f_0 <- function(s) 0 
+
+#eigenfunctions 
+K <- 4 # number of eigenfunctions
+phi <- sqrt(2)*cbind(sin(2*pi*t),cos(2*pi*t),
+                     sin(4*pi*t),cos(4*pi*t))
+
+# eigenvalues
+lambda = 0.5^(0:(K-1)) 
+
+## score
+xi <- matrix(rnorm(N*K),N,K)
+xi <- xi %*% diag(sqrt(lambda))
+  
+# subject-specific random effect
+b_i <- xi %*% t(phi); # of size N by J
+  
+# latent gaussian function
+eta_i <- t(vapply(1:N, function(x){
+    f_0(t) + b_i[x,]
+  }, numeric(J)))
+  
+# outcome binary function
+Y_i <- matrix(rbinom(N*J, size=1, prob=plogis(eta_i)), 
+                N, J, byrow=FALSE)
+  
+# format into dataframe
+# id = subject identifier (factor variable)
+# sind = numeric value corresponding to the observed functional domain
+# Y = functional response (binary)
+# sind_inx = numeric value associated with order of "sind"
+#            this is not necessary, but may be of convenience when you implement the method
+train_df <- data.frame(id = factor(rep(1:N, each=J)),
+                 t = rep(t, N), 
+                 Y = as.vector(t(Y_i)),
+                 eta_i = as.vector(t(eta_i)),
+                 sind = rep(1:J, N))
+```
+
+
+# Fit fGFPCA model
+
+## Step 1: bin data
+
+- Bin every 10 consecutive observations
+
+```{r, message=FALSE}
+# bin data
+bin_w <- 10 # bin width
+n_bin <- J/bin_w # number of bins
+brks <- seq(0, J, by = bin_w) # cutoff points
+mid <- (brks+bin_w/2)[1:n_bin] # mid points
+
+train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
+train_df$bin <- as.numeric(as.character(train_df$bin))
+```
+
+## Step 2: fit local GLMMs
+
+
+```{r}
+# fit local GLMMs model on the binned training set
+train_bin_lst <- split(train_df, f = train_df$bin)
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+df_est_latent <- bind_rows(df_est_latent) 
+```
+
+## Step 3: fit FPCA model on estiamted latent function
+
+```{r}
+uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+mid_t <- df_est_latent$t[df_est_latent$bin==df_est_latent$sind]
+mid_t <- unique(mid_t) # the time points corresponding to bin midpoints
+
+mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                         nrow=N, 
+                         ncol=n_bin, byrow = F) # row index subject, column binned time
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid_t, var=T)
+```
+
+
+## Step 4: projection and re-evaluation
+
+According to the fGFPCA paper, in this step we do two things: 
+
+1. Project the eigenfunctions with B-spline basis back to the original grid
+2. Re-evaluate the eigenvalues and mean function
+
+### Projection
+
+```{r}
+# order of b splines
+p <- 3 
+
+# knots
+knots <- 35
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
+
+# evaluate B-splines on binned grid
+B <- spline.des(knots = knots_values, x = mid_t, ord = p + 1,
+                            outer.ok = TRUE)$design
+# evaluate B-splines on original grid
+Bnew <- spline.des(knots = knots_values, x = unique(train_df$t), ord = p + 1,
+                  outer.ok = TRUE)$design
+
+# project binned eigenfunctions onto the original grid
+efunctions_new <- matrix(NA, J, K)
+for(k in 1:K){
+    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+    efunctions_new[,k] <- Bnew %*% coef(lm_mod)
+}
+```
+
+
+### Re-evaluation
+
+```{r}
+df_phi <- data.frame(t = t, efunctions_new)
+colnames(df_phi) <- c("t", paste0("phi", 1:4))
+
+train_df <- train_df %>% left_join(df_phi, by = "t")
+train_df$id <- as.factor(train_df$id)
+
+# bam model
+debias_glmm <- bam(Y ~ s(t, bs="cr", k=10)+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"), 
+                   family = binomial, data=train_df, 
+                   method = "fREML",
+                   discrete = TRUE)
+```
+
+
+```{r}
+# re-evaluated mean
+# linear functions? 
+new_mu <- predict(debias_glmm, type = "terms")[, 1]
+new_mu <- unique(new_mu)
+```
+
+
+
+```{r}
+# re-evaluate eigenvalues
+new_lambda <- 1/debias_glmm$sp[2:5]
+```
+
+### Re-scale mean and eigenfunctions
+
+We scale the re-evaluated eigenvalues and eigenfunctions using the number of bins, so that they are on the same scale with the true values from data generation mechanism. 
+
+```{r}
+# rescale eigenvalues
+scaled_lambda <- new_lambda/n_bin
+
+# rescale eigenfunctions
+efunctions_scaled <- efunctions_new*sqrt(n_bin)
+```
+
+
+# Out-of-sample prediction with Laplace approximation
+
+## Generate test data 
+
+200 subjects with 1000 measurements on a regular grid
+
+```{r}
+# generated testing data 
+N_test <- 200
+b_test <- matrix(rnorm(N_test*K), N_test, K) %*% diag(sqrt(lambda)) %*% t(phi) # of size N by J
+
+# latent gaussian function
+eta_test <- t(vapply(1:N_test, function(x){
+    f_0(x) + b_i[x,]
+  }, numeric(J)))
+
+# outcome binary function
+Y_test <- matrix(rbinom(N_test*J, size=1, prob=plogis(eta_test)), 
+                N_test, J, byrow=FALSE)
+  
+# format into dataframe
+test_df <- data.frame(id = factor(rep(1:N_test, each=J)),
+                 t = rep(t, N_test), 
+                 Y = as.vector(t(Y_test)),
+                 eta_i = as.vector(t(eta_test)),
+                 sind = rep(1:J, N_test))
+# bin
+test_df$bin <- cut(test_df$sind, breaks = brks, include.lowest = T, labels = mid)
+test_df$bin <- as.numeric(as.character(test_df$bin))
+test_df$id <- as.factor(test_df$id)
+```
+
+
+## Laplace approximation
+
+
+```{r}
+# the model
+Model <- function(parm, Data){
+  xi <- parm[Data$pos.xi]
+  
+  # log-prior
+  xi.prior <- dmvnorm(xi, mean = rep(0, Data$K), sigma=Data$tao, log = TRUE)
+  
+  # log-posterior likelihood
+  eta <- Data$f0+Data$X %*% xi
+  p <- exp(eta)/(1+exp(eta))
+  LL <- sum(dbern(x=Data$y, prob=p, log = TRUE)) # log likelihood of Y|xi
+  LP <- LL+sum(xi.prior) # joint log likelihood of (Y, xi)
+  
+  # output
+  Modelout <- list(LP=LP, Dev=-2*LL, Monitor=LL,
+                   yhat=Data$y, parm=parm)
+  return(Modelout)
+}
+```
+
+
+```{r}
+# parameter names
+name_lst <- as.list(rep(0, K))
+names(name_lst) <- paste("xi", 1:K, sep = "")
+parm.names <- as.parm.names(name_lst)
+pos.xi <- grep("xi", parm.names)
+# PGF <- function(Data) {
+#   xi <- rnorm(Data$K)
+#   return(xi)
+# }
+mon.names <- "LP"
+```
+
+- Maximum observation track: 0.2, 0.4, 0.6, 0.8
+- prediction window: 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1
+
+## Prediction with unscaled eigenfunctions and eigenvalues
+
+
+```{r pred_debias_unscale, results='hide'}
+# approximation process
+# container
+pred_list <- list()
+test_id <- unique(test_df$id)
+
+# prediction for all subjects
+for(i in seq_along(test_id)){
+  df_i <- test_df %>% filter(id==test_id[i])
+  
+  # per max obs time
+  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+    df_it <- df_i %>% filter(t <= tmax)
+    max_rid <- nrow(df_it)
+  
+    # into a list
+    MyData <- list(K=K, 
+                   X=efunctions_new[1:max_rid, ], 
+                   mon.names=mon.names,
+                   parm.names=parm.names, 
+                   pos.xi=pos.xi, 
+                   y=df_it$Y, 
+                   tao=diag(new_lambda), 
+                   f0=new_mu[1:max_rid])
+    
+    
+    # fit laplace approximation
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), 
+                                Data=MyData, Method = "BFGS")
+    # individual score
+    score <- Fit$Summary1[, "Mode"]
+    
+    # prediction
+    eta_pred_out <- new_mu+efunctions_new%*%score
+    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+  }
+  
+  pred_list[[i]] <- df_i
+}
+```
+
+
+```{r}
+df_pred <- bind_rows(pred_list)
+
+df_pred$pred0.2[df_pred$t<=0.2] <- NA
+df_pred$pred0.4[df_pred$t<=0.4] <- NA
+df_pred$pred0.6[df_pred$t<=0.6] <- NA
+df_pred$pred0.8[df_pred$t<=0.8] <- NA
+
+rand_test_id <- sample(test_id, 4)
+
+p1<-df_pred %>%
+  filter(id %in% rand_test_id) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "Unscaled", col = "Maximum observation time")
+
+```
+## Prediction with scaled eigenfunctions and eigenvalues
+
+```{r pred_debias_scale, results='hide'}
+# container
+pred_list2 <- list()
+
+# per subject
+for(i in seq_along(test_id)){
+  df_i <- test_df %>% filter(id==test_id[i])
+  
+  # per max obs time
+  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+    df_it <- df_i %>% filter(t <= tmax)
+    max_rid <- nrow(df_it)
+  
+    # into a list
+    MyData <- list(K=K,
+                   X=efunctions_scaled[1: max_rid, ], 
+                   mon.names=mon.names,
+                   parm.names=parm.names, 
+                   pos.xi=pos.xi, 
+                   y=df_it$Y, 
+                   tao=diag(scaled_lambda), f0=new_mu[1:max_rid])
+    
+    
+    # fit laplace approximation
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    score <- Fit$Summary1[, "Mode"]
+    
+    # prediction
+    eta_pred_out <- new_mu+efunctions_scaled%*%score
+    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+  }
+  
+  
+  pred_list2[[i]] <- df_i
+}
+```
+
+
+```{r}
+df_pred2 <- bind_rows(pred_list2)
+
+df_pred2$pred0.2[df_pred2$t<=0.2] <- NA
+df_pred2$pred0.4[df_pred2$t<=0.4] <- NA
+df_pred2$pred0.6[df_pred2$t<=0.6] <- NA
+df_pred2$pred0.8[df_pred2$t<=0.8] <- NA
+
+# overview of predicted track
+p2 <- df_pred2 %>%
+  filter(id %in% rand_test_id) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "Scaled", col="Maximum observation time")
+
+```
+
+## Compare performance
+
+- Individual prediction track (use four randomly-selected subjects as example)
+
+```{r, fig.height=5, fig.width=10}
+ggarrange(p1, p2, nrow = 1, common.legend = T)
+```
+
+- Compare integrated squared error
+
+```{r}
+# calcualte ISE
+err1 <- df_pred %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
+
+err1$window = cut(err1$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err1 <- split(err1, f = err1$window)
+
+tb1 <- lapply(err1, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>%
+    summarise_at(vars(err1, err2, err3, err4), mean)
+}) %>% bind_rows(.id = "Window")
+```
+
+
+```{r}
+# calcualte ISE
+err2 <- df_pred2 %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
+
+err2$window = cut(err2$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err2 <- split(err2, f = err2$window)
+
+tb2 <- lapply(err2, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>%
+    summarise_at(vars(err1, err2, err3, err4), mean)
+}) %>% bind_rows(.id = "Window")
+```
+
+```{r}
+# calcualte ISE
+options(knitr.kable.NA = "")
+
+ise <- full_join(tb1, tb2, by = "Window")
+colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 2))
+ise %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
+```
+
+- Compare AUC
+
+```{r}
+# calcualte AUC
+auc_df1 <- df_pred %>%
+  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
+  select(Y, starts_with("pred"), window)
+
+obs_track <- seq(0.2, 0.8, by = 0.2)
+pred_window <- unique(auc_df1$window)
+auc_mat <- matrix(NA, length(pred_window), length(obs_track))
+
+for(j in seq_along(obs_track)){
+  for(i in (j+1):5){
+    this_Y <- auc_df1$Y[auc_df1$window==pred_window[i]]
+    this_pred <- auc_df1[auc_df1$window==pred_window[i],
+                         paste0("pred", obs_track[j])]
+    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
+    auc_mat[i ,j] <- this_perf@y.values[[1]]
+  }
+}
+
+```
+
+
+
+
+```{r}
+# calcualte AUC
+auc_df2 <- df_pred2 %>%
+  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
+  select(Y, starts_with("pred"), window)
+
+
+auc_mat2 <- matrix(NA, length(pred_window), length(obs_track))
+
+for(j in seq_along(obs_track)){
+  for(i in (j+1):5){
+    this_Y <- auc_df2$Y[auc_df2$window==pred_window[i]]
+    this_pred <- auc_df2[auc_df2$window==pred_window[i],
+                         paste0("pred", obs_track[j])]
+    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
+    auc_mat2[i ,j] <- this_perf@y.values[[1]]
+  }
+}
+
+```
+
+```{r}
+# calcualte AUC
+options(knitr.kable.NA = "")
+
+auc <- cbind(auc_mat, auc_mat2)
+rownames(auc) <- unique(auc_df1$window)
+colnames(auc) <-c(rep(seq(0.2, 0.8, by = 0.2), 2))
+auc %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
+```
+
+- It looks as if scaled eigenfunctions and eigenvalues led to worse prediction, especially when prediction is conditioning on observation up to t=0.4
+
+
+
