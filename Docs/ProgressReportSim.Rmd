@@ -4,7 +4,7 @@ author: "Ying Jin"
 date: "2023-09-15"
 output: 
   html_document:
-    self_contained: no
+    self_contained: yes
     number_sections: true
     code_folding: hide
     toc: true
@@ -331,7 +331,7 @@ train_df$id <- as.factor(train_df$id)
 ```{r, class.source = "fold-show"}
 # usethis::edit_r_environ()
 t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(t, bs="cr", k=10)+
+debias_glmm <- bam(Y ~ s(t, bs="cc", k=10)+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
@@ -345,12 +345,15 @@ t_debias <- t2-t1 # less than 45 seconds
 
 We will need the mean function from this model, derived below:
 
-This is pretty much a linear functions. Is that supposed to happen? 
+The shape of the function depends very much on how the basis functions are constructed. For example, cubic spline would lead to a linear mean and cyclic cubic spline would lead to the function below. What's a good way to decided? 
+
 
 ```{r, class.source = "fold-show"}
-new_mu <- predict(debias_glmm, type = "terms")[, 1]
-new_mu <- unique(new_mu)
-plot(unique(train_df$t), new_mu, type = "l")
+new_mu <- predict(debias_glmm, type = "terms")
+length(unique(new_mu[,1]))
+
+new_mu <- unique(new_mu[,1])
+plot(t, new_mu, type = "l")
 ```
 
 
@@ -782,6 +785,15 @@ plot(df_pred$pred0.6, df_pred3$pred0.6, pch=20, cex = 0.5,
 plot(df_pred$pred0.8, df_pred3$pred0.8, pch=20, cex = 0.5,
      xlab="unscaled", ylab="scaled", main = "Up to 0.8")
 ```
+
+```{r}
+data.frame(
+  df_pred$pred0.4[df_pred$t>0.4],
+  df_pred3$pred0.4[df_pred3$t>0.4]
+)
+
+```
+
 
 # Reference method
 
