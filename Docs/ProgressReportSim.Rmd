@@ -1,7 +1,7 @@
 ---
 title: "Progress Report on One Simulated Dataset"
 author: "Ying Jin"
-date: "2023-09-15"
+date: "`r Sys.Date()`"
 output: 
   html_document:
     self_contained: yes
@@ -17,6 +17,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 
 set.seed(516)
+
 
 library(here)
 library(tidyverse)
@@ -414,12 +415,14 @@ I will now estimate individual score of test sample using Laplace Approximation,
 ```{r}
 # generated testing data 
 N_test <- 200
-b_test <- matrix(rnorm(N_test*K), N_test, K) %*% diag(sqrt(lambda)) %*% t(phi) # of size N by J
+# xi_test <- matrix(rnorm(N_test*K), N_test, K)
+xi_test <- rmvnorm(N_test, mean = rep(0, K), sigma = diag(lambda))
+b_test <- xi_test %*% t(phi) # of size N by J
 # dim(b_test)
   
 # latent gaussian function
 eta_test <- t(vapply(1:N_test, function(x){
-    f_0(x) + b_i[x,]
+    f_0(x) + b_test[x,]
   }, numeric(J)))
 
 # outcome binary function
@@ -433,16 +436,17 @@ test_df <- data.frame(id = factor(rep(1:N_test, each=J)),
                  eta_i = as.vector(t(eta_test)),
                  sind = rep(1:J, N_test))
 # bin
-test_df$bin <- cut(test_df$sind, breaks = brks, include.lowest = T, labels = mid)
-test_df$bin <- as.numeric(as.character(test_df$bin))
+# test_df$bin <- cut(test_df$sind, breaks = brks, include.lowest = T, labels = mid)
+# test_df$bin <- as.numeric(as.character(test_df$bin))
 test_df$id <- as.factor(test_df$id)
 test_id <- unique(test_df$id)
 ```
 
+
 ## Laplace approximation
 
 
-```{r}
+```{r model}
 # the model
 ## now, with expanded mean and eigenfuncitons, a Bernoulli distribution at each time point
 Model <- function(parm, Data){
@@ -471,25 +475,26 @@ name_lst <- as.list(rep(0, K))
 names(name_lst) <- paste("xi", 1:K, sep = "")
 parm.names <- as.parm.names(name_lst)
 pos.xi <- grep("xi", parm.names)
-PGF <- function(Data) {
-  xi <- rnorm(Data$K)
-  return(xi)
-}
+# PGF <- function(Data) {
+#   xi <- rnorm(Data$K)
+#   return(xi)
+# }
 mon.names <- "LP"
 ```
-
 
 
 ```{r pred_debias_unscale, results='hide'}
 # approximation process
 # container
 pred_list <- list()
+converge_vec <- matrix(NA, N_test, 4)
 # score <- array(NA, dim=c(length(test_id), K, 4))
 # dimensions: subject, eigenfunction, maximum observation time
 
 # prediction for a single subject
 t1 <- Sys.time()
 # per subject
+# seq_along(test_id)
 for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
   
@@ -499,7 +504,7 @@ for(i in seq_along(test_id)){
     max_rid <- nrow(df_it)
   
     # into a list
-    MyData <- list(K=K, PGF=PGF, 
+    MyData <- list(K=K, 
                    X=efunctions_new[1:max_rid, ], 
                    mon.names=mon.names,
                    parm.names=parm.names, 
@@ -509,7 +514,9 @@ for(i in seq_along(test_id)){
     
     
     # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS", Iterations = 1000,
+                                CovEst = "Identity")
+    converge_vec[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
     # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
     score <- Fit$Summary1[, "Mode"]
     
@@ -556,14 +563,12 @@ p1<-df_pred %>%
 ```
 
 
-<!-- ### Scaled eigenfunctions and eigenvalues -->
-
 
 ```{r pred_debias_scale, results='hide'}
 ## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
 # container
 pred_list3 <- list()
-
+converge_vec2 <- matrix(NA, N_test, 4)
 # per subject
 for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
@@ -574,7 +579,7 @@ for(i in seq_along(test_id)){
     max_rid <- nrow(df_it)
   
     # into a list
-    MyData <- list(K=K, PGF=PGF, 
+    MyData <- list(K=K,
                    X=efunctions_scaled[1: max_rid, ], 
                    mon.names=mon.names,
                    parm.names=parm.names, 
@@ -584,7 +589,9 @@ for(i in seq_along(test_id)){
     
     
     # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS", Iterations = 1000,
+                                CovEst = "Identity")
+    converge_vec2[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
     score <- Fit$Summary1[, "Mode"]
     
     # prediction
@@ -599,6 +606,8 @@ for(i in seq_along(test_id)){
   
   pred_list3[[i]] <- df_i
 }
+
+mean(converge_vec2)
 ```
 
 
@@ -772,27 +781,118 @@ auc %>%
 
 ## Investigate a bit more on the difference in prediction
 
-- The scaled and unscaled parameters seem to make a difference in prediction, which they shouldn't 
+When using the unscaled estimates of eigenvalues and eigenfunctions, the Laplace Approximation does not converge all the time (convergence rate = `r round(mean(converge_vec), 2)`). And when using scaled estimates, the convergence rate is even lower (`r round(mean(converge_vec2), 2)`). 
 
-```{r, fig.height=8, fig.width=8}
-par(mfrow=c(2, 2))
-plot(df_pred$pred0.2, df_pred3$pred0.2, pch=20, cex = 0.5, 
-     xlab="unscaled", ylab="scaled", main = "Up to 0.2")
-plot(df_pred$pred0.4, df_pred3$pred0.4, pch=20, cex = 0.5,
-     xlab="unscaled", ylab="scaled", main = "Up to 0.4")
-plot(df_pred$pred0.6, df_pred3$pred0.6, pch=20, cex = 0.5,
-     xlab="unscaled", ylab="scaled", main = "Up to 0.6")
-plot(df_pred$pred0.8, df_pred3$pred0.8, pch=20, cex = 0.5,
-     xlab="unscaled", ylab="scaled", main = "Up to 0.8")
-```
+When I increasing the maximum iteration to 1000, the predictive performance from two sets of estiamtes got very similar. However, the convergence rate is still very different. Below I try to show a example of the discrepancy in prediction. As we see, the most problematic situation is when observations is up to 0.4.
 
 ```{r}
-data.frame(
-  df_pred$pred0.4[df_pred$t>0.4],
-  df_pred3$pred0.4[df_pred3$t>0.4]
-)
+# subjects with higher deiviation 
+# subjects with greatest difference
+id_diff <- df_pred %>% select(id, t, pred0.4) %>%
+  full_join(df_pred3 %>% select(id, t, pred0.4), by = c("id", "t")) %>% 
+  group_by(id) %>%
+  summarise(diff = mean((pred0.4.x-pred0.4.y)^2, na.rm = T)) %>% 
+  arrange(desc(diff))
 
+# subject 43, 79, 57, 148 have the most different prediction
+df_pred %>% filter(id == id_diff$id[1]) %>% 
+  select(t, starts_with("pred")) %>%
+  pivot_longer(starts_with("pred")) %>%
+  left_join(df_pred3 %>% filter(id == id_diff$id[1]) %>%
+              select(t, starts_with("pred")) %>%
+              pivot_longer(starts_with("pred")),
+            by = c("t", "name")) %>%
+  ggplot()+
+  geom_point(aes(x=value.x, y=value.y), na.rm = T)+
+  facet_wrap(~name)+
+  labs(title = paste0("Subject ", id_diff$id[1]), x="Unscaled", y="Scaled")
 ```
+
+Think about the estimates. The scaled estimates of eigenvalues are much smaller than the unscaled once, meaning the prior distribution of score using scaled estimates would be much more centered thant the unscaled ones. This would also drive the posterior distribution to be in similar shapes. Since the distribution from scaled eigenvalues has such high density at certain values, could it be that the sampling quickly got trapped in a small interval that is far from the true optimal values? 
+
+Take the same subject with observation up to 0.4 as an example. Below is the iterative history until convergence. In this case, unscaled estiamtes converged at the 67 iteration and the scaled one did not converge. 
+
+```{r, results='hide'}
+this_id <- id_diff$id[1]
+this_t <- 0.4
+
+# data
+df_it <- test_df %>% filter(id==this_id & t <= this_t)
+max_rid <- nrow(df_it)
+
+#### use Unscaled params ####
+MyData_unscaled <- list(K=K, 
+               X=efunctions_new[1:max_rid, ], 
+               mon.names=mon.names,
+               parm.names=parm.names, 
+               pos.xi=pos.xi, 
+               y=df_it$Y, 
+               tao=diag(new_lambda), f0=new_mu[1:max_rid])
+Fit_unscaled <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData,
+                                     Method = "BFGS", Iterations = 1000,
+                            CovEst = "Identity")
+
+#### Scaled params ####
+MyData_scaled <- list(K=K, 
+               X=efunctions_scaled[1:max_rid, ], 
+               mon.names=mon.names,
+               parm.names=parm.names, 
+               pos.xi=pos.xi, 
+               y=df_it$Y, 
+               tao=diag(scaled_lambda), f0=new_mu[1:max_rid])
+Fit_scaled <- LaplaceApproximation(Model, parm = rep(0, K), 
+                                   Data=MyData_scaled, Method = "BFGS", 
+                                   Iterations = 1000,
+                            CovEst = "Identity")
+
+## iterative distribution, compared to true value
+true_xi_it <- data.frame(name = colnames(Fit_unscaled$History),
+                         true_xi = xi_test[id_diff$id[1], ])
+```
+
+
+```{r}
+ggarrange(
+Fit_unscaled$History %>% as.data.frame() %>%
+  mutate(iter = 1:nrow(Fit$History)) %>%
+  pivot_longer(starts_with("xi")) %>%
+  left_join(true_xi_it, by = "name") %>%
+  mutate(value = value/sqrt(n_bin)) %>%
+  mutate_at(vars(value, true_xi), abs) %>%
+  ggplot()+
+  geom_point(aes(x=iter, y=value))+
+  geom_line(aes(x=iter, y = true_xi, col = "red"))+
+  facet_wrap(~name)+
+  labs(title = "Unscaled parameter"), 
+
+Fit_scaled$History %>% as.data.frame() %>%
+  mutate(iter = 1:nrow(Fit_scaled$History)) %>%
+  pivot_longer(starts_with("xi")) %>%
+  left_join(true_xi_it, by = "name") %>%
+  mutate_at(vars(value, true_xi), abs) %>%
+  ggplot()+
+  geom_point(aes(x=iter, y=value))+
+  geom_line(aes(x=iter, y = true_xi, col = "red"))+
+  facet_wrap(~name)+
+  labs(title = "Scaled parameter"), nrow = 1, common.legend = T)
+```
+
+Let's zoom in on the later part of the scaled parameter. It looks like sampling bounced symmetrically around a certain line. 
+
+```{r}
+Fit_scaled$History %>% as.data.frame() %>%
+  mutate(iter = 1:nrow(Fit_scaled$History)) %>%
+  filter(iter >= 100) %>%
+  pivot_longer(starts_with("xi")) %>%
+  left_join(true_xi_it, by = "name") %>%
+  mutate_at(vars(value, true_xi), abs) %>%
+  ggplot()+
+  geom_point(aes(x=iter, y=value), size = 0.2)+
+  # geom_line(aes(x=iter, y = true_xi, col = "red"))+
+  facet_wrap(~name, scales = "free")+
+  labs(title = "Scaled parameter, after 100th iteration")
+```
+
 
 
 # Reference method
@@ -805,15 +905,12 @@ $$g(E(Y_i(t))) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$$
 - But this model is obviously too simple for the data generation scheme
 
 
-```{r, class.source='fold-show'}
+```{r}
 # model fit
 t1 <- Sys.time()
 fit_adglmm <- mixed_model(Y ~ t, random = ~ t | id, data =  train_df, family = binomial())
 t2 <- Sys.time()
-# time 
-t2-t1
-# model
-summary(fit_adglmm)
+# t2-t1
 ```
 
 
@@ -825,12 +922,13 @@ summary(fit_adglmm)
 
 $$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)$$
 
-```{r, class.source = "fold-show"}
+```{r}
 # subset 10 subjects from training dataset 
 df_train_sub <- train_df %>% filter(id %in% 1:10 & sind==bin)
 df_train_sub$id <- droplevels(df_train_sub$id)
 # levels(df_train_sub$id)
 # intersect(t, unique(df_train_sub$t))
+# View(df_train_sub)
 ```
 
 
@@ -839,15 +937,16 @@ df_train_sub$id <- droplevels(df_train_sub$id)
 PS 50 subjects took 1.06 hours to fit with the same model structure. 
 
 
-```{r, class.source="fold-show"}
+```{r}
 # construct design matrix for the fixed effect intercept
 t_sub <- unique(df_train_sub$t)
-fix_xmat <- smoothCon(s(t, bs="cr", k=5), data = data.frame(t=t_sub))
-dim(fix_xmat[[1]]$X)
+# fix_xmat <- smoothCon(s(t, bs="cr", k=5), data = data.frame(t=t_sub))
+fix_xmat <- ns(t_sub, df=5)
+# dim(fix_xmat[[1]]$X)
 
 # basis functions
 fix_xmat <- data.frame(t=t_sub, 
-                       fix_xmat[[1]]$X)
+                       fix_xmat)
 colnames(fix_xmat) <- c("t", paste0("B", 1:5))
 
 df_train_sub <- df_train_sub %>% left_join(fix_xmat, by = "t")
@@ -857,11 +956,12 @@ df_train_sub <- df_train_sub %>% left_join(fix_xmat, by = "t")
 - Below I construct basis functions for the individual random effect (also a functinal intercept), with four basis functions to start with.
 
 
-```{r, class.source = "fold-show"}
+```{r}
 # construct design matrix for the random effect
 rand_xmat <- smoothCon(s(t, bs="cr", k=4), data = data.frame(t=t_sub))
+# rand_xmat <- ns(t_sub, df = 4)
 
-dim(rand_xmat[[1]]$X) # 5 basis functions for each of the 50 subjects
+# dim(rand_xmat[[1]]$X) # 5 basis functions for each of the 50 subjects
 rand_xmat <- data.frame(t = t, rand_xmat[[1]]$X)
 
 df_train_sub <- df_train_sub %>%
@@ -871,7 +971,7 @@ df_train_sub <- df_train_sub %>%
 
 - Now I'll fit the model and record the time spent on model fitting
 
-The model fitting took about 6 minutes at this data scale, which obviously is not realistic for 500 simulated datasets. 
+The model fitting took about 12 minutes at this data scale, which obviously is not realistic for 500 simulated datasets. 
 
 Also tried increasing number of basis functions, which ended up with "computationally singular". In fact, this method does not seem very numerically stable. 
 
@@ -882,10 +982,8 @@ fit_adglmm <- mixed_model(fixed = Y ~ 0+B1+B2+B3+B4+B5,
                           random = ~X1+X2+X3+X4 | id,
                           data =  df_train_sub, family = binomial())
 t2 <- Sys.time()
-t2-t1
+# t2-t1
 
-# model
-summary(fit_adglmm)
 ```
 
 
@@ -893,7 +991,7 @@ summary(fit_adglmm)
 
 
 ```{r}
-df_test_sub <- test_df %>% filter(id %in% 1:10 & sind==bin)
+df_test_sub <- test_df %>% filter(id %in% 1:10 & sind %in% mid)
 df_test_sub$id <- droplevels(df_test_sub$id)
 # levels(df_test_sub$id)
 
@@ -936,7 +1034,7 @@ pred_adglmm_all <- df_test_sub %>%
   left_join(pred_adglmm3$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>%
   left_join(pred_adglmm4$newdata2 %>% select(id, t, pred), by = c("id", "t"))
 
-colnames(pred_adglmm_all) <- c(colnames(pred_adglmm_all)[1:15], "pred1", "pred2", "pred3", "pred4")
+colnames(pred_adglmm_all) <- c(colnames(pred_adglmm_all)[1:14], "pred1", "pred2", "pred3", "pred4")
 ```
 
 
@@ -957,4 +1055,7 @@ pred_adglmm_all %>%
 
 ```
 
+# Notes
+
+Perhaps I should try to verify my thoughts about laplace approximation by different generation scheme. For example, what if the true eigenvalues are on larger scale? 
 
