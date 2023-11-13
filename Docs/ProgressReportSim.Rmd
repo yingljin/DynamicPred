@@ -160,7 +160,7 @@ train_df %>%
 - Use original time index ([0, 1]) as independent variable
 
 
-```{r, cache=TRUE}
+```{r}
 # fit model on the training set
 train_bin_lst <- split(train_df, f = train_df$bin)
 # length(train_bin_lst)
@@ -286,9 +286,6 @@ for(k in 1:K){
     efunctions_new[,k] <- Bnew %*% coef(lm_mod)
 }
 
-# project mean functions 
-# lm_mod <- lm(fpca_mod$mu ~ B-1)
-# mu_new <- Bnew %*% coef(lm_mod)
 ```
 
 
@@ -803,7 +800,7 @@ df_pred %>% filter(id == id_diff$id[1]) %>%
               pivot_longer(starts_with("pred")),
             by = c("t", "name")) %>%
   ggplot()+
-  geom_point(aes(x=value.x, y=value.y), na.rm = T)+
+  geom_point(aes(x=value.x, y=value.y), na.rm = T, size = 0.2)+
   facet_wrap(~name)+
   labs(title = paste0("Subject ", id_diff$id[1]), x="Unscaled", y="Scaled")
 ```
@@ -820,7 +817,7 @@ this_t <- 0.4
 df_it <- test_df %>% filter(id==this_id & t <= this_t)
 max_rid <- nrow(df_it)
 
-#### use Unscaled params ####
+# use unscaled params
 MyData_unscaled <- list(K=K, 
                X=efunctions_new[1:max_rid, ], 
                mon.names=mon.names,
@@ -828,11 +825,11 @@ MyData_unscaled <- list(K=K,
                pos.xi=pos.xi, 
                y=df_it$Y, 
                tao=diag(new_lambda), f0=new_mu[1:max_rid])
-Fit_unscaled <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData,
+Fit_unscaled <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData_unscaled,
                                      Method = "BFGS", Iterations = 1000,
                             CovEst = "Identity")
 
-#### Scaled params ####
+# use scaled params
 MyData_scaled <- list(K=K, 
                X=efunctions_scaled[1:max_rid, ], 
                mon.names=mon.names,
@@ -854,7 +851,7 @@ true_xi_it <- data.frame(name = colnames(Fit_unscaled$History),
 ```{r}
 ggarrange(
 Fit_unscaled$History %>% as.data.frame() %>%
-  mutate(iter = 1:nrow(Fit$History)) %>%
+  mutate(iter = 1:nrow(Fit_unscaled$History)) %>%
   pivot_longer(starts_with("xi")) %>%
   left_join(true_xi_it, by = "name") %>%
   mutate(value = value/sqrt(n_bin)) %>%
@@ -891,6 +888,35 @@ Fit_scaled$History %>% as.data.frame() %>%
   # geom_line(aes(x=iter, y = true_xi, col = "red"))+
   facet_wrap(~name, scales = "free")+
   labs(title = "Scaled parameter, after 100th iteration")
+```
+
+
+```{r converge_strata, eval=FALSE}
+# Look at prediction results stratified by convergence status
+converge_vec
+converge_vec2
+```
+
+
+```{r, eval=FALSE}
+# calcualte ISE
+err1_conv <- df_pred %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
+
+err1_conv$window = cut(err1_conv$t,
+                       breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err1_conv <- split(err1_conv, f = err1_conv$window)
+err1_conv[[1]]
+
+tb1 <- lapply(err1, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) 
+}) %>% bind_rows(.id = "Window")
 ```
 
 
@@ -1058,4 +1084,8 @@ pred_adglmm_all %>%
 # Notes
 
 Perhaps I should try to verify my thoughts about laplace approximation by different generation scheme. For example, what if the true eigenvalues are on larger scale? 
+
+- Well, after increasing the scale of the true eigenvalues, the convergence rate did get closer between scaled and unscaled parameter. Also reversed as I expected.
+- But on second though, A more effecient way is to calcualted ISE and AUC stratified by convergence status
+
 
