@@ -1,51 +1,36 @@
-library(cubature)
 # This script writes functions for 
 # calculating conditional expectation
 # of fPCA scores 
 # of an out-of-sample observation
 
-#### Numeric integration: denominator of E(xi|Y) ####
-# xi: scores. The value to integrate over
-# tao: estimated covariance matrix(eigenvalues) of score from fPCA
-# f0: mean function from fPCA (up to mth bin)
-# phi: basis function of fPCA (up to mth bin)
-# df_out: newly observed data (up to mth bin)
-
-  
-joint_pdf <- function(xi, tao, f0, phi, df_out){
-  
-  # numbers
-  ns <- table(df_out$bin) # number of observations
-  hs <- df_out %>% group_by(bin) %>% summarize_at("Y", sum) %>% 
-    select(Y) # number of success
-  nf <- ns-hs # number of failure
-  
-  # probability of conditional distribution of Y
-  eta = f0+phi%*%xi
-  pr = exp(eta)/(1+exp(eta))
-  # the part relevant to P(Y|xi)
-  p1 <- prod(dbinom(x=unlist(hs), size = ns, prob=pr))
-  p2 <- exp(-t(xi)%*%solve(tao)%*%xi/2)
-  
-  return(p1*p2)
-  
-}
-
-#test 
-# joint_pdf(xi, tao, f0, phi, df_out)
-# 
-# adaptIntegrate(joint_pdf, lower = rep(-500, K), upper = rep(500, K), 
-#           tao=tao, f0=f0, phi=phi, df_out=df_out)
-  
-# takes a really long time to run!
-
-#### Laplace approximation with Bayes package ####
-
-library(LaplacesDemon)
-library(mvtnorm)
 
 ## model
-## now, with expanded mean and eigenfuncitons
+Model <- function(parm, Data){
+  xi <- parm[Data$pos.xi]
+  
+  # log-prior
+  xi.prior <- dmvnorm(xi, mean = rep(0, Data$K), sigma=Data$tao, log = TRUE)
+  
+  # log-posterior likelihood
+  eta <- Data$f0+Data$X %*% xi
+  p <- exp(eta)/(1+exp(eta))
+  LL <- sum(dbern(x=Data$y, prob=p, log = TRUE)) # log likelihood of Y|xi
+  LP <- LL+sum(xi.prior) # joint log likelihood of (Y, xi)
+  
+  # output
+  Modelout <- list(LP=LP, Dev=-2*LL, Monitor=LL,
+                   yhat=Data$y, parm=parm)
+  return(Modelout)
+}
+
+# parameter names
+name_lst <- as.list(rep(0, K))
+names(name_lst) <- paste("xi", 1:K, sep = "")
+parm.names <- as.parm.names(name_lst)
+pos.xi <- grep("xi", parm.names)
+mon.names <- "LP"
+
+
 ## a Bernoulli distribution at each time point
 Model <- function(parm, Data){
   xi <- parm[Data$pos.xi]

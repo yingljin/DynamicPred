@@ -254,7 +254,7 @@ According to the fGFPCA paper, in this step we do two things:
 2. Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or gamm4:gamm) to be used for Laplace approximation
 
 
-### Porjection with B-spline basis
+### Projection with B-spline basis
 
 <!-- https://bookdown.org/ssjackson300/Machine-Learning-Lecture-Notes/splines.html -->
 
