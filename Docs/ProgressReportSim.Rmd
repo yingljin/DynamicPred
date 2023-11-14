@@ -443,6 +443,8 @@ test_id <- unique(test_df$id)
 ## Laplace approximation
 
 
+
+
 ```{r model}
 # the model
 ## now, with expanded mean and eigenfuncitons, a Bernoulli distribution at each time point
@@ -511,7 +513,7 @@ for(i in seq_along(test_id)){
     
     
     # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS", Iterations = 1000,
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
                                 CovEst = "Identity")
     converge_vec[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
     # Fit <- LaplacesDemon(Model, Data=MyData, Initial.Values = parm = rep(0, K),  Method = "BFGS")
@@ -531,6 +533,7 @@ for(i in seq_along(test_id)){
 }
 t2 <- Sys.time()
 t_pred <- t2-t1 # About 3.5 minutes
+# mean(converge_vec)
 ```
 
 
@@ -564,6 +567,7 @@ p1<-df_pred %>%
 ```{r pred_debias_scale, results='hide'}
 ## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
 # container
+t1 <- Sys.time()
 pred_list3 <- list()
 converge_vec2 <- matrix(NA, N_test, 4)
 # per subject
@@ -586,7 +590,7 @@ for(i in seq_along(test_id)){
     
     
     # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS", Iterations = 1000,
+    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
                                 CovEst = "Identity")
     converge_vec2[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
     score <- Fit$Summary1[, "Mode"]
@@ -603,8 +607,9 @@ for(i in seq_along(test_id)){
   
   pred_list3[[i]] <- df_i
 }
-
-mean(converge_vec2)
+t2 <- Sys.time()
+# t2-t1
+# mean(converge_vec2)
 ```
 
 
@@ -707,12 +712,11 @@ ise %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
   add_header_above(c(" "=1, "Maximum observation time" = 8))
+
+
+
 ```
 
-
-- Looks like the debiased eigenvalues helped.
-- Scaling, on the other hand, doesn't seem to help in general. But shouldn't scaling improve performance? 
-- Also, it seems like the longer the observed track, the less different the performance is. 
 
 ## AUC
 
@@ -776,41 +780,47 @@ auc %>%
   add_header_above(c(" "=1, "Maximum observation time" = 8))
 ```
 
-## Investigate a bit more on the difference in prediction
+## Numeric stability
 
-When using the unscaled estimates of eigenvalues and eigenfunctions, the Laplace Approximation does not converge all the time (convergence rate = `r round(mean(converge_vec), 2)`). And when using scaled estimates, the convergence rate is even lower (`r round(mean(converge_vec2), 2)`). 
+Following up on the discrepancy in predictive performance using scaled and unscaled estimates of eigenfunctions and eigenvalues, it is likely to be a issue of numeric stability. I would like to compare a few optimizers to see if they make any difference on the results. I'll record computation time, convergence rate using scaled and unscaled estimates, a brief summary of performance.
 
-When I increasing the maximum iteration to 1000, the predictive performance from two sets of estiamtes got very similar. However, the convergence rate is still very different. Below I try to show a example of the discrepancy in prediction. As we see, the most problematic situation is when observations is up to 0.4.
+1. BFGS 
+- computation time: 3.43min
+- convergance rate: 94% (unscaled), 75% (scaled)
+- performance is not too different
 
-```{r}
-# subjects with higher deiviation 
-# subjects with greatest difference
-id_diff <- df_pred %>% select(id, t, pred0.4) %>%
-  full_join(df_pred3 %>% select(id, t, pred0.4), by = c("id", "t")) %>% 
-  group_by(id) %>%
-  summarise(diff = mean((pred0.4.x-pred0.4.y)^2, na.rm = T)) %>% 
-  arrange(desc(diff))
+2. Nelder-Mead
+- computation time: 3.48 min (unscaled), 3.03 min (scaled)
+- convergance rate: 100% (unscaled), 100% (scaled)
+- performance very similar. Scaled parameters can sometimes outperform unscaled ones.
 
-# subject 43, 79, 57, 148 have the most different prediction
-df_pred %>% filter(id == id_diff$id[1]) %>% 
-  select(t, starts_with("pred")) %>%
-  pivot_longer(starts_with("pred")) %>%
-  left_join(df_pred3 %>% filter(id == id_diff$id[1]) %>%
-              select(t, starts_with("pred")) %>%
-              pivot_longer(starts_with("pred")),
-            by = c("t", "name")) %>%
-  ggplot()+
-  geom_point(aes(x=value.x, y=value.y), na.rm = T, size = 0.2)+
-  facet_wrap(~name)+
-  labs(title = paste0("Subject ", id_diff$id[1]), x="Unscaled", y="Scaled")
+3. Newton-Ralphson
+- ran into numeric problems when using scaled parameter
+
+Over all, I think Nelder-Mead is probably our bdst option. It converged under all situations and is also fast. When looking at ISE, scaled and unscaled estiamtes had similar performance. In fact they outperform each other five times each. 
+
+Below I compared the predictions using scaled and unscaled parameters: 
+
+
+
+```{r, fig.height=8, fig.width=8}
+par(mfrow = c(2, 2))
+plot(df_pred$pred0.2, df_pred3$pred0.2, pch=20, cex = 0.5,
+     main = "Up to 0.2", xlab = "Unscaled", ylab = "Scaled")
+plot(df_pred$pred0.4, df_pred3$pred0.4, pch=20, cex = 0.5,
+     main = "Up to 0.4", xlab = "Unscaled", ylab = "Scaled")
+plot(df_pred$pred0.6, df_pred3$pred0.6, pch=20, cex = 0.5,
+     main = "Up to 0.6", xlab = "Unscaled", ylab = "Scaled")
+plot(df_pred$pred0.8, df_pred3$pred0.8, pch=20, cex = 0.5,
+     main = "Up to 0.8", xlab = "Unscaled", ylab = "Scaled")
 ```
 
-Think about the estimates. The scaled estimates of eigenvalues are much smaller than the unscaled once, meaning the prior distribution of score using scaled estimates would be much more centered thant the unscaled ones. This would also drive the posterior distribution to be in similar shapes. Since the distribution from scaled eigenvalues has such high density at certain values, could it be that the sampling quickly got trapped in a small interval that is far from the true optimal values? 
+Think about the estimates. The scaled estimates of eigenvalues are much smaller than the unscaled ones, meaning the prior distribution of score using scaled estimates would be much more centered thant the unscaled ones. This would also drive the posterior distribution to be in similar shapes. Since the distribution from scaled eigenvalues has such high density at certain values, could it be that the sampling quickly got trapped in a small interval that is far from the true optimal values? It did not happen when using Nelder-Mead optimizer and set maxiter=1000. 
 
-Take the same subject with observation up to 0.4 as an example. Below is the iterative history until convergence. In this case, unscaled estiamtes converged at the 67 iteration and the scaled one did not converge. 
+Below I look at the convergence path for one arbitrary subject
 
 ```{r, results='hide'}
-this_id <- id_diff$id[1]
+this_id <- sample(test_id, 1)
 this_t <- 0.4
 
 # data
@@ -844,7 +854,7 @@ Fit_scaled <- LaplaceApproximation(Model, parm = rep(0, K),
 
 ## iterative distribution, compared to true value
 true_xi_it <- data.frame(name = colnames(Fit_unscaled$History),
-                         true_xi = xi_test[id_diff$id[1], ])
+                         true_xi = xi_test[this_id, ])
 ```
 
 
@@ -857,7 +867,7 @@ Fit_unscaled$History %>% as.data.frame() %>%
   mutate(value = value/sqrt(n_bin)) %>%
   mutate_at(vars(value, true_xi), abs) %>%
   ggplot()+
-  geom_point(aes(x=iter, y=value))+
+  geom_point(aes(x=iter, y=value), size = 0.2)+
   geom_line(aes(x=iter, y = true_xi, col = "red"))+
   facet_wrap(~name)+
   labs(title = "Unscaled parameter"), 
@@ -868,58 +878,15 @@ Fit_scaled$History %>% as.data.frame() %>%
   left_join(true_xi_it, by = "name") %>%
   mutate_at(vars(value, true_xi), abs) %>%
   ggplot()+
-  geom_point(aes(x=iter, y=value))+
+  geom_point(aes(x=iter, y=value), size = 0.2)+
   geom_line(aes(x=iter, y = true_xi, col = "red"))+
   facet_wrap(~name)+
   labs(title = "Scaled parameter"), nrow = 1, common.legend = T)
 ```
 
-Let's zoom in on the later part of the scaled parameter. It looks like sampling bounced symmetrically around a certain line. 
+In this case the sampling bounced up and down, which is NM is supposed to do I think? But it reaches a stable status quickly with a few dozens of iterations. 
 
-```{r}
-Fit_scaled$History %>% as.data.frame() %>%
-  mutate(iter = 1:nrow(Fit_scaled$History)) %>%
-  filter(iter >= 100) %>%
-  pivot_longer(starts_with("xi")) %>%
-  left_join(true_xi_it, by = "name") %>%
-  mutate_at(vars(value, true_xi), abs) %>%
-  ggplot()+
-  geom_point(aes(x=iter, y=value), size = 0.2)+
-  # geom_line(aes(x=iter, y = true_xi, col = "red"))+
-  facet_wrap(~name, scales = "free")+
-  labs(title = "Scaled parameter, after 100th iteration")
-```
-
-
-```{r converge_strata, eval=FALSE}
-# Look at prediction results stratified by convergence status
-converge_vec
-converge_vec2
-```
-
-
-```{r, eval=FALSE}
-# calcualte ISE
-err1_conv <- df_pred %>%
-  mutate(err1 = (pred0.2-eta_i)^2,
-         err2 = (pred0.4-eta_i)^2,
-         err3 = (pred0.6-eta_i)^2,
-         err4 = (pred0.8-eta_i)^2) %>%
-  select(id, t, starts_with("err"))
-
-err1_conv$window = cut(err1_conv$t,
-                       breaks = seq(0, 1, by = 0.2), include.lowest = T)
-# table(err1$window)
-err1_conv <- split(err1_conv, f = err1_conv$window)
-err1_conv[[1]]
-
-tb1 <- lapply(err1, function(x){
-  x %>%  group_by(id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) 
-}) %>% bind_rows(.id = "Window")
-```
-
-
+Potential drawback of Nelder-Mead: large dimensional problems.
 
 # Reference method
 
