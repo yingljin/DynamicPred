@@ -65,16 +65,18 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
+M <- 10
+
 pred_list_all <- list()
 converge_state_list <- list()
 fit_time <- pred_time <- rep(NA, M)
 
 K <- 4 # number of eigenfunctions to use
 
+
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 
 # The whole process
-M <- 2
 for(m in 1:M){
   
   # for every simulated dataset
@@ -203,20 +205,25 @@ mean(fit_time) # average time for model fitting: 26 secs
 mean(pred_time) # average time for prediction: 133 secs 
 
 pred_list_all %>% lapply(dim)
+length(pred_list_all)
 
-rand_id <- sample(pred_list_all[[158]]$id, 4)
+# convergence status
+lapply(converge_state_list, mean)
+
+# visualize test samples
+rand_id <- sample(test_id, 4)
 
 # prediction results
-pred_list_all[[158]] %>% 
-  filter(id %in% sample(pred_list_all[[158]]$id, 4)) %>% 
-  mutate_at(vars(eta_i, pred1, pred2, pred3, pred4), function(x){exp(x)/(1+exp(x))}) %>%
+pred_list_all[[5]] %>% 
+  filter(id %in% rand_id) %>% 
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
   geom_line(aes(x=sind, y=eta_i, col = "True"))+
-  geom_line(aes(x=sind, y=pred1, col = "200"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred2, col = "400"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred3, col = "600"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred4, col = "800"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=sind, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=sind, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=sind, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=sind, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)
 
 

@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2023-10-23" />
+<meta name="date" content="2023-11-16" />
 
 <title>Example with One simulated data</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Example with One simulated data</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2023-10-23</h4>
+<h4 class="date">2023-11-16</h4>
 
 </div>
 
@@ -517,6 +517,7 @@ unscaled eigenfunctions and eigenvalues</h2>
 # container
 pred_list &lt;- list()
 test_id &lt;- unique(test_df$id)
+converge_vec &lt;- matrix(NA, N_test, 4) # convergence status
 
 # prediction for all subjects
 for(i in seq_along(test_id)){
@@ -541,6 +542,7 @@ for(i in seq_along(test_id)){
     # fit laplace approximation
     Fit &lt;- LaplaceApproximation(Model, parm = rep(0, K), 
                                 Data=MyData, Method = &quot;BFGS&quot;)
+    converge_vec[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] &lt;- Fit$Converged
     # individual score
     score &lt;- Fit$Summary1[, &quot;Mode&quot;]
     
@@ -579,6 +581,7 @@ class="section level2" number="3.4">
 scaled eigenfunctions and eigenvalues</h2>
 <pre class="r"><code># container
 pred_list2 &lt;- list()
+converge_vec2 &lt;- matrix(NA, N_test, 4)
 
 # per subject
 for(i in seq_along(test_id)){
@@ -601,6 +604,7 @@ for(i in seq_along(test_id)){
     
     # fit laplace approximation
     Fit &lt;- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = &quot;BFGS&quot;)
+    converge_vec2[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] &lt;- Fit$Converged
     score &lt;- Fit$Summary1[, &quot;Mode&quot;]
     
     # prediction
@@ -1107,6 +1111,54 @@ Scaled
 prediction, especially when prediction is conditioning on observation up
 to t=0.4</li>
 </ul>
+</div>
+<div id="numeric-stability" class="section level2" number="3.6">
+<h2><span class="header-section-number">3.6</span> Numeric
+stability</h2>
+<p>I start by looking at the convergence rate of scaled and un-scaled
+estimates:</p>
+<ul>
+<li>unscaled: 0.86</li>
+<li>scaled: 0.61</li>
+</ul>
+<p>Then, I would like to see some individuals who performed the most
+different under the two set of estimates. I used the observations up to
+0.4 as an example, since it is the most problematic scenario.</p>
+<p>Below I identify the subjects with most dependency in prediction</p>
+<pre class="r"><code># subjects with the most difference in prediction
+diff_subjs &lt;- full_join(df_pred %&gt;% select(id, t, pred0.4),
+          df_pred2 %&gt;% select(id, t, pred0.4),
+          by = c(&quot;id&quot;, &quot;t&quot;)) %&gt;% 
+  mutate(diff = (pred0.4.x-pred0.4.y)^2) %&gt;%
+  group_by(id) %&gt;%
+  summarise(diff = sum(diff, na.rm = T)) %&gt;% 
+  arrange(desc(diff)) %&gt;% 
+  head(10)</code></pre>
+<p>Now I look at there convergence status</p>
+<ul>
+<li>unscaled:</li>
+</ul>
+<pre class="r"><code>converge_vec[diff_subjs$id,  2]</code></pre>
+<pre><code>##  [1]  TRUE  TRUE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE</code></pre>
+<ul>
+<li>scaled:</li>
+</ul>
+<pre class="r"><code>converge_vec2[diff_subjs$id,  2]</code></pre>
+<pre><code>##  [1] FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</code></pre>
+<p>And there prediction track (take the top 4):</p>
+<pre class="r"><code>full_join(df_pred %&gt;% select(id, t, Y, eta_i, pred0.4),
+          df_pred2 %&gt;% select(id, t, pred0.4),
+          by = c(&quot;id&quot;, &quot;t&quot;)) %&gt;% 
+  filter(id %in% diff_subjs$id[1:4]) %&gt;%
+    mutate_at(vars(eta_i, pred0.4.x, pred0.4.y), function(x){exp(x)/(1+exp(x))}) %&gt;%
+    ggplot()+
+    geom_point(aes(x=t, y=Y), size = 0.2)+
+    geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+    geom_line(aes(x=t, y=pred0.4.x, col = &quot;unscaled&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+    geom_line(aes(x=t, y=pred0.4.y, col = &quot;scaled&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+    facet_wrap(~id)+
+    labs(title = &quot;Maximum observation time = 0.4&quot;)</code></pre>
+<p><img src="SimExample_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
 </div>
 </div>
 

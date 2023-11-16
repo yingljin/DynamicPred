@@ -315,6 +315,7 @@ mon.names <- "LP"
 # container
 pred_list <- list()
 test_id <- unique(test_df$id)
+converge_vec <- matrix(NA, N_test, 4) # convergence status
 
 # prediction for all subjects
 for(i in seq_along(test_id)){
@@ -339,6 +340,7 @@ for(i in seq_along(test_id)){
     # fit laplace approximation
     Fit <- LaplaceApproximation(Model, parm = rep(0, K), 
                                 Data=MyData, Method = "BFGS")
+    converge_vec[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
     # individual score
     score <- Fit$Summary1[, "Mode"]
     
@@ -376,11 +378,13 @@ p1<-df_pred %>%
   labs(title = "Unscaled", col = "Maximum observation time")
 
 ```
+
 ## Prediction with scaled eigenfunctions and eigenvalues
 
 ```{r pred_debias_scale, results='hide'}
 # container
 pred_list2 <- list()
+converge_vec2 <- matrix(NA, N_test, 4)
 
 # per subject
 for(i in seq_along(test_id)){
@@ -403,6 +407,7 @@ for(i in seq_along(test_id)){
     
     # fit laplace approximation
     Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "BFGS")
+    converge_vec2[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
     score <- Fit$Summary1[, "Mode"]
     
     # prediction
@@ -504,6 +509,7 @@ ise %>%
   add_header_above(c(" "=1, "Maximum observation time" = 8))
 ```
 
+
 - Compare AUC
 
 ```{r}
@@ -568,5 +574,58 @@ auc %>%
 
 - It looks as if scaled eigenfunctions and eigenvalues led to worse prediction, especially when prediction is conditioning on observation up to t=0.4
 
+## Numeric stability
+
+I start by looking at the convergence rate of scaled and un-scaled estimates:
+
+- unscaled: `r round(mean(converge_vec), 2)`
+- scaled: `r round(mean(converge_vec2), 2)`
+
+Then, I would like to see some individuals who performed the most different under the two set of estimates. I used the observations up to 0.4 as an example, since it is the most problematic scenario.
+
+Below I identify the subjects with most dependency in prediction
+
+```{r}
+# subjects with the most difference in prediction
+diff_subjs <- full_join(df_pred %>% select(id, t, pred0.4),
+          df_pred2 %>% select(id, t, pred0.4),
+          by = c("id", "t")) %>% 
+  mutate(diff = (pred0.4.x-pred0.4.y)^2) %>%
+  group_by(id) %>%
+  summarise(diff = sum(diff, na.rm = T)) %>% 
+  arrange(desc(diff)) %>% 
+  head(10)
+```
+
+Now I look at there convergence status
+
+- unscaled:
+
+```{r}
+converge_vec[diff_subjs$id,  2]
+```
+
+- scaled:
+
+```{r}
+converge_vec2[diff_subjs$id,  2]
+```
 
 
+And there prediction track (take the top 4):
+
+
+```{r}
+full_join(df_pred %>% select(id, t, Y, eta_i, pred0.4),
+          df_pred2 %>% select(id, t, pred0.4),
+          by = c("id", "t")) %>% 
+  filter(id %in% diff_subjs$id[1:4]) %>%
+    mutate_at(vars(eta_i, pred0.4.x, pred0.4.y), function(x){exp(x)/(1+exp(x))}) %>%
+    ggplot()+
+    geom_point(aes(x=t, y=Y), size = 0.2)+
+    geom_line(aes(x=t, y=eta_i, col = "True"))+
+    geom_line(aes(x=t, y=pred0.4.x, col = "unscaled"), linetype="dashed", na.rm=T)+
+    geom_line(aes(x=t, y=pred0.4.y, col = "scaled"), linetype="dashed", na.rm=T)+
+    facet_wrap(~id)+
+    labs(title = "Maximum observation time = 0.4")
+```
