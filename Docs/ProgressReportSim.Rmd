@@ -33,15 +33,8 @@ library(mgcv)
 library(splines)
 theme_set(theme_minimal())
 
-# df <- read_rds(here("Data/nhanes_bi.rds"))
-# load(here("Data/ApplOutput_fGFPCA.RData"))
-
-# code
-source(here("Code/GLMM-FPCA.R")) 
-# source(here("Code/OutSampMLE.R"))
-source(here("Code/OutsampBayes.R"))
-# source(here("Code/OutsampBayes.R"))
-
+# load simulation results
+load(here("Data/SimOutput_fGFPCA.RData"))
 ```
 
 

@@ -30,6 +30,7 @@ N <- length(unique(sim_data[[1]]$id))
 J <- length(unique(sim_data[[1]]$t))
 t <- unique(sim_data[[1]]$t)
 M <- length(sim_data)
+K <- 4 # number of eigenfunctions to use
 
 # overview of a few samples
 rand_id <- sample(N, size = 4)
@@ -65,13 +66,12 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-M <- 10
-
+# M <- 10
+M
 pred_list_all <- list()
 converge_state_list <- list()
 fit_time <- pred_time <- rep(NA, M)
 
-K <- 4 # number of eigenfunctions to use
 
 
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
@@ -208,13 +208,13 @@ pred_list_all %>% lapply(dim)
 length(pred_list_all)
 
 # convergence status
-lapply(converge_state_list, mean)
+mean(sapply(converge_state_list, mean)) # all dataset converged
 
 # visualize test samples
 rand_id <- sample(test_id, 4)
 
 # prediction results
-pred_list_all[[5]] %>% 
+pred_list_all[[476]] %>% 
   filter(id %in% rand_id) %>% 
   mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
@@ -231,11 +231,98 @@ pred_list_all[[5]] %>%
 
 #### Save results ####
 
-save(pred_list_all, fit_time, pred_time, file = here("Data/SimOutput_fGFPCA.RData"))
+save(pred_list_all, fit_time, pred_time, converge_state_list,
+     file = here("Data/SimOutput_fGFPCA.RData"))
+
+#### Calculate ISE ####
+
+# load simulation results
+load(here("Data/SimOutput_fGFPCA.RData"))
+
+dim(pred_list_all[[1]])
+
+## prediction window 
+window <- seq(0, 1, by = 0.2)
+M <- length(pred_list_all)
+
+## ISE container 
+ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+# dims: prediction window, max obs time, simulation iter
+
+## calculation
+for(m in 1:M){
+  this_df <- pred_list_all[[m]]
+  ise_tb <- pred_list_all[[m]] %>%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %>%
+    select(id, t, starts_with("err")) %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("err"))
+  ise_mat[, ,m] <- as.matrix(ise_tb)
+  
+  
+}
+
+mean_ise <- apply(ise_mat, c(1, 2), mean)
+mean_ise <- data.frame(mean_ies) %>% 
+  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+         .before = 1)
+colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
+mean_ise
 
 
+#### Calculate AUC ####
+
+## auc container 
+auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+
+## a function to calculate AUC
+get_auc <- function(y, pred){
+  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
+    auc <- NA
+  }
+  else{
+    this_perf <- performance(prediction(pred, y), measure = "auc")
+    auc <- this_perf@y.values[[1]]
+  }
+  return(auc)
+}
+
+get_auc(pred_list_all[[1]]$Y[pred_list_all[[1]]$t>0.2], 
+        pred_list_all[[1]]$pred0.2[pred_list_all[[1]]$t>0.2])
+
+## calcualte AUC
+
+for(m in 1:M){
+  this_df <- pred_list_all[[m]]
+  auc_tb <- df_pred %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    select(Y, starts_with("pred"), window) %>%
+    group_by(window) %>%
+    summarise(auc1 = get_auc(Y, pred0.2),
+              auc2 = get_auc(Y, pred0.4),
+              auc3 = get_auc(Y, pred0.6),
+              auc4 = get_auc(Y, pred0.8)) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("auc"))
+  auc_mat[, ,m] <- as.matrix(auc_tb)
+
+}
 
 
+mean_auc <- apply(auc_mat, c(1, 2), mean)
+mean_auc <- data.frame(mean_auc) %>% 
+  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+         .before = 1)
+colnames(mean_auc) <- c("Window", "0.2", "0.4", "0.6", "0.8")
+mean_auc
 
-
-
+#### Convergence ####
+mean(sapply(converge_state_list, mean)) # 100% precent convergence 

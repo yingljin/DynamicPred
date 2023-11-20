@@ -1,37 +1,165 @@
 ---
-title: "Dynamic Prediction with Fast Generalized Functional Principal Component analysis"
+title: "Tables and Figures to put in manuscript"
 author: "Ying Jin"
-date: "2023-03-07"
+date: "`r Sys.Date()`"
 output: 
-  pdf_document:
-    citation_package: natbib
-    keep_text: true
-    fig_caption: true
-    latex_engine: pdflatex
-    template: ~/Dropbox/miscelanea/svm-r-markdown-templates/svm-latex-ms.tex
-  
+  html_document:
+    self_contained: yes
+    number_sections: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    font: 12pt
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+options(knitr.kable.NA = "")
+
+set.seed(1120)
+
+
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(refund)
+library(lme4)
+library(ROCR)
+library(GLMMadaptive)
+library(kableExtra)
+library(knitr)
+library(mvtnorm)
+library(mgcv)
+library(splines)
+theme_set(theme_minimal())
+
+load(here("Data/SimOutput_fGFPCA.RData"))
+
+## prediction window 
+window <- seq(0, 1, by = 0.2)
+M <- length(pred_list_all)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Simulation
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+```{r fig_pred}
+rand_id <- sample(501:600, size = 4)
+# range(pred_list_all[[1]]$pred0.2, na.rm = T)
+pred_list_all[[1]] %>%
+  filter(id %in% rand_id) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "fGFPCA prediction")
+
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+```{r tb_ise}
+## ISE container 
+ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+# dims: prediction window, max obs time, simulation iter
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+## calculation
+for(m in 1:M){
+  this_df <- pred_list_all[[m]]
+  ise_tb <- pred_list_all[[m]] %>%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %>%
+    select(id, t, starts_with("err")) %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("err"))
+  ise_mat[, ,m] <- as.matrix(ise_tb)
+  
+  
+}
+
+mean_ise <- apply(ise_mat, c(1, 2), mean)
+mean_ise <- data.frame(mean_ise) %>% 
+  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+         .before = 1)
+colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+mean_ise %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "Maximum observation time" = 4))
+```
+
+
+```{r auc_func}
+## a function to calculate AUC
+get_auc <- function(y, pred){
+  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
+    auc <- NA
+  }
+  else{
+    this_perf <- performance(prediction(pred, y), measure = "auc")
+    auc <- this_perf@y.values[[1]]
+  }
+  return(auc)
+}
+
+```
+
+
+```{r tb_auc}
+## auc container 
+auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+
+for(m in 1:M){
+  this_df <- pred_list_all[[m]]
+  auc_tb <- this_df %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    select(Y, starts_with("pred"), window) %>%
+    group_by(window) %>%
+    summarise(auc1 = get_auc(Y, pred0.2),
+              auc2 = get_auc(Y, pred0.4),
+              auc3 = get_auc(Y, pred0.6),
+              auc4 = get_auc(Y, pred0.8)) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("auc"))
+  auc_mat[, ,m] <- as.matrix(auc_tb)
+
+}
+
+
+mean_auc <- apply(auc_mat, c(1, 2), mean)
+mean_auc <- data.frame(mean_auc) %>% 
+  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+         .before = 1)
+colnames(mean_auc) <- c("Window", "0.2", "0.4", "0.6", "0.8")
+```
+
+```{r}
+mean_auc %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area under the ROC curve") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "Maximum observation time" = 4))
+```
+
+
+```{r time}
+data.frame("Fit" = mean(fit_time)/60, "Prediction"= mean(pred_time)) %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Computation time (minutes)") %>%
+  kable_styling(full_width = F) 
+
+```
