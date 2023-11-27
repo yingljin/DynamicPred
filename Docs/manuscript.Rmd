@@ -35,6 +35,7 @@ library(splines)
 theme_set(theme_minimal())
 
 load(here("Data/SimOutput_fGFPCA.RData"))
+load(here("Data/SimOutput_GLMMadaptive.RData"))
 
 ## prediction window 
 window <- seq(0, 1, by = 0.2)
@@ -42,13 +43,15 @@ M <- length(pred_list_all)
 ```
 
 
-# Simulation
+# Larger-scale simulation
+
+## Figure
 
 
 ```{r fig_pred}
 rand_id <- sample(501:600, size = 4)
 # range(pred_list_all[[1]]$pred0.2, na.rm = T)
-pred_list_all[[1]] %>%
+fig_fgfpca <- pred_list_all[[1]] %>%
   filter(id %in% rand_id) %>%
   mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
@@ -59,16 +62,38 @@ pred_list_all[[1]] %>%
   geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
-  labs(title = "fGFPCA prediction")
+  labs(title = "fGFPCA", col = "Maximum observation time")
+
+fig_adglmm <- pred_list_ref[[1]] %>%
+  filter(id %in% rand_id) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "GLMMadaptive", col = "Maximum observation time")
 
 ```
 
+```{r}
+ggarrange(fig_fgfpca, fig_adglmm,
+          nrow = 1, common.legend = T)
+```
+## ISE
 
-```{r tb_ise}
+```{r}
 ## ISE container 
-ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+ise_mat <- ise_mat_ref <- array(NA, 
+                                dim = c(length(window)-2, length(window)-2, M))
 # dims: prediction window, max obs time, simulation iter
 
+```
+
+```{r ise_fGFPCA}
 ## calculation
 for(m in 1:M){
   this_df <- pred_list_all[[m]]
@@ -91,19 +116,54 @@ for(m in 1:M){
 }
 
 mean_ise <- apply(ise_mat, c(1, 2), mean)
-mean_ise <- data.frame(mean_ise) %>% 
-  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-         .before = 1)
-colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
+
+# mean_ise <- data.frame(mean_ise) %>%
+#   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+#          .before = 1)
+colnames(mean_ise) <- c("0.2", "0.4", "0.6", "0.8")
 ```
+
+```{r ise_GLMMadaptive}
+## calculation
+for(m in 1:M){
+  this_df <- pred_list_ref[[m]]
+  ise_tb <- pred_list_ref[[m]] %>%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %>%
+    select(id, t, starts_with("err")) %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("err"))
+  ise_mat_ref[, ,m] <- as.matrix(ise_tb)
+  
+  
+}
+
+mean_ise_ref <- apply(ise_mat_ref, c(1, 2), mean)
+# mean_ise_ref <- data.frame(mean_ise_ref) %>% 
+#   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+#          .before = 1)
+colnames(mean_ise_ref) <- c("0.2", "0.4", "0.6", "0.8")
+```
+
 
 ```{r}
-mean_ise %>%
+data.frame(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+           mean_ise, mean_ise_ref, check.names = F) %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "Maximum observation time" = 4))
+  add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "= 1, "Maximum observation time" = 8))
 ```
 
+
+## AUC
 
 ```{r auc_func}
 ## a function to calculate AUC
@@ -121,10 +181,14 @@ get_auc <- function(y, pred){
 ```
 
 
-```{r tb_auc}
+```{r}
 ## auc container 
 auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+auc_mat_ref <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+```
 
+
+```{r auc_fGFPCA}
 for(m in 1:M){
   this_df <- pred_list_all[[m]]
   auc_tb <- this_df %>% 
@@ -143,23 +207,60 @@ for(m in 1:M){
 
 
 mean_auc <- apply(auc_mat, c(1, 2), mean)
-mean_auc <- data.frame(mean_auc) %>% 
-  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-         .before = 1)
-colnames(mean_auc) <- c("Window", "0.2", "0.4", "0.6", "0.8")
+# mean_auc <- data.frame(mean_auc) %>% 
+#   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+#          .before = 1)
+colnames(mean_auc) <- c("0.2", "0.4", "0.6", "0.8")
+```
+
+```{r auc_GLMMadaptive}
+for(m in 1:M){
+  this_df <- pred_list_ref[[m]]
+  auc_tb <- this_df %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    select(Y, starts_with("pred"), window) %>%
+    group_by(window) %>%
+    summarise(auc1 = get_auc(Y, pred0.2),
+              auc2 = get_auc(Y, pred0.4),
+              auc3 = get_auc(Y, pred0.6),
+              auc4 = get_auc(Y, pred0.8)) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("auc"))
+  auc_mat_ref[, ,m] <- as.matrix(auc_tb)
+
+}
+
+
+mean_auc_ref <- apply(auc_mat_ref, c(1, 2), mean)
+# mean_auc <- data.frame(mean_auc) %>% 
+#   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+#          .before = 1)
+colnames(mean_auc_ref) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r}
-mean_auc %>%
+data.frame(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+           mean_auc, mean_auc_ref, check.names = F) %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area under the ROC curve") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "Maximum observation time" = 4))
+  add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "= 1, "Maximum observation time" = 8))
 ```
 
 
 ```{r time}
-data.frame("Fit" = mean(fit_time)/60, "Prediction"= mean(pred_time)) %>%
+data.frame(
+  "Method" = c("fGFPCA", "GLMMadaptive"),
+  "Fit" = c(mean(fit_time)/60, mean(fit_time_ref)),
+           "Prediction"= c(mean(pred_time), mean(pred_time_ref)/60)) %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Computation time (minutes)") %>%
   kable_styling(full_width = F) 
-
 ```
+
+
+I think we could say that while the total time spend on model fitting + prediction are similar between two methods, fGFPCA achieved much better flexibility and much better predictive performance of prediction under every scenario. 
+
+
+# Small-scale simulation 
+
+# NHANES data application

@@ -31,10 +31,11 @@ library(knitr)
 library(mvtnorm)
 library(mgcv)
 library(splines)
+library(LaplacesDemon)
 theme_set(theme_minimal())
 
 # load simulation results
-load(here("Data/SimOutput_fGFPCA.RData"))
+# load(here("Data/SimOutput_fGFPCA.RData"))
 ```
 
 
@@ -115,6 +116,11 @@ train_df %>% filter(id %in% rand_id) %>%
   facet_wrap(~id)
 ```
 
+```{r}
+# functions
+source(here("Code/GLMM-FPCA.R")) 
+source(here("Code/OutSampBayes.R"))
+```
 
 
 # fGFPCA model fitting
@@ -475,7 +481,7 @@ mon.names <- "LP"
 ```
 
 
-```{r pred_debias_unscale, results='hide'}
+```{r pred_debias_scale, results='hide'}
 # approximation process
 # container
 pred_list <- list()
@@ -497,12 +503,12 @@ for(i in seq_along(test_id)){
   
     # into a list
     MyData <- list(K=K, 
-                   X=efunctions_new[1:max_rid, ], 
+                   X=efunctions_scaled[1:max_rid, ], 
                    mon.names=mon.names,
                    parm.names=parm.names, 
                    pos.xi=pos.xi, 
                    y=df_it$Y, 
-                   tao=diag(new_lambda), f0=new_mu[1:max_rid])
+                   tao=diag(scaled_lambda), f0=new_mu[1:max_rid])
     
     
     # fit laplace approximation
@@ -551,107 +557,10 @@ p1<-df_pred %>%
   geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
-  labs(title = "Unscaled, debiased eigenvalues")
+  labs(title = "fGFPCA")
 
 ```
 
-
-
-```{r pred_debias_scale, results='hide'}
-## With debiased eigenvalues, also scale eigenvaleus and eigenfuncitons
-# container
-t1 <- Sys.time()
-pred_list3 <- list()
-converge_vec2 <- matrix(NA, N_test, 4)
-# per subject
-for(i in seq_along(test_id)){
-  df_i <- test_df %>% filter(id==test_id[i])
-  
-  # per max obs time
-  for(tmax in c(0.2, 0.4, 0.6, 0.8)){
-    df_it <- df_i %>% filter(t <= tmax)
-    max_rid <- nrow(df_it)
-  
-    # into a list
-    MyData <- list(K=K,
-                   X=efunctions_scaled[1: max_rid, ], 
-                   mon.names=mon.names,
-                   parm.names=parm.names, 
-                   pos.xi=pos.xi, 
-                   y=df_it$Y, 
-                   tao=diag(scaled_lambda), f0=new_mu[1:max_rid])
-    
-    
-    # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
-                                CovEst = "Identity")
-    converge_vec2[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
-    score <- Fit$Summary1[, "Mode"]
-    
-    # prediction
-    eta_pred_out <- new_mu+efunctions_scaled%*%score
-    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
-  }
-  
-  # df_i$pred0.2[df_i$t<=0.2] <- NA
-  # df_i$pred0.4[df_i$t<=0.4] <- NA
-  # df_i$pred0.6[df_i$t<=0.6] <- NA
-  # df_i$pred0.8[df_i$t<=0.8] <- NA
-  
-  pred_list3[[i]] <- df_i
-}
-t2 <- Sys.time()
-# t2-t1
-# mean(converge_vec2)
-```
-
-
-```{r}
-df_pred3 <- bind_rows(pred_list3)
-
-df_pred3$pred0.2[df_pred3$t<=0.2] <- NA
-df_pred3$pred0.4[df_pred3$t<=0.4] <- NA
-df_pred3$pred0.6[df_pred3$t<=0.6] <- NA
-df_pred3$pred0.8[df_pred3$t<=0.8] <- NA
-# overview of predicted track
-p3 <- df_pred3 %>%
-  filter(id %in% rand_test_id) %>%
-  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = "Scaled, unbiased eigenvalues")
-
-```
-
-
-
-```{r}
-t_1sim <- (t_local_glmm+t_fpca+t_debias+t_pred)
-```
-
-
-
-I would like to see if the following operations can improve predictive performance: 
-
-1. Debiasing eigenvalues from FPCA
-2. Scale the eigenfunctions and debiased eigenvalues (from mgcv::bam) so that they are close to the true values for data generation
-
-
-```{r, fig.height=5, fig.width=10}
-ggarrange(p1, p3, nrow = 1, common.legend = T)
-```
-
-- Time spent on one iteration: `r round(t_1sim, 2)` seconds
-- Debiasing eigenvalues helped with prediction. Scaling eigenfunctiosn and eigenvalues, on the other hand, ended up being more complicated. 
-
-
-## ISE
 
 ```{r}
 # calcualte ISE
@@ -672,46 +581,6 @@ tb1 <- lapply(err1, function(x){
     summarise_at(vars(err1, err2, err3, err4), mean)
 }) %>% bind_rows(.id = "Window")
 ```
-
-
-```{r}
-# calcualte ISE
-err3 <- df_pred3 %>%
-  mutate(err1 = (pred0.2-eta_i)^2,
-         err2 = (pred0.4-eta_i)^2,
-         err3 = (pred0.6-eta_i)^2,
-         err4 = (pred0.8-eta_i)^2) %>%
-  select(id, t, starts_with("err"))
-
-err3$window = cut(err3$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
-# table(err1$window)
-err3 <- split(err3, f = err3$window)
-
-tb3 <- lapply(err3, function(x){
-  x %>%  group_by(id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>%
-    summarise_at(vars(err1, err2, err3, err4), mean)
-}) %>% bind_rows(.id = "Window")
-```
-
-```{r}
-# calcualte ISE
-options(knitr.kable.NA = "")
-
-ise <- full_join(tb1, tb3, by = "Window")
-colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 2))
-ise %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
-  kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
-  add_header_above(c(" "=1, "Maximum observation time" = 8))
-
-
-
-```
-
-
-## AUC
 
 ```{r}
 # calcualte AUC
@@ -738,41 +607,6 @@ for(j in seq_along(obs_track)){
 
 
 
-```{r}
-# calcualte AUC
-auc_df3 <- df_pred3 %>%
-  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
-  select(Y, starts_with("pred"), window)
-
-
-auc_mat3 <- matrix(NA, length(pred_window), length(obs_track))
-
-for(j in seq_along(obs_track)){
-  for(i in (j+1):5){
-    this_Y <- auc_df3$Y[auc_df3$window==pred_window[i]]
-    this_pred <- auc_df3[auc_df3$window==pred_window[i],
-                         paste0("pred", obs_track[j])]
-    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
-    auc_mat3[i ,j] <- this_perf@y.values[[1]]
-  }
-}
-
-```
-
-```{r}
-# calcualte AUC
-options(knitr.kable.NA = "")
-
-auc <- cbind(auc_mat, auc_mat3)
-rownames(auc) <- unique(auc_df1$window)
-colnames(auc) <-c(rep(seq(0.2, 0.8, by = 0.2), 2))
-auc %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"") %>%
-  kable_styling(full_width = F) %>% 
-  add_header_above(c(" "= 1, "Unscaled" = 4, "Scaled" = 4)) %>%
-  add_header_above(c(" "=1, "Maximum observation time" = 8))
-```
-
 ## Numeric stability
 
 Following up on the discrepancy in predictive performance using scaled and unscaled estimates of eigenfunctions and eigenvalues, it is likely to be a issue of numeric stability. I would like to compare a few optimizers to see if they make any difference on the results. I'll record computation time, convergence rate using scaled and unscaled estimates, a brief summary of performance.
@@ -792,21 +626,6 @@ Following up on the discrepancy in predictive performance using scaled and unsca
 
 Over all, I think Nelder-Mead is probably our bdst option. It converged under all situations and is also fast. When looking at ISE, scaled and unscaled estiamtes had similar performance. In fact they outperform each other five times each. 
 
-Below I compared the predictions using scaled and unscaled parameters: 
-
-
-
-```{r, fig.height=8, fig.width=8}
-par(mfrow = c(2, 2))
-plot(df_pred$pred0.2, df_pred3$pred0.2, pch=20, cex = 0.5,
-     main = "Up to 0.2", xlab = "Unscaled", ylab = "Scaled")
-plot(df_pred$pred0.4, df_pred3$pred0.4, pch=20, cex = 0.5,
-     main = "Up to 0.4", xlab = "Unscaled", ylab = "Scaled")
-plot(df_pred$pred0.6, df_pred3$pred0.6, pch=20, cex = 0.5,
-     main = "Up to 0.6", xlab = "Unscaled", ylab = "Scaled")
-plot(df_pred$pred0.8, df_pred3$pred0.8, pch=20, cex = 0.5,
-     main = "Up to 0.8", xlab = "Unscaled", ylab = "Scaled")
-```
 
 Think about the estimates. The scaled estimates of eigenvalues are much smaller than the unscaled ones, meaning the prior distribution of score using scaled estimates would be much more centered thant the unscaled ones. This would also drive the posterior distribution to be in similar shapes. Since the distribution from scaled eigenvalues has such high density at certain values, could it be that the sampling quickly got trapped in a small interval that is far from the true optimal values? It did not happen when using Nelder-Mead optimizer and set maxiter=1000. 
 
@@ -883,169 +702,473 @@ Potential drawback of Nelder-Mead: large dimensional problems.
 
 # Reference method
 
-## GLMMadaptive
+## GLMMadaptive linear time effect
 
-- Here we can fit a model with random intercept and slope for time
+- Here we can fit a model with random intercept and slope for time. It is doable on 500 datasets, but obviously too simple for the data generation scheme
 
 $$g(E(Y_i(t))) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$$
-- But this model is obviously too simple for the data generation scheme
 
 
 ```{r}
 # model fit
 t1 <- Sys.time()
-fit_adglmm <- mixed_model(Y ~ t, random = ~ t | id, data =  train_df, family = binomial())
+fit_adglmm <- mixed_model(Y ~ t, random = ~ t | id, 
+                          data =  train_df, family = binomial())
 t2 <- Sys.time()
 # t2-t1
+```
+
+
+
+
+
+```{r}
+# out-of-sample prediction
+pred_lin_glmm <- list(
+  predict(fit_adglmm, 
+          newdata = test_df %>% filter(t<=0.2),
+          newdata2 =  test_df %>% filter(t>0.2),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2,
+  
+  predict(fit_adglmm, 
+          newdata = test_df %>% filter(t<=0.4),
+          newdata2 =  test_df %>% filter(t>0.4),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2,
+  
+  predict(fit_adglmm, 
+          newdata = test_df %>% filter(t<=0.6),
+          newdata2 =  test_df %>% filter(t>0.6),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2,
+  
+  predict(fit_adglmm, 
+          newdata = test_df %>% filter(t<=0.8),
+          newdata2 =  test_df %>% filter(t>0.8),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2
+  )
+```
+
+
+```{r}
+pred_lin_glmm <- lapply(pred_lin_glmm, 
+                        function(df){df %>% select(id, t, pred)})
+
+pred_lin_glmm_df <- test_df %>%
+  left_join(pred_lin_glmm[[1]], by = c("id", "t")) %>%
+  rename(pred0.2 = pred) %>%
+  left_join(pred_lin_glmm[[2]], by = c("id", "t")) %>%
+  rename(pred0.4 = pred) %>%
+  left_join(pred_lin_glmm[[3]], by = c("id", "t")) %>%
+  rename(pred0.6 = pred) %>%
+  left_join(pred_lin_glmm[[4]], by = c("id", "t")) %>%
+  rename(pred0.8 = pred) 
+```
+
+```{r}
+p2 <- pred_lin_glmm_df %>%
+  filter(id %in% rand_test_id) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "GLMMadaptive")
+```
+
+
+```{r, fig.height=5, fig.width=10}
+ggarrange(p1, p2, nrow = 1, common.legend = T)
+```
+
+```{r}
+# calcualte ISE
+err2 <- pred_lin_glmm_df %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
+
+err2$window = cut(err2$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err2 <- split(err2, f = err2$window)
+
+tb2 <- lapply(err2, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>%
+    summarise_at(vars(err1, err2, err3, err4), mean)
+}) %>% bind_rows(.id = "Window")
+```
+
+```{r}
+# calcualte ISE
+options(knitr.kable.NA = "")
+
+ise <- full_join(tb1, tb2, by = "Window")
+colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 2))
+ise %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"",
+        caption = "ISE") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
+
+
+
+```
+
+
+
+```{r}
+# calcualte AUC
+auc_df2 <- pred_lin_glmm_df %>%
+  mutate(window = cut(t, breaks = seq(0, 1, by = 0.2), include.lowest = T)) %>%
+  select(Y, starts_with("pred"), window)
+
+
+auc_mat2 <- matrix(NA, length(pred_window), length(obs_track))
+
+for(j in seq_along(obs_track)){
+  for(i in (j+1):5){
+    this_Y <- auc_df2$Y[auc_df2$window==pred_window[i]]
+    this_pred <- auc_df2[auc_df2$window==pred_window[i],
+                         paste0("pred", obs_track[j])]
+    this_perf <- performance(prediction(this_pred, this_Y), measure = "auc")
+    auc_mat2[i ,j] <- this_perf@y.values[[1]]
+  }
+}
+
+```
+
+```{r}
+# calcualte AUC
+options(knitr.kable.NA = "")
+
+auc <- cbind(auc_mat, auc_mat2)
+rownames(auc) <- unique(auc_df1$window)
+colnames(auc) <-c(rep(seq(0.2, 0.8, by = 0.2), 2))
+auc %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"",
+        caption = "AUC") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
 ```
 
 
 ## Flexible GLMM
 
+Due to computation time, I took only 10 subjects for training set. In this case, the model took 30 minutes to fit. Perhaps we could do a few more iterations? 
 
-- Fit on all 500 subjects take too long. I reduced the sample size to 10 
-- In fact, 10 samples took more than 30 minutes to fit the model. Therefore, I further reduce the number of observations for each subject. I'll start with only the 1/10 of the time track (100 observations), take observations at bin midpoints 5, 15, 25, ...., 995. This is to preserve the non-linearity of latent function when reducing grid density
+I use five basis functions for both fixed and random effects.
 
-$$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)$$
+$$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^5\xi_{il}\phi_l(t)$$
+
 
 ```{r}
 # subset 10 subjects from training dataset 
-df_train_sub <- train_df %>% filter(id %in% 1:10 & sind==bin)
+df_train_sub <- train_df %>% filter(id %in% 1:10)
 df_train_sub$id <- droplevels(df_train_sub$id)
-# levels(df_train_sub$id)
-# intersect(t, unique(df_train_sub$t))
-# View(df_train_sub)
+
+df_test_sub <- test_df %>% filter(id %in% 1:10)
+df_test_sub$id <- droplevels(df_test_sub$id)
+# levels(df_test_sub$id)
 ```
 
 
-- Below I construct basis functions for the fixed effect/random intercept. Let's use five basis functions to start with. I believe this is far less flexible than the FPCA model, but it still takes a really long time to run. It is actually not realistic to repeat 500 times. 
-
-PS 50 subjects took 1.06 hours to fit with the same model structure. 
-
-
-```{r}
-# construct design matrix for the fixed effect intercept
-t_sub <- unique(df_train_sub$t)
-# fix_xmat <- smoothCon(s(t, bs="cr", k=5), data = data.frame(t=t_sub))
-fix_xmat <- ns(t_sub, df=5)
-# dim(fix_xmat[[1]]$X)
-
-# basis functions
-fix_xmat <- data.frame(t=t_sub, 
-                       fix_xmat)
-colnames(fix_xmat) <- c("t", paste0("B", 1:5))
-
-df_train_sub <- df_train_sub %>% left_join(fix_xmat, by = "t")
-```
-
-
-- Below I construct basis functions for the individual random effect (also a functinal intercept), with four basis functions to start with.
-
-
-```{r}
-# construct design matrix for the random effect
-rand_xmat <- smoothCon(s(t, bs="cr", k=4), data = data.frame(t=t_sub))
-# rand_xmat <- ns(t_sub, df = 4)
-
-# dim(rand_xmat[[1]]$X) # 5 basis functions for each of the 50 subjects
-rand_xmat <- data.frame(t = t, rand_xmat[[1]]$X)
-
-df_train_sub <- df_train_sub %>%
-  left_join(rand_xmat, by = c("t"))
-```
-
-
-- Now I'll fit the model and record the time spent on model fitting
-
-The model fitting took about 12 minutes at this data scale, which obviously is not realistic for 500 simulated datasets. 
-
-Also tried increasing number of basis functions, which ended up with "computationally singular". In fact, this method does not seem very numerically stable. 
-
-```{r, eval=TRUE, class.source = "fold-show"}
-# model fit
+```{r flex_adglmm, cache=T}
 t1 <- Sys.time()
-fit_adglmm <- mixed_model(fixed = Y ~ 0+B1+B2+B3+B4+B5, 
-                          random = ~X1+X2+X3+X4 | id,
+fit_adglmm_dense <- mixed_model(fixed = Y ~ 0+ns(t, df = 5), 
+                          random = ~ 0+ns(t, df = 5) | id, 
                           data =  df_train_sub, family = binomial())
 t2 <- Sys.time()
 # t2-t1
-
 ```
 
 
-- But anyways, let's try to use this method for prediction. Let's do that for 10 new test subjects. 
-
+As we have talked about from last meeting, I wanna use ns() wrapped in the GLMMadaptive::mixed_model() to see if this could speed things up. The model fit took 
+`r round(t2-t1, 2)` mins to fit. 
 
 ```{r}
-df_test_sub <- test_df %>% filter(id %in% 1:10 & sind %in% mid)
-df_test_sub$id <- droplevels(df_test_sub$id)
-# levels(df_test_sub$id)
-
-# basis functions for both fixed and random effects should be shared across sample
-df_test_sub <- df_test_sub %>% left_join(fix_xmat, by = "t") %>%
-  left_join(rand_xmat, by = "t")
-
 # given observation from 0.2, 0.4, 0.6, 0.8, predict the rest
-# this step in fact is very fast
-pred_adglmm1 <- predict(fit_adglmm, 
-                      newdata = df_test_sub %>% filter(t<=0.2),
-                      newdata2 =  df_test_sub %>% filter(t>0.2),
-                      type = "subject_specific", type_pred = "link",
-                      return_newdata = TRUE)
-
-pred_adglmm2 <- predict(fit_adglmm, 
-                      newdata = df_test_sub %>% filter(t<=0.4),
-                      newdata2 =  df_test_sub %>% filter(t>0.4),
-                      type = "subject_specific", type_pred = "link",
-                      return_newdata = TRUE)
-
-pred_adglmm3 <- predict(fit_adglmm, 
-                      newdata = df_test_sub %>% filter(t<=0.6),
-                      newdata2 =  df_test_sub %>% filter(t>0.6),
-                      type = "subject_specific", type_pred = "link",
-                      return_newdata = TRUE)
-
-pred_adglmm4 <- predict(fit_adglmm, 
-                      newdata = df_test_sub %>% filter(t<=0.8),
-                      newdata2 =  df_test_sub %>% filter(t>0.8),
-                      type = "subject_specific", type_pred = "link",
-                      return_newdata = TRUE)
+pred_nonlin_adglmm <- list(
+  predict(fit_adglmm_dense, 
+          newdata = df_test_sub %>% filter(t<=0.2),
+          newdata2 =  df_test_sub %>% filter(t>0.2),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2,
+  predict(fit_adglmm_dense, 
+          newdata = df_test_sub %>% filter(t<=0.4),
+          newdata2 =  df_test_sub %>% filter(t>0.4),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2,
+  predict(fit_adglmm_dense, 
+          newdata = df_test_sub %>% filter(t<=0.6),
+          newdata2 =  df_test_sub %>% filter(t>0.6),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2,
+  predict(fit_adglmm_dense, 
+          newdata = df_test_sub %>% filter(t<=0.8),
+          newdata2 =  df_test_sub %>% filter(t>0.8),
+          type = "subject_specific", type_pred = "link",
+          return_newdata = TRUE)$newdata2
+  )
 ```
 
 
 ```{r}
-pred_adglmm_all <- df_test_sub %>% 
-  left_join(pred_adglmm1$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>% 
-  left_join(pred_adglmm2$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>%
-  left_join(pred_adglmm3$newdata2 %>% select(id, t, pred), by = c("id", "t")) %>%
-  left_join(pred_adglmm4$newdata2 %>% select(id, t, pred), by = c("id", "t"))
+pred_nonlin_adglmm <- lapply(pred_nonlin_adglmm, 
+                        function(df){df %>% select(id, t, pred)})
 
-colnames(pred_adglmm_all) <- c(colnames(pred_adglmm_all)[1:14], "pred1", "pred2", "pred3", "pred4")
+pred_nonlin_adglmm_df <- df_test_sub %>%
+  left_join(pred_nonlin_adglmm[[1]], by = c("id", "t")) %>%
+  rename(pred0.2 = pred) %>%
+  left_join(pred_nonlin_adglmm[[2]], by = c("id", "t")) %>%
+  rename(pred0.4 = pred) %>%
+  left_join(pred_nonlin_adglmm[[3]], by = c("id", "t")) %>%
+  rename(pred0.6 = pred) %>%
+  left_join(pred_nonlin_adglmm[[4]], by = c("id", "t")) %>%
+  rename(pred0.8 = pred) 
+
+# pred_nonlin_adglmm_df %>% filter(t>0.4)
 ```
 
 
 ```{r}
-
-pred_adglmm_all %>%
+p1_nonlin <- pred_nonlin_adglmm_df %>%
   filter(id %in% 1:4) %>%
-  mutate_at(vars(eta_i, pred1, pred2, pred3, pred4), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8),
+            function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred1, col = "0.2"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred2, col = "0.4"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred3, col = "0.5"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred4, col = "0.8"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.5"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
   labs(title = "GLMMadaptive + spline basis prediction")
 
 ```
 
-# Notes
 
-Perhaps I should try to verify my thoughts about laplace approximation by different generation scheme. For example, what if the true eigenvalues are on larger scale? 
+```{r}
+# calcualte ISE
+err3 <- pred_nonlin_adglmm_df %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
 
-- Well, after increasing the scale of the true eigenvalues, the convergence rate did get closer between scaled and unscaled parameter. Also reversed as I expected.
-- But on second though, A more effecient way is to calcualted ISE and AUC stratified by convergence status
+err3$window = cut(err3$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err3 <- split(err3, f = err3$window)
 
+tb3 <- lapply(err3, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>%
+    summarise_at(vars(err1, err2, err3, err4), mean)
+}) %>% bind_rows(.id = "Window")
+```
+
+For the comparing fGFPCA, if we decrease the measurement density to 100 points, a lot of numeric problems popped up in the either local models or Laplace Approximation process. It looks like when observation track is short, GLMMadaptive has a better prediction.  
+
+```{r fGFPCA}
+# bin data
+# J_sub <- length(unique(df_train_sub$t))
+# df_train_sub$sind <- rep(1:J_sub, 10)
+# t_sub <- unique(df_train_sub$t)
+# bin_w <- 4
+  
+# n_bin_sub <- J_sub/bin_w # number of bins
+# brks <- seq(0, J_sub, by = bin_w) # cutoff points on time index
+# mid <- (brks+bin_w/2)[1:n_bin_sub] # interval mid point time index
+# mid_t <- t_sub[mid] 
+# 
+# df_train_sub$bin <- cut(df_train_sub$sind,
+#                         breaks = brks, include.lowest = T, labels = mid)
+# df_train_sub$bin <- as.numeric(as.character(df_train_sub$bin))
+```
+
+
+```{r}
+# fit fGFPCA model on the training set
+t1 <- Sys.time()
+
+## Step 2: local GLMM and estimate latent function
+## on training set
+bin_lst_sub <- split(df_train_sub, f = df_train_sub$bin)
+df_est_latent_sub <- lapply(bin_lst_sub, function(x){pred_latent(x, n_node = 0)}) 
+# boundary hitting in this process
+df_est_latent_sub <- bind_rows(df_est_latent_sub) 
+# range(df_est_latent_sub$eta_hat)
+```
+
+
+```{r}
+## Step 3: FPCA
+uni_eta_hat_sub <- df_est_latent_sub %>% filter(bin==sind)
+mat_est_unique <- matrix(uni_eta_hat_sub$eta_hat,
+                         nrow=10, 
+                         ncol=n_bin, byrow = F) 
+fpca_mod_sub <- fpca.face(mat_est_unique, argvals = mid_t, var=T)
+```
+
+```{r}
+## Step 4: project and debias
+## Projection
+# values used for projection
+p <- 3 # order of b splines 
+knots <- 35 # number of knots (same from FPCA model)
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
+B <- spline.des(knots = knots_values, x = mid_t, ord = p + 1,
+                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+Bnew <- spline.des(knots = knots_values, x = t, ord = p + 1,
+                   outer.ok = TRUE)$design  # evaluate B-splines on original grid
+df_phi <- matrix(NA, J, K) 
+for(k in 1:K){
+  lm_mod <- lm(fpca_mod_sub$efunctions[,k] ~ B-1)
+  df_phi[,k] <- Bnew %*% coef(lm_mod)
+}# project binned eigenfunctions onto the original grid
+```
+
+```{r}
+## debias
+df_phi <- data.frame(t = t, df_phi)
+colnames(df_phi) <- c("t", paste0("phi", 1:4))
+df_train_sub <- df_train_sub %>% 
+  select(-starts_with("phi")) %>%
+  left_join(df_phi, by = "t")
+train_df$id <- as.factor(train_df$id)
+debias_glmm <- bam(Y ~ s(t, bs="cc", k=10)+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"), 
+                   family = binomial, data=df_train_sub, 
+                   method = "fREML",
+                   discrete = TRUE)
+new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
+# rescale
+new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
+new_phi <- as.matrix(new_phi)
+new_lambda <- new_lambda/n_bin
+t2 <- Sys.time()
+
+```
+
+
+```{r, results='hide'}
+df_pred_sub<- df_test_sub
+converge_st <- matrix(NA, 10, 4)
+
+for(i in 1:10){
+    df_i <- df_test_sub %>% filter(id==i)
+    
+    # per max obs time
+    for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+      df_it <- df_i %>% filter(t <= tmax)
+      max_rid <- nrow(df_it)
+      
+      # into a list
+      MyData <- list(K=K, 
+                     X=new_phi[1:max_rid, ], 
+                     mon.names=mon.names,
+                     parm.names=parm.names, 
+                     pos.xi=pos.xi, 
+                     y=df_it$Y, 
+                     tao=diag(new_lambda), f0=new_mu[1:max_rid])
+      
+      
+      # fit laplace approximation
+      Fit <- LaplaceApproximation(Model, parm = rep(0, K), 
+                                  Data=MyData, Method = "NM", Iterations = 1000,
+                                  CovEst = "Identity")
+      converge_st[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
+      score <- Fit$Summary1[, "Mode"]
+      
+      # prediction
+      eta_pred_out <- new_mu+new_phi%*%score
+      df_pred_sub[df_pred_sub$id==i, paste0("pred", tmax)] <- eta_pred_out[,1]
+    }
+}
+    
+
+```
+
+
+
+```{r}
+df_pred_sub$pred0.2[df_pred_sub$t<=0.2] <- NA
+df_pred_sub$pred0.4[df_pred_sub$t<=0.4] <- NA
+df_pred_sub$pred0.6[df_pred_sub$t<=0.6] <- NA
+df_pred_sub$pred0.8[df_pred_sub$t<=0.8] <- NA
+
+p2_fgfpca <- df_pred_sub %>%
+  filter(id %in% 1:4) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8),
+            function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.5"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "fGFPCA")
+
+```
+
+
+```{r}
+# calcualte ISE
+err4 <- df_pred_sub %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>%
+  select(id, t, starts_with("err"))
+
+err4$window = cut(err4$t, breaks = seq(0, 1, by = 0.2), include.lowest = T)
+# table(err1$window)
+err4 <- split(err4, f = err4$window)
+
+tb4 <- lapply(err4, function(x){
+  x %>%  group_by(id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>%
+    summarise_at(vars(err1, err2, err3, err4), mean)
+}) %>% bind_rows(.id = "Window")
+```
+
+```{r}
+# calcualte ISE
+options(knitr.kable.NA = "")
+
+ise <- full_join(tb4, tb3, by = "Window")
+colnames(ise) <-c("Window",  rep(seq(0.2, 0.8, by =0.2), 2))
+ise %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"",
+        caption = "ISE") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "= 1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "=1, "Maximum observation time" = 8))
+```
+
+```{r, fig.height=5, fig.width=10}
+ggarrange(p1_nonlin, p2_fgfpca, nrow = 1, common.legend = T)
+```
+
+
+## Random thouds
 
