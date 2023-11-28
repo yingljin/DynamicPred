@@ -874,10 +874,12 @@ $$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^5\xi_{il}\phi_l(t)$$
 
 ```{r}
 # subset 10 subjects from training dataset 
-df_train_sub <- train_df %>% filter(id %in% 1:10)
+df_train_sub <- train_df %>% filter(id %in% 1:10) %>%
+  filter(t >= 0.375 & t <= 0.708)
 df_train_sub$id <- droplevels(df_train_sub$id)
 
-df_test_sub <- test_df %>% filter(id %in% 1:10)
+df_test_sub <- test_df %>% filter(id %in% 1:10) %>% 
+  filter(t >= 0.375 & t <= 0.708)
 df_test_sub$id <- droplevels(df_test_sub$id)
 # levels(df_test_sub$id)
 ```
@@ -889,7 +891,7 @@ fit_adglmm_dense <- mixed_model(fixed = Y ~ 0+ns(t, df = 5),
                           random = ~ 0+ns(t, df = 5) | id, 
                           data =  df_train_sub, family = binomial())
 t2 <- Sys.time()
-# t2-t1
+t2-t1
 ```
 
 
@@ -980,6 +982,8 @@ tb3 <- lapply(err3, function(x){
 ```
 
 For the comparing fGFPCA, if we decrease the measurement density to 100 points, a lot of numeric problems popped up in the either local models or Laplace Approximation process. It looks like when observation track is short, GLMMadaptive has a better prediction.  
+
+I wonder if we should decrease the obervation track instead of decrease density. Let's say we only think about 9am-5pm (t from 0.375 to 0.208). 
 
 ```{r fGFPCA}
 # bin data

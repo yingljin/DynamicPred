@@ -1,5 +1,5 @@
 ---
-title: "Tables and Figures to put in manuscript"
+title: "Manuscript progress report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
 output: 
@@ -43,7 +43,111 @@ M <- length(pred_list_all)
 ```
 
 
+# Method
+
+## Assumptions
+
+- For each subject i in the population, a generalized outcome $Y_i(t)$ is generated along a variable t (for example, time), where $t \in (0, T)$. 
+- The outcome, at any specific t, follows an exponential family distribution characterized by a (latent) continuous function $\eta_i(t)$: 
+
+$$g[E(Y_i(t))] = \eta_i(t) = \beta_0(t)+b_i(t)$$
+
+$$p(Y_i(t)) = h(Y_i(t))\frac{exp(\eta_i(t)T[Y_i(t)])}{A(\eta_i(t))}$$
+
+- The continuous latent function consists of a population-level fixed process and an individual-level random process
+
+$$\eta_i(t) = \beta_0(t)+b_i(t)$$
+
+## Observed data
+
+In practice we would observe the discrete realization of $\{Y_i(t), t\}$ along a dense grid. For simplicity, we assume the observation grid is regular (same across sample). When we have J observations points in $(0, T]$, then for the jth observation point, we denote the corresponding value of t as $t_j$, and the corresponding outcome at this point $Y_i(t_j)$. 
+
+
+## fGFPCA Algorithm
+
+### Bin data: 
+
+Choose a proper bin width $w$ considering model complexity and identifiability. For now let's say the bins are equal-length and non-overlapping. 
+
+- Bin index $s = 1...S$
+- Index of bin midpoints $m_s$
+- Value of t corresponding to bin midpoints $t_{m_s}$
+- Bin endpoints: $(t_{m_s}-\frac{w}{2}, t_{m_s}+\frac{w}{2}]$
+
+```{r, eval=FALSE}
+grid_exp <- data.frame(t = seq(0, 1, by = 0.01), y = 0)
+ggplot(grid_exp, aes(x=t, y=y))+
+  geom_point(size = 0.5)
+```
+
+### Local GLMMs
+
+At the every bin, we fit a local intercept-only model:
+
+$$g[E(Y_i(t_j))] =\eta_i(t_{m_s})= \beta_0(t_{m_s})+b_i(t_{m_s})$$
+where $t_j \in (t_{m_s}-\frac{w}{2}, t_{m_s}+\frac{w}{2}]$.
+
+Here we are basically saying that the value of latent function is constant within the same bin, which clearly is a misspecification of the true latent process.
+
+From the model above. we will be able to estimate a $\hat{\eta_i}(t_{m_s})$ on the binned grid for every individual in the training sample. 
+
+### FPCA 
+
+Here, we fit a FPCA model on the $\hat{\eta_i}(t_{m_s})$ obtained from step 2:
+
+$$\hat{\eta}_i(t_{m_s}) = f_0(t_{m_s})+\sum_{k=1}^K\xi_{ik}\phi_{k}(t_{m_s})+\epsilon_i(t_{m_s})$$
+
+where $\xi_{ik}$ independently follows normal distribution $N(0, \lambda_k)$, and $\epsilon_i(t_{m_s})$ at each point follows $N(0, \sigma_2)$.
+
+From this model, we will be able to obtain the following estimates which are shared across population: 
+
+- Population mean $\hat{f_0}(t_{m_s})$
+- Basis functions $\hat{\mathbf{\Phi}} = \{\hat{\phi}_1(t_{m_s}), ...,\hat{\phi}_K(t_{m_s}))\}$
+- Estimates of variance of scores $\hat{\lambda}_1...\hat{\lambda}_K$
+
+### Projection and Debias
+
+The mean and basis functions are evaluated on the binned grid. To extend it to the original measurement grid data was collected on, we project the estimated eigenfunctions $\hat{\mathbf{\Phi}}$ back use spline basis. Now we have extend the $\hat{\phi}_k(t_{m_s})$ to the original grid $\hat{\phi}_k(t_j)$
+
+Because of the misspecification of local GLMMs, the estimated eigenfunctions and eigenvalues are also biased by a constant multiplicative effect. Therefore, we use a GLMM to re-evaluate the mean function, eigenfunctions and eigenvalues. 
+
+## Out-of-sample prediction 
+
+Now, let's assume we have a new subject $u$ with $J_u$ observations ($J_u < J$). Then the log-likelihood of this new subject would be:
+
+
+$$l_u=\sum_{t_j<t_{J_u}}log(h(Y_u(t_j)))+\hat{\eta}_u(t_j)T(Y_u(t_j))-log(A[\hat{\eta}_u(t_j)])$$
+
+where $\hat{\eta}_u(t_j) = \hat{f}_0(t_j)+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_j)$. 
+
+With estimates for the population-level parameters from fGFPCA algorithms above, we can estimate $\xi_{uk}$ by maximization of $l_u$. Direct maximization some times does not have closed form solution. Numeric maximization methods seem not very stable as well. So I have decided to used a Bayes approach (Laplace Approximation):
+
+- Prior distribution: $\xi_{uk} \sim N(0, \hat{\lambda}_k)$
+- Posterior distribution: the likelihood of $l_u =l(Y_u(t_j)|\mathbf{\xi}_u)$
+
+Laplace Approximation would get the posterior mode of $\xi_{uk}$ through quadratic approximation.
+
+
 # Larger-scale simulation
+
+## Simulation set up
+
+Here we simulate binary data from cyclic latent process:
+
+
+\[\begin{aligned}
+Y_i(t) & \sim Bernoulli(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
+\eta_i(t) &= f_0(t)+ \xi_{i1}\sqrt{2}sin(2\pi t)+\xi_{i2}\sqrt{2}cos(2\pi t)+\xi_{i3}\sqrt{2}sin(4\pi t)+\xi_{i4}\sqrt{2}cos(4\pi t)
+\end{aligned}\]
+
+where:
+
+- $t$ is 1000 equal-spaced observations points on $[0, 1]$ (J = 1000).
+- $f_0(t)=0$
+- $\xi_k \sim N(0, \lambda_k)$, and $\lambda_k = 1, 0.5, 0.25, 0.125$ for k = 1, 2, 3, 4 respectively. 
+- Sample size $N = 500$
+- In the binning step, we bin every 10 observations
+- 500 simulations were implemented
 
 ## Figure
 
@@ -83,6 +187,7 @@ fig_adglmm <- pred_list_ref[[1]] %>%
 ggarrange(fig_fgfpca, fig_adglmm,
           nrow = 1, common.legend = T)
 ```
+
 ## ISE
 
 ```{r}
@@ -261,6 +366,6 @@ data.frame(
 I think we could say that while the total time spend on model fitting + prediction are similar between two methods, fGFPCA achieved much better flexibility and much better predictive performance of prediction under every scenario. 
 
 
-# Small-scale simulation 
+<!-- # Small-scale simulation  -->
 
-# NHANES data application
+<!-- # NHANES data application -->
