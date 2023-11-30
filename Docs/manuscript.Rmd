@@ -4,13 +4,14 @@ author: "Ying Jin"
 date: "`r Sys.Date()`"
 output: 
   html_document:
-    self_contained: yes
+    self_contained: no
     number_sections: true
     code_folding: hide
     toc: true
     toc_depth: 3
     toc_float: true
     font: 12pt
+    keep_tex: true
 ---
 
 ```{r setup, include=FALSE}
@@ -150,6 +151,18 @@ where:
 - 500 simulations were implemented
 
 
+```{r fig_sim_data}
+rand_id <- sample(501:600, size = 4)
+pred_list_all[[1]] %>% filter(id %in% rand_id) %>%
+  mutate_at(vars(eta_i), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  facet_wrap(~id)+
+  labs(title = "Simulated data")
+```
+
+
 ## Reference method
 
 
@@ -162,7 +175,6 @@ $$g(E(Y_i(t))) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$$
 
 
 ```{r fig_pred}
-rand_id <- sample(501:600, size = 4)
 # range(pred_list_all[[1]]$pred0.2, na.rm = T)
 fig_fgfpca <- pred_list_all[[1]] %>%
   filter(id %in% rand_id) %>%
