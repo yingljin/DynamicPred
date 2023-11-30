@@ -52,7 +52,7 @@ M <- length(pred_list_all)
 
 $$g[E(Y_i(t))] = \eta_i(t) = \beta_0(t)+b_i(t)$$
 
-$$p(Y_i(t)) = h(Y_i(t))\frac{exp(\eta_i(t)T[Y_i(t)])}{A(\eta_i(t))}$$
+$$p(Y_i(t)) = h(Y_i(t))exp\{\eta_i(t)T[Y_i(t)]-A(\eta_i(t))\}$$
 
 - The continuous latent function consists of a population-level fixed process and an individual-level random process
 
@@ -148,6 +148,15 @@ where:
 - Sample size $N = 500$
 - In the binning step, we bin every 10 observations
 - 500 simulations were implemented
+
+
+## Reference method
+
+
+- GLMMadaptive
+- Here we can fit a model with random intercept and slope for time. It is doable on 500 datasets, but obviously too simple for the data generation scheme. We would expect it to perform terribly.
+
+$$g(E(Y_i(t))) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$$
 
 ## Figure
 
@@ -366,6 +375,155 @@ data.frame(
 I think we could say that while the total time spend on model fitting + prediction are similar between two methods, fGFPCA achieved much better flexibility and much better predictive performance of prediction under every scenario. 
 
 
-<!-- # Small-scale simulation  -->
+# Small-scale simulation: one iteration
+
+Here we would like to fit fGFPCA and GLMMadaptive on a dataset with smaller sample size and/or smaller measurement density. For the GLMMadaptive model, we would set it up with spline basis functions so that its flexibility is comparable with fGFPCA model, such as: 
+
+$$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^5\xi_{il}\phi_l(t)$$
+
+I did the following things for data-reduction
+
+- Reduce sample size to 10 (for both training and testing)
+- Reduce measurement track by half (0.25-0.75)
+- Another way is the simple reduce the measurement density. For example, instead of every minute, we can use every 10 minutes. In this case, the binning step in fGFPCA would bin every 100 minutes in to one bin. 
+- - When we have smaller density of measurement grid, both methods could run into numeric issues in both methods. For example, singularity happened the the local GLMM step of fGFPCA procedure. This might be able to get resoved by changing the optimizer (e.g. Nealder_Mead). Do we want to do that? Or perhaps we simply want to use the full track? 
+
+- We may also need to reduce number of simulations (GLMMadaptive took 20-ish minutes for one simulaiton).
+
+Below are some of the outcomes:
+
+```{r load_subset_sim_output}
+load(here("Data/SubSimOutput_GLMMadaptive.RData"))
+load(here("Data/SubSimOutput_fGFPCA.RData"))
+```
+
+## Figure
+
+
+```{r fig_pred_subset}
+fig_fgfpca_subset <- df_pred_m_fGFPCA %>% filter(id %in% 501:504) %>%
+  mutate_at(vars(eta_i, pred0.35, pred0.45, pred0.55, pred0.65), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.35, col = "0.35"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.45, col = "0.45"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.55, col = "0.55"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.65, col = "0.65"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "fGFPCA", col = "Maximum observation time")
+
+fig_adglmm_subset <- df_pred_m_adglmm %>% filter(id %in% 501:504) %>%
+  mutate_at(vars(eta_i, pred0.35, pred0.45, pred0.55, pred0.65), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.35, col = "0.35"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.45, col = "0.45"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.55, col = "0.55"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.65, col = "0.65"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "GLMMadaptive", col = "Maximum observation time")
+
+```
+
+```{r}
+ggarrange(fig_fgfpca_subset, fig_adglmm_subset,
+          nrow = 1, common.legend = T)
+```
+
+## ISE
+
+
+
+```{r ise_fGFPCA_subset}
+window2 <- seq(0.25, 0.75, by = 0.1)
+ise_mat_subset <- df_pred_m_fGFPCA %>%
+    mutate(err1 = (pred0.35-eta_i)^2,
+           err2 = (pred0.45-eta_i)^2,
+           err3 = (pred0.55-eta_i)^2,
+           err4 = (pred0.65-eta_i)^2) %>%
+    select(id, t, starts_with("err")) %>% 
+    mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != "[0.25,0.35]") %>% 
+    select(starts_with("err"))
+colnames(ise_mat_subset) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+```
+
+```{r ise_GLMMadaptive_subset}
+ise_mat_subset2 <- df_pred_m_adglmm %>%
+    mutate(err1 = (pred0.35-eta_i)^2,
+           err2 = (pred0.45-eta_i)^2,
+           err3 = (pred0.55-eta_i)^2,
+           err4 = (pred0.65-eta_i)^2) %>%
+    select(id, t, starts_with("err")) %>% 
+    mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != "[0.25,0.35]") %>% 
+    select(starts_with("err"))
+colnames(ise_mat_subset2) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+```
+
+
+```{r}
+data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]"),
+           ise_mat_subset, ise_mat_subset2, check.names = F) %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "= 1, "Observation track" = 8))
+```
+
+
+## AUC
+
+```{r auc_fGFPCA_subset}
+auc_mat_subset <- df_pred_m_fGFPCA %>%
+  mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred0.35),
+            auc2 = get_auc(Y, pred0.45),
+            auc3 = get_auc(Y, pred0.55),
+            auc4 = get_auc(Y, pred0.65)) %>%
+  filter(window != "[0.25,0.35]") %>% 
+  select(starts_with("auc"))
+
+colnames(auc_mat_subset) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+```
+
+```{r auc_GLMMadaptive_subset}
+auc_mat_subset2 <- df_pred_m_adglmm %>%
+  mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred0.35),
+            auc2 = get_auc(Y, pred0.45),
+            auc3 = get_auc(Y, pred0.55),
+            auc4 = get_auc(Y, pred0.65)) %>%
+  filter(window != "[0.25,0.35]") %>% 
+  select(starts_with("auc"))
+
+colnames(auc_mat_subset2) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+```
+
+```{r}
+data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]"),
+           auc_mat_subset, auc_mat_subset2, check.names = F) %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" "= 1, "Observation track" = 8))
+```
+
+There is huge difference in compuation time. GLMMadaptive took 23 minutes, while fGFPCA took less than 3 seconds.
+
 
 <!-- # NHANES data application -->
