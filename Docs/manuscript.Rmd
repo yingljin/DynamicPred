@@ -538,4 +538,72 @@ data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]
 There is huge difference in compuation time. GLMMadaptive took 23 minutes, while fGFPCA took less than 3 seconds.
 
 
-<!-- # NHANES data application -->
+# NHANES data application
+
+We take 80% (7010) subjects for training, 20% (1753) for out-of-sample prediction. 
+
+In the GLMMadaptive model, I could only fit a model with random intercept. It took more than 20 minutes for model fitting. 
+
+```{r load_nhanes}
+df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
+load(here("Data/ApplOutput.RData"))
+```
+
+```{r nhance example}
+df_nhanes %>% select(SEQN, Z, sind) %>% 
+  mutate(Z = factor(Z, levels = 0:1, labels = c("Inactive", "Active"))) %>%
+  mutate(SEQN = factor(SEQN, labels = 1:8763)) %>%
+  ggplot()+
+  geom_tile(aes(x=sind, y = SEQN, fill = Z))+
+  labs(x="Time", y="Subject", title = "Overview of NHANES binary activity indicator")+
+  theme(axis.text.y = element_blank())
+
+```
+
+
+## AUC
+
+```{r auc_fGFPCA_nhanes}
+window3 <- seq(0, 1440, by = 240)
+
+auc_mat_nhanes <- nhanes_pred_fgfpca %>%
+  mutate(window = cut(sind, breaks = window3, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred240),
+            auc2 = get_auc(Y, pred480),
+            auc3 = get_auc(Y, pred720),
+            auc4 = get_auc(Y, pred960),
+            auc5 = get_auc(Y, pred1200)) %>%
+  filter(window != "[0,240]") %>% 
+  select(starts_with("auc"))
+
+colnames(auc_mat_nhanes) <- c("4am", "8am", "12pm", "4pm", "8pm")
+```
+
+```{r auc_GLMMadaptive_nhanes}
+auc_mat_nhanes2 <- nhanes_pred_adglmm %>%
+  mutate(sind=t*1440) %>%
+  mutate(window = cut(sind, breaks = window3, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred240),
+            auc2 = get_auc(Y, pred480),
+            auc3 = get_auc(Y, pred720),
+            auc4 = get_auc(Y, pred960),
+            auc5 = get_auc(Y, pred1200)) %>%
+  filter(window != "[0,240]") %>% 
+  select(starts_with("auc"))
+
+colnames(auc_mat_nhanes2) <- c("4am", "8am", "12pm", "4pm", "8pm")
+```
+
+```{r}
+data.frame(Window = c("4am-8am", "8am-12pm", "12pm-4pm", "4pm-8pm",
+                      "8pm-12am"),
+           auc_mat_nhanes, auc_mat_nhanes2, check.names = F) %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area Under the ROC curve") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "=1, "fGFPCA" = 5, "GLMMadaptive" = 5)) %>%
+  add_header_above(c(" "= 1, "Maximum observation time" = 10))
+```

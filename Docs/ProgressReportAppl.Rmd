@@ -11,12 +11,13 @@ output:
     toc_depth: 3
     toc_float: true
     font: 12pt
+    keep_tex: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-set.seed(516)
+set.seed(121)
 
 library(here)
 library(tidyverse)
