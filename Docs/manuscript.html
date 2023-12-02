@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2023-11-30" />
+<meta name="date" content="2023-12-01" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2023-11-30</h4>
+<h4 class="date">2023-12-01</h4>
 
 </div>
 
@@ -1189,7 +1189,250 @@ Window
 </table>
 <p>There is huge difference in compuation time. GLMMadaptive took 23
 minutes, while fGFPCA took less than 3 seconds.</p>
-<!-- # NHANES data application -->
+</div>
+</div>
+<div id="nhanes-data-application" class="section level1" number="4">
+<h1><span class="header-section-number">4</span> NHANES data
+application</h1>
+<p>We take 80% (7010) subjects for training, 20% (1753) for
+out-of-sample prediction.</p>
+<p>In the GLMMadaptive model, I could only fit a model with random
+intercept. It took more than 20 minutes for model fitting.</p>
+<p><img src="manuscript_files/figure-html/nhance%20example-1.png" width="672" /></p>
+<div id="auc-2" class="section level2" number="4.1">
+<h2><span class="header-section-number">4.1</span> AUC</h2>
+<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<caption>
+Area Under the ROC curve
+</caption>
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="10">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Maximum observation time
+</div>
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="5">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+fGFPCA
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="5">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GLMMadaptive
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+Window
+</th>
+<th style="text-align:right;">
+4am
+</th>
+<th style="text-align:right;">
+8am
+</th>
+<th style="text-align:right;">
+12pm
+</th>
+<th style="text-align:right;">
+4pm
+</th>
+<th style="text-align:right;">
+8pm
+</th>
+<th style="text-align:right;">
+4am
+</th>
+<th style="text-align:right;">
+8am
+</th>
+<th style="text-align:right;">
+12pm
+</th>
+<th style="text-align:right;">
+4pm
+</th>
+<th style="text-align:right;">
+8pm
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+4am-8am
+</td>
+<td style="text-align:right;">
+0.755
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.637
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+8am-12pm
+</td>
+<td style="text-align:right;">
+0.545
+</td>
+<td style="text-align:right;">
+0.669
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.465
+</td>
+<td style="text-align:right;">
+0.656
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+12pm-4pm
+</td>
+<td style="text-align:right;">
+0.527
+</td>
+<td style="text-align:right;">
+0.409
+</td>
+<td style="text-align:right;">
+0.495
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.493
+</td>
+<td style="text-align:right;">
+0.598
+</td>
+<td style="text-align:right;">
+0.715
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+4pm-8pm
+</td>
+<td style="text-align:right;">
+0.551
+</td>
+<td style="text-align:right;">
+0.465
+</td>
+<td style="text-align:right;">
+0.375
+</td>
+<td style="text-align:right;">
+0.377
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.522
+</td>
+<td style="text-align:right;">
+0.582
+</td>
+<td style="text-align:right;">
+0.652
+</td>
+<td style="text-align:right;">
+0.703
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+8pm-12am
+</td>
+<td style="text-align:right;">
+0.732
+</td>
+<td style="text-align:right;">
+0.645
+</td>
+<td style="text-align:right;">
+0.570
+</td>
+<td style="text-align:right;">
+0.586
+</td>
+<td style="text-align:right;">
+0.732
+</td>
+<td style="text-align:right;">
+0.532
+</td>
+<td style="text-align:right;">
+0.539
+</td>
+<td style="text-align:right;">
+0.547
+</td>
+<td style="text-align:right;">
+0.594
+</td>
+<td style="text-align:right;">
+0.641
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="figure-2" class="section level2" number="4.2">
+<h2><span class="header-section-number">4.2</span> Figure</h2>
+<p><img src="manuscript_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+</div>
+<div id="issues" class="section level2" number="4.3">
+<h2><span class="header-section-number">4.3</span> Issues</h2>
+<p>In step 4 of fGFPCA, some eigenvalues, after re-evaluation, was very,
+very small. It also lost its monotone decreasing nature.</p>
+<p>The debias step of fGFPCA also took a very, very long time.</p>
 </div>
 </div>
 

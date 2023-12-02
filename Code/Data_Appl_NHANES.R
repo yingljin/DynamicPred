@@ -1,6 +1,6 @@
 # data application of NHANES
 
-set.seed(121)
+set.seed(1114)
 
 library(here)
 library(tidyverse)
@@ -16,6 +16,7 @@ library(ggpubr)
 library(gridExtra)
 library(kableExtra)
 library(LaplacesDemon)
+library(splines)
 
 #### load data ####
 df <- read_rds(here("Data/nhanes_bi.rds"))
@@ -25,18 +26,6 @@ N <- length(unique(df$id)) # sample size 8763
 J <- max(df$sind) # 1440 measures for each subject
 t <- unique(df$sind)
 K <- 4 # number of eigenfunctions to use
-
-
-#### visulization ####
-rand_id <- sample(unique(df$id), size = 4)
-
-df %>% 
-  filter(id %in% rand_id) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.5)+
-  facet_wrap(~id)+
-  labs(x="Time", y = "Activity")+
-  theme(plot.margin = margin(0, 1, 0, 0))
 
 
 #### Data split ####
@@ -65,7 +54,6 @@ train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = m
 train_df$bin <- as.numeric(as.character(train_df$bin))
 
 # local GLMM
-t1 <- Sys.time()
 bin_lst <- split(train_df, f = train_df$bin)
 df_est_latent <- lapply(bin_lst, function(x){pred_latent(x, n_node = 0)}) 
 df_est_latent <- bind_rows(df_est_latent) 
@@ -77,9 +65,9 @@ head(uni_eta_hat)
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
                          nrow=length(train_id), 
                          ncol=n_bin, byrow = F) 
-fpca_mod <- fpca.face(mat_est_unique, argvals = mid_t, var=T)
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid_t, var=T, npc=4)
 ncol(fpca_mod$efunctions)
-fpca_mod$evalues[1:4]
+fpca_mod$evalues
 
 # Re-evaluation
 ## grid extension
@@ -93,6 +81,7 @@ B <- spline.des(knots = knots_values, x = mid_t, ord = p + 1,
 Bnew <- spline.des(knots = knots_values, x = t, ord = p + 1,
                    outer.ok = TRUE)$design  # evaluate B-splines on original grid
 
+K
 df_phi <- matrix(NA, J, K) 
 for(k in 1:K){
   lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
@@ -100,16 +89,20 @@ for(k in 1:K){
 }# project binned eigenfunctions onto the original grid
 
 
-plot(mid_t, fpca_mod$efunctions[,2], pch = ".")
-lines(t, df_phi[,2])
+plot(mid_t, fpca_mod$efunctions[,4], pch = ".")
+lines(t, df_phi[,4])
+
+plot(mid_t, fpca_mod$mu, pch=".")
 
 ## debias
-df_phi <- data.frame(t = t, df_phi)
-colnames(df_phi) <- c("t", paste0("phi", 1:4))
-train_df <- train_df %>% rename(t=sind) %>%
-  left_join(df_phi, by = "t")
+df_phi <- data.frame(sind = t, df_phi)
+colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+train_df <- train_df %>% 
+  left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
-debias_glmm <- bam(Y ~ s(t, bs="cc", k=10)+
+
+t1 <- Sys.time()
+debias_glmm <- bam(Y ~ s(sind, bs="cc", k=10)+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
@@ -117,10 +110,16 @@ debias_glmm <- bam(Y ~ s(t, bs="cc", k=10)+
                    family = binomial, data=train_df, 
                    method = "fREML",
                    discrete = TRUE)
+t2 <- Sys.time()
+t2-t1
+
+
 new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
 plot(t, new_mu)
 
-new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
+fpca_mod$evalues
+new_lambda <- 1/debias_glmm$sp # extract re-evaluated lambda
+fpca_mod$evalues[1:4]/new_lambda
 
 ## rescale
 new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
