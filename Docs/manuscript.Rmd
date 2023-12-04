@@ -564,99 +564,67 @@ df_nhanes %>% select(SEQN, Z, sind) %>%
 ## AUC
 
 ```{r auc_fGFPCA_nhanes}
-window3 <- seq(0, 1440, by = 240)
+window3 <- c(0, 480, 960, 1440)
 
 auc_mat_nhanes <- nhanes_pred_fgfpca %>%
-  mutate(window = cut(sind, breaks = window3, include.lowest = T)) %>% 
+  mutate(window = cut(t, breaks = window3, include.lowest = T)) %>% 
   select(Y, starts_with("pred"), window) %>%
   group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred240),
-            auc2 = get_auc(Y, pred480),
-            auc3 = get_auc(Y, pred720),
-            auc4 = get_auc(Y, pred960),
-            auc5 = get_auc(Y, pred1200)) %>%
-  filter(window != "[0,240]") %>% 
+  summarise(auc1 = get_auc(Y, pred480),
+            auc2 = get_auc(Y, pred960)) %>%
+  filter(window != "[0,480]") %>% 
   select(starts_with("auc"))
 
-colnames(auc_mat_nhanes) <- c("4am", "8am", "12pm", "4pm", "8pm")
+colnames(auc_mat_nhanes) <- c("0-8am", "0am-4pm")
 ```
 
 ```{r auc_GLMMadaptive_nhanes}
 auc_mat_nhanes2 <- nhanes_pred_adglmm %>%
-  mutate(sind=t*1440) %>%
-  mutate(window = cut(sind, breaks = window3, include.lowest = T)) %>% 
+  mutate(window = cut(t, breaks = window3, include.lowest = T)) %>% 
   select(Y, starts_with("pred"), window) %>%
   group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred240),
-            auc2 = get_auc(Y, pred480),
-            auc3 = get_auc(Y, pred720),
-            auc4 = get_auc(Y, pred960),
-            auc5 = get_auc(Y, pred1200)) %>%
-  filter(window != "[0,240]") %>% 
+  summarise(auc1 = get_auc(Y, pred480),
+            auc2 = get_auc(Y, pred960)) %>%
+  filter(window != "[0,480]") %>% 
   select(starts_with("auc"))
 
-colnames(auc_mat_nhanes2) <- c("4am", "8am", "12pm", "4pm", "8pm")
+colnames(auc_mat_nhanes2) <- c("0-8am", "0am-4pm")
 ```
 
 ```{r}
-data.frame(Window = c("4am-8am", "8am-12pm", "12pm-4pm", "4pm-8pm",
-                      "8pm-12am"),
+data.frame(Window = c("8am-4pm", "4am-12pm"),
            auc_mat_nhanes, auc_mat_nhanes2, check.names = F) %>%
   kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area Under the ROC curve") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(c(" "=1, "fGFPCA" = 5, "GLMMadaptive" = 5)) %>%
-  add_header_above(c(" "= 1, "Maximum observation time" = 10))
+  add_header_above(c(" "=1, "fGFPCA" = 2, "GLMMadaptive" = 2)) %>%
+  add_header_above(c(" "= 1, "Maximum observation time" = 4))
 ```
 
 ## Figure
 
-```{r fig_pred_anhanes}
+```{r}
 rand_id2 <- sample(unique(nhanes_pred_fgfpca$id), 4)
 
-fig_fgfpca_nhanes <- nhanes_pred_fgfpca %>% 
-  filter(id %in% rand_id2) %>%
-  mutate_at(vars(starts_with("pred")), function(x){exp(x)/(1+exp(x))}) %>%
-  rename(t=sind) %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=pred240, col = "4am"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred480, col = "8am"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred720, col = "12pm"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred960, col = "4pm"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred1200, col = "8pm"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = "fGFPCA", col = "Maximum observation time")+
-  scale_x_continuous(breaks = window3, 
-                     labels = c("Midnight", "4am", "8am", "12pm", "4pm", "8pm", "Midnight"))
+ggarrange(
+  nhanes_pred_fgfpca %>% 
+    filter(id %in% rand_id2) %>%
+    mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
+    ggplot()+
+    geom_line(aes(x=t, y = pred480, col = "8am"), linetype = "dashed", na.rm = T)+
+    geom_line(aes(x=t, y = pred960, col = "4pm"),linetype = "dashed", na.rm = T)+
+    geom_point(aes(x=t, y = Y, col = "Outcome"), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = "Time", y = "fGFPCA"),
+  
+  nhanes_pred_adglmm %>% 
+    filter(id %in% rand_id2) %>%
+    mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
+    ggplot()+
+    geom_line(aes(x=t, y = pred480, col = "8am"), linetype = "dashed", na.rm = T)+
+    geom_line(aes(x=t, y = pred960, col = "4pm"),linetype = "dashed", na.rm = T)+
+    geom_point(aes(x=t, y = Y, col = "Outcome"), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = "Time", y = "GLMMadaptive"),
+  nrow = 1, common.legend = T)
 ```
-
-```{r}
-fig_adglmm_nhanes <- nhanes_pred_adglmm %>% 
-  filter(id %in% rand_id2) %>%
-  mutate_at(vars(starts_with("pred")), function(x){exp(x)/(1+exp(x))}) %>%
-  mutate(t = t*1440) %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=pred240, col = "4am"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred480, col = "8am"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred720, col = "12pm"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred960, col = "4pm"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred1200, col = "8pm"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = "GLMMadaptive", col = "Maximum observation time")+
-  scale_x_continuous(breaks = window3, 
-                     labels = c("Midnight", "4am", "8am", "12pm", "4pm", "8pm", "Midnight"))
-```
-
-
-```{r}
-ggarrange(fig_fgfpca_nhanes, fig_adglmm_nhanes, nrow = 1, common.legend = T)
-```
-
-
-## Issues
-
-In step 4 of fGFPCA, some eigenvalues, after re-evaluation, was very, very small. It also lost its monotone decreasing nature. 
-
-The debias step of fGFPCA also took a very, very long time. 
 

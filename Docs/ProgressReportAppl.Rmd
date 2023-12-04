@@ -30,6 +30,7 @@ library(kableExtra)
 library(mvtnorm)
 library(mgcv)
 library(splines)
+library(LaplacesDemon)
 theme_set(theme_minimal())
 ```
 
@@ -41,8 +42,7 @@ df <- read_rds(here("Data/nhanes_bi.rds"))
 # code
 source(here("Code/GLMM-FPCA.R")) 
 # use pred_latent function to estimate latent function 
-source(here("Code/OutSampMLE.R"))
-# source(here("Code/OutsampBayes.R"))
+source(here("Code/OutsampBayes.R"))
 ```
 
 
@@ -96,17 +96,22 @@ df %>%
 ```
 ## Data split
 
-- 80% (7010) subjects for training, 20% (1753) for out-of-sample prediction
+- Original sample size took too much time in the debias step of fGFPCA method. 
+- In fact, the debais step does not work very well in this case
+- 500 subjects for training, 500 for out-of-sample prediction
 
 ```{r}
 # head(df)
 df <- df %>% rename(id=SEQN, Y=Z)
 
-train_id <- sample(unique(df$id), size = N*0.8)
-test_id <- setdiff(unique(df$id), train_id)
+Ntr <- Nte <- 500
+
+train_id <- unique(df$id)[1:500]
+test_id <- unique(df$id)[501:1000]
 
 train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
+# 1440*500
 ```
 
 
@@ -152,7 +157,7 @@ uni_eta_hat <- df_est_latent %>% filter(bin==sind)
 # head(uni_eta_hat)
 
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
-                         nrow=length(train_id), 
+                         nrow=Ntr, 
                          ncol=n_bin, byrow = F) 
 # row index subject, column binned time
 # dim(mat_est_unique)
@@ -166,21 +171,10 @@ t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
 K <- 4
 ```
 
-```{r}
-plot(mid, fpca_mod$mu, type = "l", xlab = "bin", ylab = "mean")
-```
 
 
-```{r, fig.height=8, fig.width=8}
-par(mfrow=c(2,2))
 
-plot(mid, fpca_mod$efunctions[, 1], type="l", xlab="bin", ylab="PC1")
-plot(mid, fpca_mod$efunctions[, 2], type="l", xlab="bin", ylab="PC2")
-plot(mid, fpca_mod$efunctions[, 3], type="l", xlab="bin", ylab="PC3")
-plot(mid, fpca_mod$efunctions[, 4], type="l", xlab="bin", ylab="PC4")
-```
-
-```{r}
+```{r, eval=FALSE}
 # plot correlation matrix
 heatmap(cov2cor(fpca_mod$VarMats[[1]]), Rowv = NA, Colv = NA, main = "Correlation")
 ```
@@ -192,20 +186,101 @@ According to the fGFPCA paper, in this step we do two things:
 1. Project the eigenfunctions with B-spline basis back to the original grid
 2. Debias the eigenvalues with GLMM (mgcv::bam, mgcm::gamm or gamm4:gamm) to be used for Laplace approximation
 
-Becuase I would like to focus this report on subjects with failed Laplace approximation, I will not do these two things for now. 
+```{r projection}
+# Re-evaluation
+## grid extension
+p <- 3 # order of b splines 
+knots <- 35 # number of knots (same from FPCA model)
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+
+B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                   outer.ok = TRUE)$design  # evaluate B-splines on original grid
+
+
+df_phi <- matrix(NA, J, K) 
+for(k in 1:K){
+  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+  df_phi[,k] <- Bnew %*% coef(lm_mod)
+}# project binned eigenfunctions onto the original grid
+```
+
+
+```{r, fig.height=8, fig.width=8}
+par(mfrow=c(2,2))
+
+plot(mid, fpca_mod$efunctions[, 1], pch=16, xlab="bin", ylab="PC1", col = "blue",
+     cex = 0.5)
+lines(1:J, df_phi[, 1])
+
+plot(mid, fpca_mod$efunctions[, 2], pch=16, xlab="bin", ylab="PC2", col = "blue",
+     cex = 0.5)
+lines(1:J, df_phi[, 2])
+
+plot(mid, fpca_mod$efunctions[, 3], pch=16, xlab="bin", ylab="PC3", col = "blue",
+     cex = 0.5)
+lines(1:J, df_phi[, 3])
+
+plot(mid, fpca_mod$efunctions[, 4], pch=16, xlab="bin", ylab="PC4", col = "blue",
+     cex = 0.5)
+lines(1:J, df_phi[, 4])
+```
+
+
+
+
+```{r revaluation}
+df_phi <- data.frame(sind = 1:J, df_phi)
+colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+train_df <- train_df %>% 
+  left_join(df_phi, by = "sind")
+train_df$id <- as.factor(train_df$id)
+# class(train_df$id)
+# train_df$id2 <- factor(train_df$id, levels = train_id, labels = 1:length(train_id))
+# train_df$id2 <- as.numeric(train_df$id2)
+# range(unique(train_df$id2))
+
+t1 <- Sys.time()
+debias_glmm <- bam(Y ~ s(sind, bs="cc")+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"), 
+                   family = binomial, 
+                   data=train_df, 
+                   method = "fREML",
+                   discrete = TRUE)
+t2 <- Sys.time()
+t2-t1
+```
+
+
+```{r}
+# mean
+new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+
+plot(mid, fpca_mod$mu, pch=16, xlab="bin", ylab="PC4", col = "blue",
+     cex = 0.5)
+lines(1:J, new_mu)
+
+# eigenvalues
+fpca_mod$evalues[1:K] # original
+lambda_scaled <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
+fpca_mod$evalues[1:K]/lambda_scaled # ratio
+```
+
+```{r rescale}
+## rescale
+new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
+new_phi <- as.matrix(new_phi)
+
+lambda_scaled <- lambda_scaled/n_bin
+```
 
 # Out-of-sample prediction
 
-follow up on the last report, I'll add some details here.
-
-Let's set: 
-
-- $s$: bin index
-- $t_{m_s}$: midpoint time of bin s
-- $\mathscr{T}_s$: all observation points in bin s
-- $Y_i^s$ all observations in bin s from subject i. $Y_i^S := \{Y_i(t_j), t_j \in \mathscr{T}_s\}$
-
-Let's assume we have a new subject $u$ with maximum observation time $T_u$. Then the log-likelihood of this new subject would be:
 
 $$
 l_u=\sum_{t_{m_s}<T_u}log(h(Y_u^s))+\hat{\eta}_u(t_{m_s})T(Y_u^s)-log(A[\hat{\eta}_u(t_{m_s})])
@@ -250,343 +325,189 @@ l(\mathbf{\xi}_u|\mathbf{Y}_u) \propto l(\mathbf{Y}_u|\mathbf{\xi}_u)+l(\mathbf{
 $$
 
 
-## One subject example
-
-Now I am going to use one subject as an example to go over the approximation procedure:
-```{r, class.source = "fold-show"}
-## model
-Model <- function(parm, Data){
-  xi <- parm[Data$pos.xi]
-  
-  # log-prior
-  xi.prior <- dmvnorm(xi, mean = rep(0, Data$J), sigma=Data$tao, log = TRUE)
-  
-  # log-posterior likelihood
-  eta <- Data$f0+Data$X %*% xi
-  p <- exp(eta)/(1+exp(eta))
-  LL <- sum(dbinom(x=Data$y, size = Data$n, prob=p, log = TRUE)) # log likelihood of Y|xi
-  LP <- LL+sum(xi.prior) # unnormalized joint log likelihood of (Y, xi)
-  
-  # output
-  Modelout <- list(LP=LP, Dev=-2*LL, Monitor=LP,
-                   yhat=Data$y, parm=parm)
-  return(Modelout)
-}
-```
-
-
 - Then we feed in data for one observation
 
-```{r, class.source = "fold-show"}
-rand_id <- test_id[15]
-df_new <- df %>% filter(id == rand_id & sind <= 540) # observation until 9am
+```{r}
+window <- seq(0, J, by = 8*60) # midnight,  8am, 4pm, midnight
 
-# put data into correct format
-ns <- as.vector(table(df_new$bin)) # number of observations
-hs <- df_new %>% group_by(bin) %>% summarize_at("Y", sum) %>% select(Y) %>% unlist()# number of success
-nf <- ns-hs # number of failure
-max_bin <- length(unique(df_new$bin)) # assume new skipped bins  
-df_new2 <- data.frame(bin = unique(df_new$bin), ns, hs, nf)  
+test_df <- rename(test_df, t = sind)
+
+converge_state_m <- matrix(NA, nrow = length(test_id), 2)
+pred_list_m <- list()
+
+t1 <- Sys.time()
+for(i in seq_along(test_id)){
+  df_i <- test_df %>% filter(id==test_id[i])
+  # per max obs time
+  for(tmax in window[2:3]){
+    df_it <- df_i %>% filter(t <= tmax)
+    max_rid <- nrow(df_it)
+    
+    # into a list
+    MyData <- list(K=K, 
+                   X=new_phi[1:max_rid, ], 
+                   mon.names=mon.names,
+                   parm.names=parm.names, 
+                   pos.xi=pos.xi, 
+                   y=df_it$Y, 
+                   tao=diag(lambda_scaled), f0=new_mu[1:max_rid])
+    
+    
+    # fit laplace approximation
+    Fit <- LaplaceApproximation(Model, 
+                                parm = rep(0, K), 
+                                Data=MyData, 
+                                Method = "NM", 
+                                Iterations = 1000,
+                                CovEst = "Identity")
+    converge_state_m[i, which(window[2:3]==tmax)] <- Fit$Converged
+    score <- Fit$Summary1[, "Mode"]
+    
+    # prediction
+    eta_pred_out <- new_mu+new_phi%*%score
+    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+  }
   
-# extract estimates from FPCA model to be used in prior distribution
-tao <- diag(fpca_mod$evalues[1:K]) # variance of xi
+  pred_list_m[[i]] <- df_i
+}
+t2 <- Sys.time()
+t_pred <- t2-t1 # About 3.5 minutes
 
-# extract estimates from FPCA model to be used in posterior distribution
-f0 <- fpca_mod$mu[1:max_bin]
-N <- nrow(df_new2) # "sample size" which is in fact number of observed bins in this case for a new subject
-n <- df_new2$ns # number of experiements at each bin
-y <- df_new2$hs # outcome, number of 1
-X <- fpca_mod$efunctions[1:max_bin, 1:K] # eigen/PC functions
-J <- K # number of parameters/scores
-mon.names <- "LP"
-
-# parameter names
-name_lst <- as.list(rep(0, J))
-names(name_lst) <- paste("xi", 1:J, sep = "")
-parm.names <- as.parm.names(name_lst) # names of parameters to estimate
-pos.xi <- grep("xi", parm.names)
-
-# data
-MyData <- list(J=J, X=X, mon.names=mon.names,
-                 parm.names=parm.names, pos.xi=pos.xi, y=y, n=n, tao=tao, f0=f0)
-```
-
-
-```{r, class.source = "fold-show"}
-# fit laplace approximation
-# initial values generated by GIV function in the same package
-Fit <- LaplaceApproximation(Model, Data=MyData)
-```
-
-- Summarizing output
-
-```{r, class.source = "fold-show", fig.height=8, fig.width=8}
-# summarizing output
-print(Fit)
-plot(Fit, MyData)
+# mean(converge_state_m) # convergence rate 100%
 ```
 
 ```{r}
-# prediction
-eta_pred_out <- fpca_mod$mu+fpca_mod$efunctions[, 1:K]%*%Fit$Summary1[, "Mode"]
-
-data.frame(bin = mid, eta_pred = eta_pred_out) %>% 
-  right_join(df %>% filter(id==rand_id) %>%  select(Y, sind, bin), by = "bin") %>%
-  ggplot()+
-  geom_point(aes(x=sind, y = Y))+
-  geom_line(aes(x=sind, y = exp(eta_pred)/(1+exp(eta_pred))))+
-  labs(title = rand_id)
-  
+# check results
+df_pred <- bind_rows(pred_list_m)
+df_pred$pred480[df_pred$t<480] <- NA
+df_pred$pred960[df_pred$t<960] <- NA
 ```
 
-
-
-## Full data application output
-
-### fGFPCA
-
-
-```{r}
-# results generated from DataApplNHANES.R
-load(here("Data/ApplOutput_fGFPCA.RData"))
-```
-
-
-```{r message=FALSE, warning=FALSE}
-df_test_full <- df %>% 
-  filter(id %in% test_id) %>%
-  # filter(!id %in% skip_id) %>%
-  left_join(df_test %>% select(id, bin, pred_t540, pred_t780, pred_t1020), by = c("id", "bin"))
-
-rand_id2 <- sample(unique(df_test$id), 4)
-# without interpolation, assume constant latent function value in each bin
-df_test_full%>%
-  filter(id %in% rand_id2) %>%
-  mutate_at(vars(pred_t540, pred_t780, pred_t1020), function(x)exp(x)/(1+exp(x))) %>%
-  ggplot()+
-    geom_line(aes(x=bin, y = pred_t540, col = "9am"))+
-    geom_line(aes(x=bin, y = pred_t780, col = "1pm"))+
-    geom_line(aes(x=bin, y = pred_t1020, col = "5pm"))+
-    geom_point(aes(x=bin, y = Y, col = "Outcome"), size = 0.2)+
-    facet_wrap(~id)+
-    labs(x = "Time", y = "Estimated latent function (probablity scale)",
-         title = "Constant latent function within bin")
-```
-
-
-<!-- Calculate AUC -->
-
-
-```{r}
-# break by prediction window
-lst_auc <- df_test_full %>% 
-  mutate(window = cut(sind, breaks = c(0, 540, 780, 1020, 1260, 1440), 
-                      labels = c("0-9am", "9am-1pm", "1pm-5pm", "5pm-9pm","9pm-12pm"), 
-                      include.lowest = T))
-lst_auc <- split(lst_auc, f=lst_auc$window)
-```
-
-
-```{r}
-# no interpolation
-# up to 9am
-auc_t540 <- lst_auc[2:4] %>% 
-  lapply(function(x)performance(prediction(x$pred_t540, x$Y), measure = "auc"))
-auc_t540 <- lapply(auc_t540, function(x){x@y.values[[1]]}) %>% unlist()
-
-# up to 1pm
-auc_t780 <- lst_auc[3:4] %>% 
-  lapply(function(x)performance(prediction(x$pred_t780, x$Y), measure = "auc"))
-auc_t780 <- lapply(auc_t780, function(x){x@y.values[[1]]}) %>% unlist()
-
-# up to 5pm
-auc_t1020 <- lst_auc[4] %>% 
-  lapply(function(x)performance(prediction(x$pred_t1020, x$Y), measure = "auc"))
-auc_t1020 <- lapply(auc_t1020, function(x){x@y.values[[1]]}) %>% unlist()
-```
-
-
-
-
-## GLMMadaptvie
+# GLMMadaptvie
 
 - when fitting model with **random intercept + slope** on the same full training set (even after scaling covariates): Error: vector memory exhausted (limit reached?).
 - when fitting model with **only random intercept** on the same full training set: Error regarding a large coefficient value. One fix is to re-scale covariates. So I re-scaled minute index by dividing them by J, so the range is within (0, 1], and tried again. This fitting procedure took 20.72 minutes to finish
 
 
-
 ```{r}
-load(here("Data/ApplOutput_GLMMadaptive.RData"))
-```
-
-- `r round(t_est_adglmm, 2)` minutes on model fitting and `r round(t_pred_adglmm, 2)` minutes on out-of-sample prediction. 
-
-- Below is the model fit on the training set
-
-```{r}
+t1 <- Sys.time()
+adglmm_mod <- mixed_model(Y ~ t, random = ~ t | id, 
+                          data = train_df %>% mutate(t=sind/J),
+                      family = binomial())
+t2 <- Sys.time()
+t_est_adglmm <- t2-t1 # model fitting took 20.82 mins
 summary(adglmm_mod)
 ```
 
 
-
 ```{r}
-df_test_full2 <- df_test_full %>%
-  filter(id %in% rand_id2)%>%
-  select(id, sind, Y)
-
-df_test_full2$pred_t540 <- df_test_full2$pred_t780 <- df_test_full2$pred_t1020 <- NA 
-for(i in rand_id2){
-  df_test_full2[df_test_full2$id==i & df_test_full2$sind>540, "pred_t540"]<- adglmm_pred_t540$newdata2 %>% filter(id ==i) %>% select(pred)
+test_df2 <- test_df %>% mutate(t=t/J)
+pred_list_m2 <- list(
+  predict(adglmm_mod, newdata = test_df2 %>% filter(t <= 480/J),
+          newdata2 =  test_df2 %>% filter(t>480/J), 
+          type = "subject_specific", type_pred = "link",
+          se.fit = FALSE, return_newdata = TRUE)$newdata2,
   
-  df_test_full2[df_test_full2$id==i & df_test_full2$sind>780, "pred_t780"]<- adglmm_pred_t780$newdata2 %>% filter(id ==i) %>% select(pred)
-  
-  df_test_full2[df_test_full2$id==i & df_test_full2$sind>1020, "pred_t1020"]<- adglmm_pred_t1020$newdata2 %>% filter(id ==i) %>% select(pred)
-}
-
-# colSums(is.na(df_test_full2))
+  predict(adglmm_mod, newdata = test_df2 %>% filter(t <= 960/J),
+          newdata2 =  test_df2 %>% filter(t>960/J), 
+          type = "subject_specific", type_pred = "link",
+          se.fit = FALSE, return_newdata = TRUE)$newdata2
+)
 ```
 
 
+```{r}
+# check results
+pred_list_m2 <- lapply(pred_list_m2, function(x){x %>% select(id, t, pred)})
+df_pred2 <- test_df2 %>% 
+  left_join(pred_list_m2[[1]], by = c("id", "t")) %>% 
+  rename(pred480 = pred) %>% 
+  left_join(pred_list_m2[[2]], by = c("id", "t")) %>% 
+  rename(pred960 = pred) %>%
+  mutate(t=t*J)
+```
 
-- Below is an example of predicted probablity on four random subjects
+# Results
 
-```{r, warning=FALSE}
-df_test_full2 %>% 
-  mutate_at(vars(pred_t540, pred_t780, pred_t1020), 
-            function(x)exp(x)/(1+exp(x))) %>%
-  ggplot()+
-    geom_line(aes(x=sind, y = pred_t540, col = "9am"))+
-    geom_line(aes(x=sind, y = pred_t780, col = "1pm"))+
-    geom_line(aes(x=sind, y = pred_t1020, col = "5pm"))+
-    geom_point(aes(x=sind, y = Y, col = "Outcome"), size = 0.2)+
+```{r}
+rand_id_test <- sample(unique(test_id), 4)
+ggarrange(
+  df_pred %>% 
+    filter(id %in% rand_id_test) %>%
+    mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
+    ggplot()+
+    geom_line(aes(x=t, y = pred480, col = "8am"), linetype = "dashed", na.rm = T)+
+    geom_line(aes(x=t, y = pred960, col = "4pm"),linetype = "dashed", na.rm = T)+
+    geom_point(aes(x=t, y = Y, col = "Outcome"), size = 0.2)+
     facet_wrap(~id)+
-    labs(x = "Time", y = "Estimated latent function (probablity scale)")
-```
-
-<!-- Calculate AUC  -->
-
-
-
-```{r}
-# up to 540
-J <- 1440
-auc_t540_adglmm <- adglmm_pred_t540$newdata2 %>%
-  # filter(!id %in% skip_id) %>%
-  mutate(sind=sind*J) %>%
-  mutate(window = cut(sind, breaks = c(540, 780, 1020, 1260, 1440), 
-                      labels = c("9am-1pm", "1pm-5pm", "5pm-9pm","9pm-12pm"), 
-                      include.lowest = T))
-auc_t540_adglmm <- split(auc_t540_adglmm, f=auc_t540_adglmm$window)
-auc_t540_adglmm <- auc_t540_adglmm[1:3] %>% 
-  lapply(function(x)performance(prediction(x$pred, x$Y), measure = "auc"))
-auc_t540_adglmm <- lapply(auc_t540_adglmm, function(x){x@y.values[[1]]}) %>% unlist()
-
-# up to 780
-auc_t780_adglmm <- adglmm_pred_t780$newdata2 %>%
-  # filter(!id %in% skip_id) %>%
-  mutate(sind=sind*J) %>%
-  mutate(window = cut(sind, breaks = c(780, 1020, 1260, 1440), 
-                      labels = c("1pm-5pm", "5pm-9pm","9pm-12pm"), 
-                      include.lowest = T))
-auc_t780_adglmm <- split(auc_t780_adglmm, f=auc_t780_adglmm$window)
-auc_t780_adglmm <- auc_t780_adglmm[1:2] %>% 
-  lapply(function(x)performance(prediction(x$pred, x$Y), measure = "auc"))
-auc_t780_adglmm <- lapply(auc_t780_adglmm, function(x){x@y.values[[1]]}) %>% unlist()
-
-# up to 1020
-auc_t1020_adglmm <- adglmm_pred_t1020$newdata2 %>%
-  # filter(!id %in% skip_id) %>%
-  mutate(sind=sind*J) %>%
-  mutate(window = cut(sind, breaks = c(1020, 1260, 1440), 
-                      labels = c("5pm-9pm","9pm-12pm"), 
-                      include.lowest = T))
-auc_t1020_adglmm <- split(auc_t1020_adglmm, f=auc_t1020_adglmm$window)
-auc_t1020_adglmm <- auc_t1020_adglmm[1] %>% 
-  lapply(function(x)performance(prediction(x$pred, x$Y), measure = "auc"))
-auc_t1020_adglmm <- lapply(auc_t1020_adglmm, function(x){x@y.values[[1]]}) %>% unlist()
-
+    labs(x = "Time", y = "fGFPCA"),
+  
+  df_pred2 %>% 
+    filter(id %in% rand_id_test) %>%
+    mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
+    ggplot()+
+    geom_line(aes(x=t, y = pred480, col = "8am"), linetype = "dashed", na.rm = T)+
+    geom_line(aes(x=t, y = pred960, col = "4pm"),linetype = "dashed", na.rm = T)+
+    geom_point(aes(x=t, y = Y, col = "Outcome"), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = "Time", y = "GLMMadaptive"),
+  nrow = 1, common.legend = T)
 
 ```
 
-### AUC
-
-- To use the same sample for comparison, I'd exclude the subjects with failed Laplace approximation from the test set for both methods
-
-```{r}
-options(knitr.kable.NA = '')
-tb_auc <- data.frame(auc_t540, 
-           c(NA, auc_t780), 
-           c(NA, NA, auc_t1020), 
-        
-           auc_t540_adglmm,
-           c(NA, auc_t780_adglmm), 
-           c(NA, NA, auc_t1020_adglmm))
-
-colnames(tb_auc) <- rep(c("9am", "1pm", "5pm"), 2)
+```{r auc_func}
+## a function to calculate AUC
+get_auc <- function(y, pred){
+  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
+    auc <- NA
+  }
+  else{
+    this_perf <- performance(prediction(pred, y), measure = "auc")
+    auc <- this_perf@y.values[[1]]
+  }
+  return(auc)
+}
 ```
 
+```{r auc_fGFPCA_nhanes}
+auc_mat1 <- df_pred %>%
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred480),
+            auc2 = get_auc(Y, pred960)) %>%
+  filter(window != "[0,480]") %>% 
+  select(starts_with("auc"))
 
-```{r}
-# time
-t_fit <- c(t_local_glmm+t_fpca, t_est_adglmm)
-units(t_fit) <- "mins"
-
-t_test <- c(t_pred, t_pred_adglmm)
-# units(t_pred)
-
-t_total <- t_fit+t_test
-
-
-idx1 <- idx2 <- idx3 <- c(1, 3, 3)
-names(idx1) <- c("Total time", as.character(round(t_total, 2)))
-names(idx2) <- c("Time on prediction", as.character(round(t_test, 2)))
-names(idx3) <- c("Time on model fitting", as.character(round(t_fit, 2)))
-
-t_fit <- as.character(round(t_fit, 2))
-t_test <- as.character(round(t_test, 2))
-t_total <- as.character(round(t_total, 2))
-
+colnames(auc_mat1) <- c("0-8am", "0am-4pm")
 ```
 
+```{r auc_GLMMadaptive_nhanes}
+auc_mat2 <- df_pred2 %>%
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred480),
+            auc2 = get_auc(Y, pred960)) %>%
+  filter(window != "[0,480]") %>% 
+  select(starts_with("auc"))
 
+colnames(auc_mat2) <- c("0-8am", "0am-4pm")
+```
 
 ```{r}
-tb_auc %>%
-  kable(digit = 4, table.attr = "style = \"color: black;\"") %>%
+data.frame(Window = c("8am-4pm", "4am-12pm"),
+           auc_mat1, auc_mat2, check.names = F) %>%
+  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area Under the ROC curve") %>%
   kable_styling(full_width = F) %>% 
-  add_header_above(header=idx1) %>%
-  add_header_above(header=idx2) %>%
-  add_header_above(header=idx3) %>%
-  add_header_above(c(" "=1, "fGFPCA"=3, "GLMMadaptive"=3))
+  add_header_above(c(" "=1, "fGFPCA" = 2, "GLMMadaptive" = 2)) %>%
+  add_header_above(c(" "= 1, "Observed track" = 4))
 ```
-
-- fGFPCA does not always have higher AUC, but definitely most of the time. 
-- In fact there are two scenarios where GLMMadaptive outperforms fGFPCA slightly: 1) given 9am to predict 1-5pm; and 2) given 1pm and predict 5-9pm. Both of them have a 4-hour interval apart from the maximum observation time and and prediction window. Could it have anything to do the cyclic trend in the data? Is 4h the length of a cycle? I tried to look at it but really couldn't see anything...there are too many points lumped together! 
 
 
 ```{r}
-df %>% filter(id %in% rand_id2) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_vline(xintercept = c(540, 780, 1020, 1260))+
-  scale_x_continuous(breaks = c(540, 780, 1020, 1260),
-                     labels = c("9am", "1pm", "5pm", "9pm"))+
-  facet_wrap(~id)
+nhanes_pred_fgfpca <- df_pred
+nhanes_pred_adglmm <- df_pred2
+save(nhanes_pred_fgfpca, nhanes_pred_adglmm,
+     file = here("Data/ApplOutput.RData"))
 ```
-
-
-
-## Failed Laplace approximation
-
-- This problem seems to be solved after changing the optimizer? (Method = "BFGS")
-- The new optimizer also took less time
-- The old one was SPG (Spectral projected gradient), which is a non-monotone line search. 
-- The new one is BFGS (quasi-newton, the same in glmmTMB)
-
-
-## Discussion
-
-- What would be the reference method to compare our performance to? Original GLMMadaptvie perhaps is feasible on the entire dataset. But what should we use if we wanna do sub-sample comparison? Should we even do that for this data application (or simulation alone)? 
-<!-- - There are still three participants with numeric problem! Shall we extend the observation track even more? I suspect that may cause still the same issue just on different subjects.  -->
-<!-- - Is interpolation really necessary? It does not improve perfor- Should I calculate subject-wise AUC and average them? But some subjects are all zero within the prediction window, making AUC for this single subjects impossible to calculate...
-
