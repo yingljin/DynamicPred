@@ -2,16 +2,20 @@
 title: "Manuscript progress report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
-output: 
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+    keep_tex: yes
   html_document:
     self_contained: no
-    number_sections: true
+    number_sections: yes
     code_folding: hide
-    toc: true
+    toc: yes
     toc_depth: 3
-    toc_float: true
+    toc_float: yes
     font: 12pt
-    keep_tex: true
+    keep_tex: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -157,9 +161,10 @@ pred_list_all[[1]] %>% filter(id %in% rand_id) %>%
   mutate_at(vars(eta_i), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=eta_i, col = "True"), show.legend = F)+
   facet_wrap(~id)+
-  labs(title = "Simulated data")
+  labs(title = "Simulated data")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
 ```
 
 
@@ -174,7 +179,7 @@ $$g(E(Y_i(t))) = \beta_0+\beta_1t+b_{i0}+b_{i1}t$$
 ## Figure
 
 
-```{r fig_pred}
+```{r}
 # range(pred_list_all[[1]]$pred0.2, na.rm = T)
 fig_fgfpca <- pred_list_all[[1]] %>%
   filter(id %in% rand_id) %>%
@@ -187,7 +192,9 @@ fig_fgfpca <- pred_list_all[[1]] %>%
   geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
-  labs(title = "fGFPCA", col = "Maximum observation time")
+  labs(title = "fGFPCA", col = "Maximum observation time")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))
 
 fig_adglmm <- pred_list_ref[[1]] %>%
   filter(id %in% rand_id) %>%
@@ -200,11 +207,13 @@ fig_adglmm <- pred_list_ref[[1]] %>%
   geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
-  labs(title = "GLMMadaptive", col = "Maximum observation time")
+  labs(title = "GLMMadaptive", col = "Maximum observation time")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))
 
 ```
 
-```{r}
+```{r fig_sim, fig.height=4, fig.width=8}
 ggarrange(fig_fgfpca, fig_adglmm,
           nrow = 1, common.legend = T)
 ```
@@ -282,7 +291,7 @@ colnames(mean_ise_ref) <- c("0.2", "0.4", "0.6", "0.8")
 ```{r}
 data.frame(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
            mean_ise, mean_ise_ref, check.names = F) %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
+  kable(digits = 3, caption = "Integrated squared error", booktabs=T) %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" "= 1, "Maximum observation time" = 8))
@@ -367,7 +376,7 @@ colnames(mean_auc_ref) <- c("0.2", "0.4", "0.6", "0.8")
 ```{r}
 data.frame(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
            mean_auc, mean_auc_ref, check.names = F) %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area under the ROC curve") %>%
+  kable(digits = 3, caption = "Area under the ROC curve", booktabs = T) %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" "= 1, "Maximum observation time" = 8))
@@ -379,7 +388,7 @@ data.frame(
   "Method" = c("fGFPCA", "GLMMadaptive"),
   "Fit" = c(mean(fit_time)/60, mean(fit_time_ref)),
            "Prediction"= c(mean(pred_time), mean(pred_time_ref)/60)) %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Computation time (minutes)") %>%
+  kable(digits = 3, caption = "Computation time (minutes)", booktabs = T) %>%
   kable_styling(full_width = F) 
 ```
 
@@ -487,7 +496,7 @@ colnames(ise_mat_subset2) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.
 ```{r}
 data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]"),
            ise_mat_subset, ise_mat_subset2, check.names = F) %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
+  kable(digits = 3, caption = "Integrated squared error") %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" "= 1, "Observation track" = 8))
@@ -529,7 +538,7 @@ colnames(auc_mat_subset2) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.
 ```{r}
 data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]"),
            auc_mat_subset, auc_mat_subset2, check.names = F) %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Integrated squared error") %>%
+  kable(digits = 3, caption = "Integrated squared error") %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" "= 1, "Observation track" = 8))
@@ -549,17 +558,18 @@ df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
 load(here("Data/ApplOutput.RData"))
 ```
 
-```{r nhance example}
+```{r nhance_example}
 df_nhanes %>% select(SEQN, Z, sind) %>% 
+  filter(SEQN %in% unique(nhanes_pred_adglmm$id) | SEQN %in% unique(nhanes_pred_fgfpca$id)) %>%
   mutate(Z = factor(Z, levels = 0:1, labels = c("Inactive", "Active"))) %>%
-  mutate(SEQN = factor(SEQN, labels = 1:8763)) %>%
+  mutate(SEQN = factor(SEQN)) %>%
   ggplot()+
   geom_tile(aes(x=sind, y = SEQN, fill = Z))+
   labs(x="Time", y="Subject", title = "Overview of NHANES binary activity indicator")+
-  theme(axis.text.y = element_blank())
-
+  theme(axis.text.y = element_blank())+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480),
+                     labels = c("Midnight", "8am", "4pm", "Midnight"))
 ```
-
 
 ## AUC
 
@@ -575,7 +585,7 @@ auc_mat_nhanes <- nhanes_pred_fgfpca %>%
   filter(window != "[0,480]") %>% 
   select(starts_with("auc"))
 
-colnames(auc_mat_nhanes) <- c("0-8am", "0am-4pm")
+colnames(auc_mat_nhanes) <- c("8am", "4pm")
 ```
 
 ```{r auc_GLMMadaptive_nhanes}
@@ -588,13 +598,13 @@ auc_mat_nhanes2 <- nhanes_pred_adglmm %>%
   filter(window != "[0,480]") %>% 
   select(starts_with("auc"))
 
-colnames(auc_mat_nhanes2) <- c("0-8am", "0am-4pm")
+colnames(auc_mat_nhanes2) <- c("8am", "4pm")
 ```
 
 ```{r}
-data.frame(Window = c("8am-4pm", "4am-12pm"),
+data.frame(Window = c("8am-4pm", "4am-midnight"),
            auc_mat_nhanes, auc_mat_nhanes2, check.names = F) %>%
-  kable(digits = 3, table.attr = "style = \"color: black;\"", caption = "Area Under the ROC curve") %>%
+  kable(digits = 3, caption = "Area Under the ROC curve", booktabs = T) %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 2, "GLMMadaptive" = 2)) %>%
   add_header_above(c(" "= 1, "Maximum observation time" = 4))
@@ -602,7 +612,7 @@ data.frame(Window = c("8am-4pm", "4am-12pm"),
 
 ## Figure
 
-```{r}
+```{r pred_nhanes, fig.height=4, fig.width=10}
 rand_id2 <- sample(unique(nhanes_pred_fgfpca$id), 4)
 
 ggarrange(
@@ -614,7 +624,10 @@ ggarrange(
     geom_line(aes(x=t, y = pred960, col = "4pm"),linetype = "dashed", na.rm = T)+
     geom_point(aes(x=t, y = Y, col = "Outcome"), size = 0.2)+
     facet_wrap(~id)+
-    labs(x = "Time", y = "fGFPCA"),
+    labs(x = "Time", y = "fGFPCA")+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480), 
+                     labels = c("Midnight", "8am", "4pm", "Midnight"))+
+  theme(axis.text = element_text(size = 5)),
   
   nhanes_pred_adglmm %>% 
     filter(id %in% rand_id2) %>%
@@ -624,7 +637,69 @@ ggarrange(
     geom_line(aes(x=t, y = pred960, col = "4pm"),linetype = "dashed", na.rm = T)+
     geom_point(aes(x=t, y = Y, col = "Outcome"), size = 0.2)+
     facet_wrap(~id)+
-    labs(x = "Time", y = "GLMMadaptive"),
+    labs(x = "Time", y = "GLMMadaptive")+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480), 
+                     labels = c("Midnight", "8am", "4pm", "Midnight"))+
+  theme(axis.text = element_text(size = 5)),
   nrow = 1, common.legend = T)
+```
+
+
+```{r small_exp}
+# a smaller example of binary functions
+df_nhanes %>% select(SEQN, Z, sind) %>% 
+  filter(SEQN %in% rand_id2 & Z == 1) %>% 
+  mutate(SEQN = as.factor(SEQN)) %>% 
+  ggplot()+
+  geom_point(aes(x=sind, y = SEQN), size = 0.5)+
+  labs(x="Time", y="Subject", title = "NHANES binary activity indicator")
+```
+
+# Additional figures
+
+## fGFPCA algorithm demonstration
+
+```{r binning}
+df_nhanes %>% select(SEQN, Z, sind) %>% 
+  filter(SEQN %in% rand_id2 & sind >= 650 & sind <= 750) %>% 
+  mutate(SEQN = as.factor(SEQN)) %>% 
+  ggplot()+
+  geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+
+  geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+
+  scale_y_continuous(breaks = c(0, 1))+
+  labs(x="Time", y="", title = "NHANES binary activity indicator")
+```
+
+
+```{r}
+df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>% 
+  filter(SEQN %in% rand_id2 & sind >= 650 & sind <= 750) %>% 
+  mutate(bin = cut(sind, breaks = seq(650, 750, by = 10), 
+                   labels = seq(655, 745, by = 10),
+                   include.lowest = T)) 
+bin_mid <- seq(655, 745, by = 10)
+
+for(i in bin_mid){
+  df_bin_i <- df_fig %>% filter(bin==i) 
+  glm_i <- glmer(Z ~ 1 + (1|SEQN), data = df_bin_i, family = binomial, nAGQ=0)
+  eta_i <- predict(glm_i, type = "link")
+  
+  df_fig$eta_hat[df_fig$bin==i] <- eta_i
+}
+
+
+df_fig %>% 
+  mutate(SEQN = as.factor(SEQN),
+         eta_hat = exp(eta_hat)/(1+exp(eta_hat)),
+         bin=as.numeric(as.character(bin))) %>% 
+  
+  ggplot()+
+  geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+
+  geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+
+  geom_point(aes(x=bin, y=eta_hat, col = SEQN))+
+  geom_line(aes(x=bin, y=eta_hat, col = SEQN))+
+  scale_y_continuous(breaks = c(0, 1))+
+  labs(x="Time", y="", title = "NHANES binary activity indicator")
+
 ```
 

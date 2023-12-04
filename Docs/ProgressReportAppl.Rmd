@@ -42,6 +42,7 @@ df <- read_rds(here("Data/nhanes_bi.rds"))
 # code
 source(here("Code/GLMM-FPCA.R")) 
 # use pred_latent function to estimate latent function 
+K <- 4
 source(here("Code/OutsampBayes.R"))
 ```
 
@@ -172,6 +173,15 @@ K <- 4
 ```
 
 
+```{r PC}
+data.frame(t = mid, fpca_mod$efunctions[, 1:4]) %>%
+  rename(PC1 = X1, PC2=X2, PC3=X3,PX4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") %>%
+  ggplot()+
+  geom_line(aes(x=t, y=value, col = PC))+
+  labs(x="Time", y="", title = "Eigenfunctions on the binned grid")
+```
+
 
 
 ```{r, eval=FALSE}
@@ -208,24 +218,23 @@ for(k in 1:K){
 ```
 
 
-```{r, fig.height=8, fig.width=8}
-par(mfrow=c(2,2))
 
-plot(mid, fpca_mod$efunctions[, 1], pch=16, xlab="bin", ylab="PC1", col = "blue",
-     cex = 0.5)
-lines(1:J, df_phi[, 1])
 
-plot(mid, fpca_mod$efunctions[, 2], pch=16, xlab="bin", ylab="PC2", col = "blue",
-     cex = 0.5)
-lines(1:J, df_phi[, 2])
+```{r}
+df_pc1 <- data.frame(t=1:J,  df_phi) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
 
-plot(mid, fpca_mod$efunctions[, 3], pch=16, xlab="bin", ylab="PC3", col = "blue",
-     cex = 0.5)
-lines(1:J, df_phi[, 3])
+df_pc2 <- data.frame(t = mid, fpca_mod$efunctions[, 1:4]) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
 
-plot(mid, fpca_mod$efunctions[, 4], pch=16, xlab="bin", ylab="PC4", col = "blue",
-     cex = 0.5)
-lines(1:J, df_phi[, 4])
+left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
+  ggplot()+
+  geom_line(aes(x=t, y=value.x, col = PC), linewidth = 0.5)+
+  geom_point(aes(x=t, y=value.y, col = PC), na.rm = T, alpha = 0.5, size = 0.5)+
+  labs(x="Time", y="", title = "Re-evaluate eigenfunctions on the original grid")
+
 ```
 
 
