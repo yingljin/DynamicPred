@@ -21,3 +21,8 @@ Presentation notes:
 2. Step 4: change "projection" to "re-evaluation"
 3. Add some data application results
 3. Figure before 
+
+# 23/12/14
+Some new questions: 
+1. NHANES data application: the debias step is slow. The re-evaluated eigenvalues also lost the decreasing natrue. It has to do with how to code "SEQN" (numeric or categorical).
+

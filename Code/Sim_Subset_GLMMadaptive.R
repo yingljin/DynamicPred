@@ -13,6 +13,7 @@ library(mgcv)
 library(ggpubr)
 library(gridExtra)
 library(kableExtra)
+library(splines)
 
 
 
@@ -23,89 +24,134 @@ load(here("Data/sim_data.RData"))
 
 # reduce data
 ## training data
-sub_sim_data <- sim_data[1:100] 
 M <- 100 # number of simulations
 
-sub_sim_data <- lapply(sub_sim_data, function(x){x %>% filter(id %in% c(1:10,501:510))})
-Ntr <- Nte <- 10 # trainig and testing sample size
+sim_data <- lapply(sim_data[1:M], function(x){x %>% filter(id %in% c(1:200))})
+lapply(sim_data, dim)
+head(sim_data[[1]])
+unique(sim_data[[1]]$id)
+unique(sim_data[[1]]$t)
 
-sub_sim_data <- lapply(sub_sim_data, function(x){x %>% filter(t > 0.25 & t <= 0.75)})
-J <- length(unique(sub_sim_data[[1]]$t))
-
-lapply(sub_sim_data, dim)
-head(sub_sim_data[[1]])
+Ntr <- Nte <- 100 # trainig and testing sample size
+J <- 1000
 
 
-#### One iteration example ####
+#### Data reduction set up ####
 
-df_train_m <- sub_sim_data[[1]] %>% filter(id %in% 1:10)
-df_test_m <- sub_sim_data[[1]] %>% filter(!id %in% 1:10)
+t_bin <- seq(0, J, by = 10)
 
-#### GLMM adaptive ####
 ## model fit
-t1 <- Sys.time()
-fit_adglmm <- mixed_model(fixed = Y ~ 0+ns(t, df = 5), 
-                          random = ~ 0+ns(t, df = 5) | id, 
-                          data =  df_train_m, family = binomial())
-t2 <- Sys.time()
-t_sub_fit <- t2-t1 ## 22.5 minutes
+## in training, take only 1 observation for every 10 observation
+## for example, only the bin midpoints
+## It seems that bin width does not affect computational speed too much
+## at least much less than model flexibility
 
-## prediction
-t1 <- Sys.time()
-pred_m <- list(
-  predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.35),
-          newdata2 =  df_test_m %>% filter(t>0.35), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.45),
-          newdata2 =  df_test_m %>% filter(t>0.45), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.55),
-          newdata2 =  df_test_m %>% filter(t>0.55), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.65),
-          newdata2 =  df_test_m %>% filter(t>0.65), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2)
-t2 <- Sys.time()
-t2-t1 # 0.16 seconds
+#### Containers ####
 
-pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred)})
-head(pred_m[[1]])
-head(df_test_m)
-df_pred_m <- df_test_m %>% 
-  left_join(pred_m[[1]]) %>% 
-  rename(pred0.35 = pred) %>% 
-  left_join(pred_m[[2]]) %>% 
-  rename(pred0.45 = pred) %>% 
-  left_join(pred_m[[3]]) %>% 
-  rename(pred0.55 = pred) %>% 
-  left_join(pred_m[[4]]) %>% 
-  rename(pred0.65 = pred)
+
+pred_list_all <- list()
+fit_time <- pred_time <- rep(NA, M)
+
+#### GLMMadaptive ####
+
+M <- 3
+
+pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
+for(m in 1:M){
+  
+  # data split and training data reduction
+  df_train_m <- sim_data[[m]] %>% filter(id %in% 1:100) %>% filter(sind %in% t_bin)
+  df_test_m <- sim_data[[m]] %>% filter(!id %in% 1:100)
+  
+  # model fit
+  t1 <- Sys.time()
+  fit_adglmm <- mixed_model(fixed = Y ~ 0+ns(t, df = 4), 
+                            random = ~ 0+ns(t, df = 4) | id, 
+                            data =  df_train_m, family = binomial())
+  t2 <- Sys.time()
+  fit_time[m] <- t2-t1 ## minutes
+  
+  # prediction
+  t1 <- Sys.time()
+  pred_m <- list(
+    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.2),
+            newdata2 =  df_test_m %>% filter(t>0.2), 
+            type = "subject_specific", type_pred = "link",
+            se.fit = FALSE, return_newdata = TRUE)$newdata2,
+    
+    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.4),
+            newdata2 =  df_test_m %>% filter(t>0.4), 
+            type = "subject_specific", type_pred = "link",
+            se.fit = FALSE, return_newdata = TRUE)$newdata2,
+    
+    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.6),
+            newdata2 =  df_test_m %>% filter(t>0.6), 
+            type = "subject_specific", type_pred = "link",
+            se.fit = FALSE, return_newdata = TRUE)$newdata2,
+    
+    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.8),
+            newdata2 =  df_test_m %>% filter(t>0.8), 
+            type = "subject_specific", type_pred = "link",
+            se.fit = FALSE, return_newdata = TRUE)$newdata2)
+  t2 <- Sys.time()
+  pred_time[m] <- t2-t1 # seconds
+  
+  pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred)})
+  df_pred_m <- df_test_m %>% 
+    left_join(pred_m[[1]]) %>% 
+    rename(pred0.2 = pred) %>% 
+    left_join(pred_m[[2]]) %>% 
+    rename(pred0.4 = pred) %>% 
+    left_join(pred_m[[3]]) %>% 
+    rename(pred0.6 = pred) %>% 
+    left_join(pred_m[[4]]) %>% 
+    rename(pred0.8 = pred)
+  
+  pred_list_all[[m]] <- df_pred_m
+  
+  setTxtProgressBar(pb, m)
+}
+
+close(pb)
+
+mean(fit_time)
+mean(pred_time)
+
+pred_list_all[[1]] %>% filter(t>0.2) %>% View()
+pred_list_all[[2]] %>% filter(t>0.2) %>% View()
+
+#### Save results ####
+
+fit_time_subset_adglmm <- fit_time
+pred_time_subset_adglmm <- pred_time
+pred_subset_adglmm <- pred_list_all
+
+save(fit_time_subset_adglmm, pred_time_subset_adglmm, df_subset_adglmm, 
+     file = here("Data/SubSimOutput_GLMMadaptive.RData"))
+
+
+
+
+
 
 ## separate by window
-window <- seq(0.25, 0.75, by = 0.1)
+window <- seq(0, 1, by = 0.2)
 M <- 1
 
 #### ISE ####
 # ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
 ise_mat <- df_pred_m %>%
-  mutate(err1 = (pred0.35-eta_i)^2,
-         err2 = (pred0.45-eta_i)^2,
-         err3 = (pred0.55-eta_i)^2,
-         err4 = (pred0.65-eta_i)^2) %>% 
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>% 
   select(id, t, starts_with("err")) %>% 
   mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
   group_by(window, id) %>% 
   summarise_at(vars(err1, err2, err3, err4), sum) %>% 
   group_by(window) %>% 
   summarize_at(vars(err1, err2, err3, err4), mean) %>%
-  filter(window != "[0.25,0.35]") %>% 
+  filter(window != "[0,0.2]") %>% 
   select(starts_with("err"))
 # ise_mat[, ,m] <- as.matrix(ise_tb)
 
@@ -142,16 +188,16 @@ auc_tb <- df_pred_m %>%
   mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
   select(Y, starts_with("pred"), window) %>%
   group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.35),
-            auc2 = get_auc(Y, pred0.45),
-            auc3 = get_auc(Y, pred0.55),
-            auc4 = get_auc(Y, pred0.65)) %>%
-  filter(window != "[0.25,0.35]") %>% 
+  summarise(auc1 = get_auc(Y, pred0.2),
+            auc2 = get_auc(Y, pred0.4),
+            auc3 = get_auc(Y, pred0.6),
+            auc4 = get_auc(Y, pred0.8)) %>%
+  filter(window != "[0,0.2]") %>% 
   select(starts_with("auc"))
 
 #### save data ####
-df_pred_m_adglmm <- df_pred_m
-save(df_pred_m_adglmm, 
+df_subset_adglmm <- df_pred_m
+save(df_subset_adglmm, 
      file = here("Data/SubSimOutput_GLMMadaptive.RData"))
 
 

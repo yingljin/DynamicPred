@@ -396,22 +396,14 @@ data.frame(
 I think we could say that while the total time spend on model fitting + prediction are similar between two methods, fGFPCA achieved much better flexibility and much better predictive performance of prediction under every scenario. 
 
 
-# Small-scale simulation: one iteration
+# Small-scale simulation
 
 Here we would like to fit fGFPCA and GLMMadaptive on a dataset with smaller sample size and/or smaller measurement density. For the GLMMadaptive model, we would set it up with spline basis functions so that its flexibility is comparable with fGFPCA model, such as: 
 
-$$g(E(Y_i(t))) = \sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^5\xi_{il}\phi_l(t)$$
+$$g(E(Y_i(t))) = \sum_{k=1}^4\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)$$
 
-I did the following things for data-reduction
+I have used 100 subjects for training and testing, and repeated 100 times. When fitting GLMMadpative, I reduce the number of measurements to 1/10 by taking one every 10 observations. The prediction is on the original grid. 
 
-- Reduce sample size to 10 (for both training and testing)
-- Reduce measurement track by half (0.25-0.75)
-- Another way is the simple reduce the measurement density. For example, instead of every minute, we can use every 10 minutes. In this case, the binning step in fGFPCA would bin every 100 minutes in to one bin. 
-- - When we have smaller density of measurement grid, both methods could run into numeric issues in both methods. For example, singularity happened the the local GLMM step of fGFPCA procedure. This might be able to get resoved by changing the optimizer (e.g. Nealder_Mead). Do we want to do that? Or perhaps we simply want to use the full track? 
-
-- We may also need to reduce number of simulations (GLMMadaptive took 20-ish minutes for one simulaiton).
-
-Below are some of the outcomes:
 
 ```{r load_subset_sim_output}
 load(here("Data/SubSimOutput_GLMMadaptive.RData"))
@@ -422,29 +414,34 @@ load(here("Data/SubSimOutput_fGFPCA.RData"))
 
 
 ```{r fig_pred_subset}
-fig_fgfpca_subset <- df_pred_m_fGFPCA %>% filter(id %in% 501:504) %>%
-  mutate_at(vars(eta_i, pred0.35, pred0.45, pred0.55, pred0.65), function(x){exp(x)/(1+exp(x))}) %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.35, col = "0.35"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.45, col = "0.45"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.55, col = "0.55"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.65, col = "0.65"), linetype="dashed", na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = "fGFPCA", col = "Maximum observation time")
+rand_id2 <- sample(unique(pred_subset_fGFPCA[[1]]$id), 4)
 
-fig_adglmm_subset <- df_pred_m_adglmm %>% filter(id %in% 501:504) %>%
-  mutate_at(vars(eta_i, pred0.35, pred0.45, pred0.55, pred0.65), function(x){exp(x)/(1+exp(x))}) %>%
+fig_fgfpca_subset <- pred_subset_fGFPCA[[1]] %>%
+  filter(id %in% rand_id2) %>%
+  mutate_at(vars(eta_i, starts_with("pred")), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.35, col = "0.35"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.45, col = "0.45"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.55, col = "0.55"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.65, col = "0.65"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
-  labs(title = "GLMMadaptive", col = "Maximum observation time")
+  labs(title = "fGFPCA", col = "Maximum observation time")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
+
+fig_adglmm_subset <- df_subset_adglmm %>% filter(id %in% rand_id2) %>%
+  mutate_at(vars(eta_i, starts_with("pred")), function(x){exp(x)/(1+exp(x))}) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = "GLMMadaptive", col = "Maximum observation time")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
 
 ```
 
@@ -456,45 +453,57 @@ ggarrange(fig_fgfpca_subset, fig_adglmm_subset,
 ## ISE
 
 
+```{r}
+M2 <- length(pred_subset_fGFPCA)
+## ISE container 
+ise_mat_subset <- ise_mat_subset_ref <- 
+  array(NA, dim = c(length(window)-2, length(window)-2, M2))
+```
 
 ```{r ise_fGFPCA_subset}
-window2 <- seq(0.25, 0.75, by = 0.1)
-ise_mat_subset <- df_pred_m_fGFPCA %>%
-    mutate(err1 = (pred0.35-eta_i)^2,
-           err2 = (pred0.45-eta_i)^2,
-           err3 = (pred0.55-eta_i)^2,
-           err4 = (pred0.65-eta_i)^2) %>%
+for(m in 1:M2){
+  this_df <- pred_subset_fGFPCA[[m]]
+  ise_tb_m <- this_df %>%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %>%
     select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
     group_by(window, id) %>% 
     summarise_at(vars(err1, err2, err3, err4), sum) %>% 
     group_by(window) %>% 
     summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0.25,0.35]") %>% 
-    select(starts_with("err"))
-colnames(ise_mat_subset) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("err")) %>% as.matrix()
+  ise_mat_subset[,,m] <- ise_tb_m
+}
+
+ise_mat_subset <- apply(ise_mat_subset, c(1, 2), mean)
+
+colnames(ise_mat_subset) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r ise_GLMMadaptive_subset}
-ise_mat_subset2 <- df_pred_m_adglmm %>%
-    mutate(err1 = (pred0.35-eta_i)^2,
-           err2 = (pred0.45-eta_i)^2,
-           err3 = (pred0.55-eta_i)^2,
-           err4 = (pred0.65-eta_i)^2) %>%
+ise_mat_subset2 <- df_subset_adglmm %>%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %>%
     select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
     group_by(window, id) %>% 
     summarise_at(vars(err1, err2, err3, err4), sum) %>% 
     group_by(window) %>% 
     summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0.25,0.35]") %>% 
+    filter(window != "[0,0.2]") %>% 
     select(starts_with("err"))
-colnames(ise_mat_subset2) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+colnames(ise_mat_subset2) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 
 ```{r}
-data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]"),
+data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
            ise_mat_subset, ise_mat_subset2, check.names = F) %>%
   kable(digits = 3, caption = "Integrated squared error") %>%
   kable_styling(full_width = F) %>% 
@@ -505,38 +514,54 @@ data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]
 
 ## AUC
 
+```{r}
+## auc container 
+auc_mat_subset <- array(NA, dim = c(length(window)-2, length(window)-2, M2))
+auc_mat_subset_ref <- array(NA, dim = c(length(window)-2, length(window)-2, M2))
+```
+
+
 ```{r auc_fGFPCA_subset}
-auc_mat_subset <- df_pred_m_fGFPCA %>%
-  mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+for(m in 1:M2){
+  this_df <- pred_subset_fGFPCA[[m]]
+  
+  auc_tb_m <- this_df %>%
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
   select(Y, starts_with("pred"), window) %>%
   group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.35),
-            auc2 = get_auc(Y, pred0.45),
-            auc3 = get_auc(Y, pred0.55),
-            auc4 = get_auc(Y, pred0.65)) %>%
-  filter(window != "[0.25,0.35]") %>% 
-  select(starts_with("auc"))
+  summarise(auc1 = get_auc(Y, pred0.2),
+            auc2 = get_auc(Y, pred0.4),
+            auc3 = get_auc(Y, pred0.6),
+            auc4 = get_auc(Y, pred0.8)) %>%
+  filter(window != "[0,0.2]") %>% 
+  select(starts_with("auc")) %>% as.matrix()
+  
+  auc_mat_subset[, , m] <- auc_tb_m
+  
+}
 
-colnames(auc_mat_subset) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+
+auc_mat_subset <- apply(auc_mat_subset, c(1,2), mean)
+colnames(auc_mat_subset) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r auc_GLMMadaptive_subset}
-auc_mat_subset2 <- df_pred_m_adglmm %>%
-  mutate(window = cut(t, breaks = window2, include.lowest = T)) %>% 
+auc_mat_subset2 <- df_subset_adglmm %>%
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
   select(Y, starts_with("pred"), window) %>%
   group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.35),
-            auc2 = get_auc(Y, pred0.45),
-            auc3 = get_auc(Y, pred0.55),
-            auc4 = get_auc(Y, pred0.65)) %>%
-  filter(window != "[0.25,0.35]") %>% 
+  summarise(auc1 = get_auc(Y, pred0.2),
+            auc2 = get_auc(Y, pred0.4),
+            auc3 = get_auc(Y, pred0.6),
+            auc4 = get_auc(Y, pred0.8)) %>%
+  filter(window != "[0,0.2]") %>% 
   select(starts_with("auc"))
 
-colnames(auc_mat_subset2) <- c("(0.25,0.35]", "(0.25,0.45]", "(0.25,0.55]", "(0.25,0.65]")
+colnames(auc_mat_subset2) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r}
-data.frame(Window = c("(0.35,0.45]", "(0.45,0.55]", "(0.55,0.65]", "(0.65, 0.75]"),
+data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
            auc_mat_subset, auc_mat_subset2, check.names = F) %>%
   kable(digits = 3, caption = "Integrated squared error") %>%
   kable_styling(full_width = F) %>% 
@@ -613,11 +638,11 @@ data.frame(Window = c("8am-4pm", "4am-midnight"),
 ## Figure
 
 ```{r pred_nhanes, fig.height=4, fig.width=10}
-rand_id2 <- sample(unique(nhanes_pred_fgfpca$id), 4)
+rand_id3 <- sample(unique(nhanes_pred_fgfpca$id), 4)
 
 ggarrange(
   nhanes_pred_fgfpca %>% 
-    filter(id %in% rand_id2) %>%
+    filter(id %in% rand_id3) %>%
     mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
     ggplot()+
     geom_line(aes(x=t, y = pred480, col = "8am"), linetype = "dashed", na.rm = T)+
@@ -630,7 +655,7 @@ ggarrange(
   theme(axis.text = element_text(size = 5)),
   
   nhanes_pred_adglmm %>% 
-    filter(id %in% rand_id2) %>%
+    filter(id %in% rand_id3) %>%
     mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
     ggplot()+
     geom_line(aes(x=t, y = pred480, col = "8am"), linetype = "dashed", na.rm = T)+
@@ -648,7 +673,7 @@ ggarrange(
 ```{r small_exp}
 # a smaller example of binary functions
 df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id2 & Z == 1) %>% 
+  filter(SEQN %in% rand_id3 & Z == 1) %>% 
   mutate(SEQN = as.factor(SEQN)) %>% 
   ggplot()+
   geom_point(aes(x=sind, y = SEQN), size = 0.5)+
@@ -661,7 +686,7 @@ df_nhanes %>% select(SEQN, Z, sind) %>%
 
 ```{r binning}
 df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id2 & sind >= 650 & sind <= 750) %>% 
+  filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>% 
   mutate(SEQN = as.factor(SEQN)) %>% 
   ggplot()+
   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+
@@ -673,7 +698,7 @@ df_nhanes %>% select(SEQN, Z, sind) %>%
 
 ```{r}
 df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id2 & sind >= 650 & sind <= 750) %>% 
+  filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>% 
   mutate(bin = cut(sind, breaks = seq(650, 750, by = 10), 
                    labels = seq(655, 745, by = 10),
                    include.lowest = T)) 

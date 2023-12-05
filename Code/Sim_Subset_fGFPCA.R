@@ -14,6 +14,7 @@ library(ggpubr)
 library(gridExtra)
 library(kableExtra)
 library(LaplacesDemon)
+library(mvtnorm)
 
 
 
@@ -22,182 +23,245 @@ library(LaplacesDemon)
 
 load(here("Data/sim_data.RData"))
 
-# reduce data
-## training data
-sub_sim_data <- sim_data[1:100] 
 M <- 100 # number of simulations
 
-sub_sim_data <- lapply(sub_sim_data, function(x){x %>% filter(id %in% c(1:10,501:510))})
-Ntr <- Nte <- 10 # trainig and testing sample size
+# reduce data
+sim_data <- lapply(sim_data[1:M], function(x){x %>% filter(id %in% c(1:200))})
+lapply(sim_data, dim)
+head(sim_data[[1]])
+unique(sim_data[[1]]$id)
+unique(sim_data[[1]]$t)
 
-sub_sim_data <- lapply(sub_sim_data, function(x){x %>% filter(t > 0.25 & t <= 0.75)})
-J <- length(unique(sub_sim_data[[1]]$t))
-
-lapply(sub_sim_data, dim)
-head(sub_sim_data[[1]])
-
-#### One iteration example ####
-
-df_train_m <- sub_sim_data[[1]] %>% filter(id %in% 1:10)
-df_test_m <- sub_sim_data[[1]] %>% filter(!id %in% 1:10)
+Ntr <- Nte <- 100 # trainig and testing sample size
+J <- 1000
 
 
 
-#### fGFPCA ####
-
-# functions
-K <- 4
+#### set up ####
+K <- 4 # number of eigenfunctions
 source(here("Code/GLMM-FPCA.R")) 
 source(here("Code/OutSampBayes.R"))
 
-
-# binning 
+# values for binning 
 bin_w <- 10 # bin width
 n_bin <- J/bin_w # number of bins
-brks <- seq(min(df_train_m$sind)-1, max(df_train_m$sind), by = bin_w) # cutoff points on time index
+brks <- seq(0, J, by = bin_w) # cutoff points on time index
 mid <- (brks+bin_w/2)[1:n_bin] # interval mid point time index
-t <- unique(df_train_m$t)
-mid_t <- unique(df_train_m$t[df_train_m$sind %in% mid]) # actually time corresponding to bin mid point
+t <- unique(sim_data[[1]]$t)
+mid_t <- t[mid]
 
 # values used for projection
 p <- 3 # order of b splines 
 knots <- 35 # number of knots (same from FPCA model)
 knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
 knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
-
-
-# result container
-# M <- 10
-M <- 1
-# pred_list_all <- list()
-# converge_state_list <- list()
-# fit_time <- pred_time <- rep(NA, M)
-
-#### Model fit ####
-
-## Step 1: bin observations
-df_train_m$bin <- cut(df_train_m$sind, breaks = brks, 
-                      include.lowest = T, labels = mid)
-df_train_m$bin <- as.numeric(as.character(df_train_m$bin))
-
-
-## fit local GLMM model on the training set
-t1 <- Sys.time()
-## Step 2: local GLMM and estimate latent function
-## on training set
-bin_lst <- split(df_train_m, f = df_train_m$bin)
-df_est_latent <- lapply(bin_lst, function(x){pred_latent(x, n_node = 0)}) # singularity issue
-df_est_latent <- bind_rows(df_est_latent) 
-range(df_est_latent$eta_hat)
-
-## Step 3: FPCA
-uni_eta_hat <- df_est_latent %>% filter(bin==sind)
-mat_est_unique <- matrix(uni_eta_hat$eta_hat,
-                         nrow=Ntr, 
-                         ncol=n_bin, byrow = F) 
-fpca_mod <- fpca.face(mat_est_unique, pve=0.999, argvals = mid_t, var=T)
-K <- 4
-fpca_mod$efunctions
-fpca_mod$evalues
-
-## Step 4: project and debias
 ## Projection
 B <- spline.des(knots = knots_values, x = mid_t, ord = p + 1,
                 outer.ok = TRUE)$design  # evaluate B-splines on binned grid
 Bnew <- spline.des(knots = knots_values, x = t, ord = p + 1,
                    outer.ok = TRUE)$design  # evaluate B-splines on original grid
-df_phi <- matrix(NA, J, K) 
-for(k in 1:K){
-  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-  df_phi[,k] <- Bnew %*% coef(lm_mod)
-}# project binned eigenfunctions onto the original grid
-## debias
-df_phi <- data.frame(t = t, df_phi)
-colnames(df_phi) <- c("t", paste0("phi", 1:4))
-df_train_m <- df_train_m %>% left_join(df_phi, by = "t")
-df_train_m$id <- droplevels(df_train_m$id)
-debias_glmm <- bam(Y ~ s(t, bs="cc", k=10)+
-                     s(id, by=phi1, bs="re")+
-                     s(id, by=phi2, bs="re")+
-                     s(id, by=phi3, bs="re")+
-                     s(id, by=phi4, bs="re"), 
-                   family = binomial, data=df_train_m, 
-                   method = "fREML",
-                   discrete = TRUE)
-new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
-new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
-# rescale
-new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
-range(new_phi)
-new_phi <- as.matrix(new_phi)
 
-new_lambda <- new_lambda/n_bin
-t2 <- Sys.time()
-t2-t1 # less than 1 second
+window <- seq(0.2, 0.8, by = 0.2)
+
+#### containers ####
+
+pred_list_all <- list()
+converge_state_list <- list()
+fit_time <- pred_time <- rep(NA, M)
 
 
-#### Prediction ####
-# Prediction pf test sample using Laplace approximation
-pred_list_m <- list()
-converge_state_m <- matrix(NA, Nte, 4)
-t1 <- Sys.time()
-# per subject
-df_test_m$id <- droplevels(df_test_m$id)
-test_id <- unique(df_test_m$id)
+#### fGFPCA
 
-for(i in seq_along(test_id)){
-  df_i <- df_test_m %>% filter(id==test_id[i])
+pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
+for(m in 1:M){
   
-  # per max obs time
-  for(tmax in c(0.35, 0.45, 0.55, 0.65)){
-    df_it <- df_i %>% filter(t <= tmax)
-    max_rid <- nrow(df_it)
+  # data split
+  df_train_m <- sim_data[[m]] %>% filter(id %in% 1:100)
+  df_test_m <- sim_data[[m]] %>% filter(!id %in% 1:100)
+  
+  t1 <- Sys.time()
+  # step 1: bin 
+  df_train_m$bin <- cut(df_train_m$sind, breaks = brks, 
+                        include.lowest = T, labels = mid)
+  df_train_m$bin <- as.numeric(as.character(df_train_m$bin))
+  
+  # step 2: local GLMMs
+  ## on training set
+  bin_lst <- split(df_train_m, f = df_train_m$bin)
+  df_est_latent <- lapply(bin_lst, function(x){pred_latent(x, n_node = 0)}) # singularity issue
+  df_est_latent <- bind_rows(df_est_latent) 
+  
+  ## Step 3: FPCA
+  uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+  mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                           nrow=Ntr, 
+                           ncol=n_bin, byrow = F) 
+  fpca_mod <- fpca.face(mat_est_unique, argvals = mid_t, var=T)
+  
+  ## Step 4: project and debias
+  df_phi <- matrix(NA, J, K) 
+  for(k in 1:K){
+    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+    df_phi[,k] <- Bnew %*% coef(lm_mod)
+  } # project binned eigenfunctions onto the original grid
+  df_phi <- data.frame(t = t, df_phi)
+  colnames(df_phi) <- c("t", paste0("phi", 1:4))
+  df_train_m <- df_train_m %>% left_join(df_phi, by = "t")
+  df_train_m$id <- droplevels(df_train_m$id)
+  debias_glmm <- bam(Y ~ s(t, bs="cc", k=10)+
+                       s(id, by=phi1, bs="re")+
+                       s(id, by=phi2, bs="re")+
+                       s(id, by=phi3, bs="re")+
+                       s(id, by=phi4, bs="re"), 
+                     family = binomial, data=df_train_m, 
+                     method = "fREML",
+                     discrete = TRUE)
+  new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+  new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
+  # rescale
+  new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
+  new_phi <- as.matrix(new_phi)
+  new_lambda <- new_lambda/n_bin
+  t2 <- Sys.time()
+  fit_time[m] <- t2-t1 # less than 1 second
+  
+  
+  ## Prediction
+  # Prediction pf test sample using Laplace approximation
+  pred_list_m <- list()
+  converge_state_m <- matrix(NA, Nte, 4)
+  t1 <- Sys.time()
+  # per subject
+  df_test_m$id <- droplevels(df_test_m$id)
+  test_id <- unique(df_test_m$id)
+  
+  for(i in seq_along(test_id)){
+    df_i <- df_test_m %>% filter(id==test_id[i])
     
-    # into a list
-    MyData <- list(K=K, 
-                   X=new_phi[1:max_rid, ], 
-                   mon.names=mon.names,
-                   parm.names=parm.names, 
-                   pos.xi=pos.xi, 
-                   y=df_it$Y, 
-                   tao=diag(new_lambda), f0=new_mu[1:max_rid])
+    # per max obs time
+    for(tmax in window){
+      df_it <- df_i %>% filter(t <= tmax)
+      max_rid <- nrow(df_it)
+      
+      # into a list
+      MyData <- list(K=K, 
+                     X=new_phi[1:max_rid, ], 
+                     mon.names=mon.names,
+                     parm.names=parm.names, 
+                     pos.xi=pos.xi, 
+                     y=df_it$Y, 
+                     tao=diag(new_lambda), f0=new_mu[1:max_rid])
+      
+      
+      # fit laplace approximation
+      Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
+                                  CovEst = "Identity")
+      converge_state_m[i, which(window==tmax)] <- Fit$Converged
+      score <- Fit$Summary1[, "Mode"]
+      
+      # prediction
+      eta_pred_out <- new_mu+new_phi%*%score
+      df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+    }
     
-    
-    # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
-                                CovEst = "Identity")
-    converge_state_m[i, which(c(0.35, 0.45, 0.55, 0.65)==tmax)] <- Fit$Converged
-    score <- Fit$Summary1[, "Mode"]
-    
-    # prediction
-    eta_pred_out <- new_mu+new_phi%*%score
-    df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+    pred_list_m[[i]] <- df_i
   }
+  t2 <- Sys.time()
+  pred_time[m] <- t2-t1
   
-  pred_list_m[[i]] <- df_i
+  # clean 
+  # save predictions
+  df_pred_m <- bind_rows(pred_list_m)
+  df_pred_m$pred0.2[df_pred_m$t<=0.2] <- NA
+  df_pred_m$pred0.4[df_pred_m$t<=0.4] <- NA
+  df_pred_m$pred0.6[df_pred_m$t<=0.6] <- NA
+  df_pred_m$pred0.8[df_pred_m$t<=0.8] <- NA
+  
+  pred_list_all[[m]] <- df_pred_m
+  converge_state_list[[m]] <- converge_state_m
+  
+  setTxtProgressBar(pb, m)
 }
-t2 <- Sys.time()
-t2-t1 # About 8 seconds
-# pred_time[m] <- t2-t1
 
-# save predictions
-df_pred <- bind_rows(pred_list_m)
-df_pred$pred0.35[df_pred$t<=0.35] <- NA
-df_pred$pred0.45[df_pred$t<=0.45] <- NA
-df_pred$pred0.55[df_pred$t<=0.55] <- NA
-df_pred$pred0.65[df_pred$t<=0.65] <- NA
+close(pb)
 
-mean(converge_state_m) # all converged
 
-# pred_list_all[[m]] <- df_pred
-df_pred_m_fGFPCA <- df_pred
-save(df_pred_m_fGFPCA, 
+# results
+mean(fit_time)
+class(fit_time)
+sum(lapply(converge_state_list, mean)!=1)
+pred_list_all[[1]] %>%
+  filter(t > 0.4) %>%
+  View()
+
+fit_time_subset_fGFPCA <- fit_time
+pred_time_subset_fGFPCA <- pred_time
+pred_subset_fGFPCA <- pred_list_all
+save(fit_time_subset_fGFPCA, pred_time_subset_fGFPCA, pred_subset_fGFPCA, 
      file = here("Data/SubSimOutput_fGFPCA.RData"))
-
-
 
 
 # save convergence status
 converge_state_list[[m]] <- converge_state_m
+
+#### ISE ####
+window <- seq(0, 1, by = 0.2)
+
+# ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+ise_mat <- df_pred %>%
+  mutate(err1 = (pred0.2-eta_i)^2,
+         err2 = (pred0.4-eta_i)^2,
+         err3 = (pred0.6-eta_i)^2,
+         err4 = (pred0.8-eta_i)^2) %>% 
+  select(id, t, starts_with("err")) %>% 
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+  group_by(window, id) %>% 
+  summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+  group_by(window) %>% 
+  summarize_at(vars(err1, err2, err3, err4), mean) %>%
+  filter(window != "[0,0.2]") %>% 
+  select(starts_with("err"))
+# ise_mat[, ,m] <- as.matrix(ise_tb)
+
+
+# dims: prediction window, max obs time, simulation iter
+mean_ise <- apply(ise_mat, c(1, 2), mean)
+mean_ise <- data.frame(mean_ise) %>% 
+  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
+         .before = 1)
+colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
+mean_ise
+
+
+#### Calculate AUC ####
+
+## auc container 
+# auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
+
+## a function to calculate AUC
+get_auc <- function(y, pred){
+  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
+    auc <- NA
+  }
+  else{
+    this_perf <- performance(prediction(pred, y), measure = "auc")
+    auc <- this_perf@y.values[[1]]
+  }
+  return(auc)
+}
+
+
+## calcualte AUC
+auc_tb <- df_pred %>% 
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>%
+  summarise(auc1 = get_auc(Y, pred0.2),
+            auc2 = get_auc(Y, pred0.4),
+            auc3 = get_auc(Y, pred0.6),
+            auc4 = get_auc(Y, pred0.8)) %>%
+  filter(window != "[0,0.2]") %>% 
+  select(starts_with("auc"))
+
 
 
