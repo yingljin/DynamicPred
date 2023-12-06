@@ -82,7 +82,7 @@
 
 \title{Manuscript progress report}
 \author{Ying Jin}
-\date{2023-12-05}
+\date{2023-12-06}
 
 \begin{document}
 \maketitle
@@ -359,9 +359,8 @@ prediction are similar between two methods, fGFPCA achieved much better
 flexibility and much better predictive performance of prediction under
 every scenario.
 
-\hypertarget{small-scale-simulation-one-iteration}{%
-\section{Small-scale simulation: one
-iteration}\label{small-scale-simulation-one-iteration}}
+\hypertarget{small-scale-simulation}{%
+\section{Small-scale simulation}\label{small-scale-simulation}}
 
 Here we would like to fit fGFPCA and GLMMadaptive on a dataset with
 smaller sample size and/or smaller measurement density. For the
@@ -370,14 +369,15 @@ that its flexibility is comparable with fGFPCA model, such as:
 
 \[g(E(Y_i(t))) = \sum_{k=1}^4\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)\]
 
-I have used 100 subjects for training and testing. When fitting
-GLMMadpative, I reduce the number of measurements to 1/10 by taking one
-every 10 observations. The prediction is on the original grid.
+I have used 100 subjects for training and testing, and repeated 100
+times. When fitting GLMMadpative, I reduce the number of measurements to
+1/10 by taking one every 10 observations. The prediction is on the
+original grid.
 
 \hypertarget{figure-1}{%
 \subsection{Figure}\label{figure-1}}
 
-\includegraphics{manuscript_files/figure-latex/unnamed-chunk-7-1.pdf}
+\includegraphics{manuscript_files/figure-latex/fit_sim_small-1.pdf}
 
 \hypertarget{ise-1}{%
 \subsection{ISE}\label{ise-1}}
@@ -386,22 +386,19 @@ every 10 observations. The prediction is on the original grid.
 
 \caption{\label{tab:unnamed-chunk-8}Integrated squared error}
 \centering
-\begin{tabular}[t]{l|r|r|r|r|r|r|r|r}
-\hline
-\multicolumn{1}{c|}{ } & \multicolumn{8}{c}{Observation track} \\
-\cline{2-9}
-\multicolumn{1}{c|}{ } & \multicolumn{4}{c|}{fGFPCA} & \multicolumn{4}{c}{GLMMadaptive} \\
-\cline{2-5} \cline{6-9}
+\begin{tabular}[t]{lrrrrrrrr}
+\toprule
+\multicolumn{1}{c}{ } & \multicolumn{8}{c}{Observation track} \\
+\cmidrule(l{3pt}r{3pt}){2-9}
+\multicolumn{1}{c}{ } & \multicolumn{4}{c}{fGFPCA} & \multicolumn{4}{c}{GLMMadaptive} \\
+\cmidrule(l{3pt}r{3pt}){2-5} \cmidrule(l{3pt}r{3pt}){6-9}
 Window & 0.2 & 0.4 & 0.6 & 0.8 & 0.2 & 0.4 & 0.6 & 0.8\\
-\hline
-(0.2,0.4] & 154.178 &  &  &  & 387.140 &  &  & \\
-\hline
-(0.4,0.6] & 168.881 & 70.248 &  &  & 248.395 & 415.355 &  & \\
-\hline
-(0.6,0.8] & 235.562 & 47.770 & 16.813 &  & 330.585 & 321.804 & 265.975 & \\
-\hline
-(0.8, 1.0] & 97.413 & 77.682 & 19.947 & 12.015 & 186.022 & 525.561 & 349.314 & 116.319\\
-\hline
+\midrule
+(0.2,0.4] & 151.709 &  &  &  & 374.368 &  &  & \\
+(0.4,0.6] & 189.147 & 77.904 &  &  & 268.805 & 464.796 &  & \\
+(0.6,0.8] & 226.314 & 51.773 & 17.050 &  & 321.530 & 286.806 & 230.564 & \\
+(0.8, 1.0] & 113.007 & 81.718 & 19.576 & 13.244 & 227.965 & 472.162 & 341.146 & 136.831\\
+\bottomrule
 \end{tabular}
 \end{table}
 
@@ -410,29 +407,40 @@ Window & 0.2 & 0.4 & 0.6 & 0.8 & 0.2 & 0.4 & 0.6 & 0.8\\
 
 \begin{table}
 
-\caption{\label{tab:unnamed-chunk-9}Integrated squared error}
+\caption{\label{tab:unnamed-chunk-10}Area under the ROC curve}
 \centering
-\begin{tabular}[t]{l|r|r|r|r|r|r|r|r}
-\hline
-\multicolumn{1}{c|}{ } & \multicolumn{8}{c}{Observation track} \\
-\cline{2-9}
-\multicolumn{1}{c|}{ } & \multicolumn{4}{c|}{fGFPCA} & \multicolumn{4}{c}{GLMMadaptive} \\
-\cline{2-5} \cline{6-9}
+\begin{tabular}[t]{lrrrrrrrr}
+\toprule
+\multicolumn{1}{c}{ } & \multicolumn{8}{c}{Observation track} \\
+\cmidrule(l{3pt}r{3pt}){2-9}
+\multicolumn{1}{c}{ } & \multicolumn{4}{c}{fGFPCA} & \multicolumn{4}{c}{GLMMadaptive} \\
+\cmidrule(l{3pt}r{3pt}){2-5} \cmidrule(l{3pt}r{3pt}){6-9}
 Window & 0.2 & 0.4 & 0.6 & 0.8 & 0.2 & 0.4 & 0.6 & 0.8\\
-\hline
-(0.2,0.4] & 0.721 &  &  &  & 0.646 &  &  & \\
-\hline
-(0.4,0.6] & 0.658 & 0.725 &  &  & 0.620 & 0.665 &  & \\
-\hline
-(0.6,0.8] & 0.710 & 0.793 & 0.805 &  & 0.682 & 0.700 & 0.733 & \\
-\hline
-(0.8, 1.0] & 0.712 & 0.725 & 0.761 & 0.764 & 0.647 & 0.582 & 0.657 & 0.725\\
-\hline
+\midrule
+(0.2,0.4] & 0.745 &  &  &  & 0.674 &  &  & \\
+(0.4,0.6] & 0.663 & 0.733 &  &  & 0.623 & 0.671 &  & \\
+(0.6,0.8] & 0.712 & 0.789 & 0.802 &  & 0.691 & 0.700 & 0.732 & \\
+(0.8, 1.0] & 0.741 & 0.755 & 0.782 & 0.785 & 0.680 & 0.627 & 0.679 & 0.743\\
+\bottomrule
 \end{tabular}
 \end{table}
 
 There is huge difference in compuation time. GLMMadaptive took 23
 minutes, while fGFPCA took less than 3 seconds.
+
+\begin{table}
+
+\caption{\label{tab:unnamed-chunk-11}Computation time (minutes)}
+\centering
+\begin{tabular}[t]{lrr}
+\toprule
+Method & Fit & Prediction\\
+\midrule
+fGFPCA & 0.043 & 1.405\\
+GLMMadaptive & 5.842 & 0.023\\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \hypertarget{nhanes-data-application}{%
 \section{NHANES data application}\label{nhanes-data-application}}
@@ -450,7 +458,7 @@ intercept. It took more than 20 minutes for model fitting.
 
 \begin{table}
 
-\caption{\label{tab:unnamed-chunk-10}Area Under the ROC curve}
+\caption{\label{tab:unnamed-chunk-12}Area Under the ROC curve}
 \centering
 \begin{tabular}[t]{lrrrr}
 \toprule
@@ -482,6 +490,6 @@ demonstration}\label{fgfpca-algorithm-demonstration}}
 
 \includegraphics{manuscript_files/figure-latex/binning-1.pdf}
 
-\includegraphics{manuscript_files/figure-latex/unnamed-chunk-11-1.pdf}
+\includegraphics{manuscript_files/figure-latex/unnamed-chunk-13-1.pdf}
 
 \end{document}

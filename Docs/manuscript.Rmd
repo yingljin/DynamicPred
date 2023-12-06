@@ -430,7 +430,8 @@ fig_fgfpca_subset <- pred_subset_fGFPCA[[1]] %>%
   labs(title = "fGFPCA", col = "Maximum observation time")+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))
 
-fig_adglmm_subset <- df_subset_adglmm %>% filter(id %in% rand_id2) %>%
+fig_adglmm_subset <- pred_subset_adglmm[[1]] %>% 
+  filter(id %in% rand_id2) %>%
   mutate_at(vars(eta_i, starts_with("pred")), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
@@ -445,7 +446,7 @@ fig_adglmm_subset <- df_subset_adglmm %>% filter(id %in% rand_id2) %>%
 
 ```
 
-```{r}
+```{r fit_sim_small, fig.height=4, fig.width=8}
 ggarrange(fig_fgfpca_subset, fig_adglmm_subset,
           nrow = 1, common.legend = T)
 ```
@@ -485,7 +486,9 @@ colnames(ise_mat_subset) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r ise_GLMMadaptive_subset}
-ise_mat_subset2 <- df_subset_adglmm %>%
+for(m in 1:M2){
+  this_df <- pred_subset_adglmm[[m]]
+  ise_tb_m <- this_df %>%
     mutate(err1 = (pred0.2-eta_i)^2,
            err2 = (pred0.4-eta_i)^2,
            err3 = (pred0.6-eta_i)^2,
@@ -497,15 +500,21 @@ ise_mat_subset2 <- df_subset_adglmm %>%
     group_by(window) %>% 
     summarize_at(vars(err1, err2, err3, err4), mean) %>%
     filter(window != "[0,0.2]") %>% 
-    select(starts_with("err"))
-colnames(ise_mat_subset2) <- c("0.2", "0.4", "0.6", "0.8")
+    select(starts_with("err")) %>% as.matrix()
+  ise_mat_subset_ref[,,m] <- ise_tb_m
+}
+
+ise_mat_subset_ref <- apply(ise_mat_subset_ref, c(1, 2), mean)
+
+
+colnames(ise_mat_subset_ref) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 
 ```{r}
 data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
-           ise_mat_subset, ise_mat_subset2, check.names = F) %>%
-  kable(digits = 3, caption = "Integrated squared error") %>%
+           ise_mat_subset, ise_mat_subset_ref, check.names = F) %>%
+  kable(digits = 3, caption = "Integrated squared error", booktabs = T) %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" "= 1, "Observation track" = 8))
@@ -546,7 +555,10 @@ colnames(auc_mat_subset) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r auc_GLMMadaptive_subset}
-auc_mat_subset2 <- df_subset_adglmm %>%
+for(m in 1:M2){
+  this_df <- pred_subset_adglmm[[m]]
+  
+  auc_tb_m <- this_df %>%
   mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
   select(Y, starts_with("pred"), window) %>%
   group_by(window) %>%
@@ -555,21 +567,36 @@ auc_mat_subset2 <- df_subset_adglmm %>%
             auc3 = get_auc(Y, pred0.6),
             auc4 = get_auc(Y, pred0.8)) %>%
   filter(window != "[0,0.2]") %>% 
-  select(starts_with("auc"))
+  select(starts_with("auc")) %>% as.matrix()
+  
+  auc_mat_subset_ref[, , m] <- auc_tb_m
+  
+}
 
-colnames(auc_mat_subset2) <- c("0.2", "0.4", "0.6", "0.8")
+auc_mat_subset_ref <- apply(auc_mat_subset_ref, c(1,2), mean)
+colnames(auc_mat_subset_ref) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r}
 data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
-           auc_mat_subset, auc_mat_subset2, check.names = F) %>%
-  kable(digits = 3, caption = "Integrated squared error") %>%
+           auc_mat_subset, auc_mat_subset_ref, check.names = F) %>%
+  kable(digits = 3, caption = "Area under the ROC curve", booktabs = T) %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "fGFPCA" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" "= 1, "Observation track" = 8))
 ```
 
 There is huge difference in compuation time. GLMMadaptive took 23 minutes, while fGFPCA took less than 3 seconds.
+
+
+```{r}
+data.frame(
+  "Method" = c("fGFPCA", "GLMMadaptive"),
+  "Fit" = c(mean(fit_time_subset_fGFPCA)/60, mean(fit_time_subset_adglmm)),
+           "Prediction"= c(mean(pred_time_subset_fGFPCA), mean(pred_time_subset_adglmm)/60)) %>%
+  kable(digits = 3, caption = "Computation time (minutes)", booktabs = T) %>%
+  kable_styling(full_width = F) 
+```
 
 
 # NHANES data application

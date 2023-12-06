@@ -54,22 +54,32 @@ fit_time <- pred_time <- rep(NA, M)
 
 #### GLMMadaptive ####
 
-M <- 3
+# The simulation process run into a numeric problem at the 95th iteration
+# (singularity)
 
-pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
-for(m in 1:M){
+pb = txtProgressBar(min = 95, max = M, initial = 0, style = 3) 
+for(m in 95:M){
   
   # data split and training data reduction
-  df_train_m <- sim_data[[m]] %>% filter(id %in% 1:100) %>% filter(sind %in% t_bin)
+  try_fit <- NA
   df_test_m <- sim_data[[m]] %>% filter(!id %in% 1:100)
   
   # model fit
-  t1 <- Sys.time()
-  fit_adglmm <- mixed_model(fixed = Y ~ 0+ns(t, df = 4), 
-                            random = ~ 0+ns(t, df = 4) | id, 
-                            data =  df_train_m, family = binomial())
-  t2 <- Sys.time()
+  while(is.na(try_fit)){
+    df_train_m <- sim_data[[m]] %>% filter(id %in% 1:100 & sind %in% t_bin) 
+    try_fit <- tryCatch(expr={t1 <- Sys.time()
+                              fit_adglmm <- mixed_model(fixed = Y ~ 0+ns(t, df = 4), 
+                                                        random = ~ 0+ns(t, df = 4) | id, 
+                                                        data =  df_train_m, family = binomial())
+                              t2 <- Sys.time()},
+                        error = function(e){NA}
+                        )
+    t_bin <- t_bin+1
+    
+  }
+  
   fit_time[m] <- t2-t1 ## minutes
+
   
   # prediction
   t1 <- Sys.time()
@@ -117,8 +127,8 @@ close(pb)
 mean(fit_time)
 mean(pred_time)
 
-pred_list_all[[1]] %>% filter(t>0.2) %>% View()
-pred_list_all[[2]] %>% filter(t>0.2) %>% View()
+pred_list_all[[96]] %>% filter(t>0.2) %>% View()
+pred_list_all[[99]] %>% filter(t>0.2) %>% View()
 
 #### Save results ####
 
@@ -126,7 +136,7 @@ fit_time_subset_adglmm <- fit_time
 pred_time_subset_adglmm <- pred_time
 pred_subset_adglmm <- pred_list_all
 
-save(fit_time_subset_adglmm, pred_time_subset_adglmm, df_subset_adglmm, 
+save(fit_time_subset_adglmm, pred_time_subset_adglmm, pred_subset_adglmm, 
      file = here("Data/SubSimOutput_GLMMadaptive.RData"))
 
 

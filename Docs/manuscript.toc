@@ -13,11 +13,11 @@
 \contentsline {subsection}{Figure}{5}{section*.14}%
 \contentsline {subsection}{ISE}{5}{section*.15}%
 \contentsline {subsection}{AUC}{5}{section*.16}%
-\contentsline {section}{Small-scale simulation: one iteration}{6}{section*.17}%
+\contentsline {section}{Small-scale simulation}{6}{section*.17}%
 \contentsline {subsection}{Figure}{6}{section*.18}%
-\contentsline {subsection}{ISE}{7}{section*.19}%
-\contentsline {subsection}{AUC}{7}{section*.20}%
-\contentsline {section}{NHANES data application}{7}{section*.21}%
+\contentsline {subsection}{ISE}{6}{section*.19}%
+\contentsline {subsection}{AUC}{6}{section*.20}%
+\contentsline {section}{NHANES data application}{8}{section*.21}%
 \contentsline {subsection}{AUC}{9}{section*.22}%
 \contentsline {subsection}{Figure}{9}{section*.23}%
 \contentsline {section}{Additional figures}{10}{section*.24}%
