@@ -47,7 +47,7 @@ source(here("Code/OutsampBayes.R"))
 
 Fit fGFPCA model
 
-Because step 4 (debias) is very time-consuming, this example is fit on a subset of NHANES dataset, including 500 participants as the training set
+Because step 4 (debias) is very time-consuming, this example is fit on a subset of NHANES dataset, including 1000 participants as the training set
 
 ```{r data_subset}
 # head(df)
