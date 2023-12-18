@@ -3,10 +3,6 @@ title: "Manuscript progress report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
-    keep_tex: yes
   html_document:
     self_contained: no
     number_sections: yes
@@ -15,6 +11,10 @@ output:
     toc_depth: 3
     toc_float: yes
     font: 12pt
+    keep_tex: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
     keep_tex: yes
 ---
 
@@ -428,7 +428,8 @@ fig_fgfpca_subset <- pred_subset_fGFPCA[[1]] %>%
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
   labs(title = "fGFPCA", col = "Maximum observation time")+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))
 
 fig_adglmm_subset <- pred_subset_adglmm[[1]] %>% 
   filter(id %in% rand_id2) %>%
@@ -442,8 +443,8 @@ fig_adglmm_subset <- pred_subset_adglmm[[1]] %>%
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
   facet_wrap(~id)+
   labs(title = "GLMMadaptive", col = "Maximum observation time")+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
-
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))
 ```
 
 ```{r fit_sim_small, fig.height=4, fig.width=8}
@@ -601,9 +602,10 @@ data.frame(
 
 # NHANES data application
 
-We take 80% (7010) subjects for training, 20% (1753) for out-of-sample prediction. 
+We take 500 subjects for training, 500 for out-of-sample prediction. When using the full sample The debiase step (mgcv::bam) in fGFPCA took a really a long time, and GLMM adaptive only works for intercept-only model. In the debias step, re-evaluated eigenvalues also lost their decreasing nature. 
 
-In the GLMMadaptive model, I could only fit a model with random intercept. It took more than 20 minutes for model fitting. 
+In addition to reduce sample size, maybe we could just drop the debias step and only interpolate the eigenfunctions? 
+
 
 ```{r load_nhanes}
 df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
@@ -697,15 +699,6 @@ ggarrange(
 ```
 
 
-```{r small_exp}
-# a smaller example of binary functions
-df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id3 & Z == 1) %>% 
-  mutate(SEQN = as.factor(SEQN)) %>% 
-  ggplot()+
-  geom_point(aes(x=sind, y = SEQN), size = 0.5)+
-  labs(x="Time", y="Subject", title = "NHANES binary activity indicator")
-```
 
 # Additional figures
 
@@ -755,3 +748,76 @@ df_fig %>%
 
 ```
 
+
+## Example of continuous and binary NHANES
+
+```{r}
+df_nhanes_cont <- readRDS(here("Data/NHANES_AC_processed.rds"))
+p_cont <- df_nhanes_cont %>% 
+  filter(SEQN %in% sample(unique(df_nhanes_cont$SEQN), 4) & WEEKDAY==6) %>% 
+  select(starts_with("min"), SEQN) %>%
+  pivot_longer(1:1440, names_to = "Minute") %>% 
+  mutate(Minute = gsub("MIN", "", Minute)) %>%
+  mutate(Minute = as.numeric(Minute),
+         SEQN=as.factor(SEQN)) %>%
+  ggplot(aes(x=Minute, y=value, col=SEQN))+
+  geom_point(size = 0.5, alpha=0.5)+
+  geom_smooth(se=F, size = 0.5)+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480),
+                     labels = c("Midnight", "8am", "4pm", "Midnight"))+
+  theme(axis.text = element_text(size = 5))+
+  labs(y="", title = "NHANES Activitiy count (2003-2004)")
+```
+
+
+```{r}
+# a example of continuous and binary NHANES data
+p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>% 
+  filter(SEQN %in% rand_id3 & Z == 1) %>% 
+  mutate(SEQN = as.factor(SEQN)) %>% 
+  ggplot()+
+  geom_point(aes(x=sind, y = SEQN), size = 0.5)+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480),
+                     labels = c("Midnight", "8am", "4pm", "Midnight"))+
+  theme(axis.text = element_text(size = 5))+
+  labs(x="Time", y="Subject", title = "NHANES binary activity indicator (2011-2014)")
+```
+
+```{r data_exp, fig.height=4, fig.width=10}
+ggarrange(p_cont, p_bi, nrow = 1)
+```
+
+
+## Dynamic prediction example
+
+```{r dynpred_exp,  fig.height=4, fig.width=10}
+ggarrange(
+  pred_list_all[[1]] %>% 
+    filter(id==501) %>%
+    mutate(eta_i = ifelse(t<=0.2, eta_i, NA)) %>%
+    ggplot()+
+    geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+
+    geom_line(aes(x=t, y=pred0.2, col = "Predicted"), na.rm = T, 
+              linetype = "dashed")+
+    geom_vline(xintercept = 0.2, linetype = "dashed")+
+    labs(x="Time", y="")+
+    scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+    theme(axis.text = element_text(size = 5))+
+    ylim(-1.2, 1.7),
+  
+ pred_list_all[[1]] %>% 
+    filter(id==501) %>%
+    mutate(eta_i = ifelse(t<=0.4, eta_i, NA)) %>%
+    ggplot()+
+    geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+
+    geom_line(aes(x=t, y=pred0.4, col = "Predicted"), na.rm = T, 
+              linetype = "dashed")+
+    geom_vline(xintercept = 0.4, linetype = "dashed")+
+    labs(x="Time", y="")+
+    scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+    theme(axis.text = element_text(size = 5))+
+   ylim(-1.2, 1.7),
+ nrow = 1, common.legend = T
+  )
+
+```

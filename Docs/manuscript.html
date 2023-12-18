@@ -11,11 +11,11 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2023-12-04" />
+<meta name="date" content="2023-12-14" />
 
 <title>Manuscript progress report</title>
 
-<script src="manuscript_files/header-attrs-2.21/header-attrs.js"></script>
+<script src="manuscript_files/header-attrs-2.25/header-attrs.js"></script>
 <script src="manuscript_files/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="manuscript_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
@@ -31,7 +31,7 @@
        h6 {font-size: 12px;}
        code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
        pre:not([class]) { background-color: white }</style>
-<script src="manuscript_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<script src="manuscript_files/jqueryui-1.13.2/jquery-ui.min.js"></script>
 <link href="manuscript_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
 <script src="manuscript_files/tocify-1.9.1/jquery.tocify.js"></script>
 <script src="manuscript_files/navigation-1.1/tabsets.js"></script>
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2023-12-04</h4>
+<h4 class="date">2023-12-14</h4>
 
 </div>
 
@@ -438,7 +438,7 @@ generation scheme. We would expect it to perform terribly.</li>
 </div>
 <div id="ise" class="section level2" number="2.4">
 <h2><span class="header-section-number">2.4</span> ISE</h2>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Integrated squared error
 </caption>
@@ -606,7 +606,7 @@ Window
 </div>
 <div id="auc" class="section level2" number="2.5">
 <h2><span class="header-section-number">2.5</span> AUC</h2>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Area under the ROC curve
 </caption>
@@ -771,7 +771,7 @@ Window
 </tr>
 </tbody>
 </table>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Computation time (minutes)
 </caption>
@@ -819,42 +819,26 @@ better flexibility and much better predictive performance of prediction
 under every scenario.</p>
 </div>
 </div>
-<div id="small-scale-simulation-one-iteration" class="section level1"
-number="3">
-<h1><span class="header-section-number">3</span> Small-scale simulation:
-one iteration</h1>
+<div id="small-scale-simulation" class="section level1" number="3">
+<h1><span class="header-section-number">3</span> Small-scale
+simulation</h1>
 <p>Here we would like to fit fGFPCA and GLMMadaptive on a dataset with
 smaller sample size and/or smaller measurement density. For the
 GLMMadaptive model, we would set it up with spline basis functions so
 that its flexibility is comparable with fGFPCA model, such as:</p>
 <p><span class="math display">\[g(E(Y_i(t))) =
-\sum_{k=1}^5\zeta_{k}B_k(t)+\sum_{l=1}^5\xi_{il}\phi_l(t)\]</span></p>
-<p>I did the following things for data-reduction</p>
-<ul>
-<li>Reduce sample size to 10 (for both training and testing)</li>
-<li>Reduce measurement track by half (0.25-0.75)</li>
-<li>Another way is the simple reduce the measurement density. For
-example, instead of every minute, we can use every 10 minutes. In this
-case, the binning step in fGFPCA would bin every 100 minutes in to one
-bin.</li>
-<li><ul>
-<li>When we have smaller density of measurement grid, both methods could
-run into numeric issues in both methods. For example, singularity
-happened the the local GLMM step of fGFPCA procedure. This might be able
-to get resoved by changing the optimizer (e.g. Nealder_Mead). Do we want
-to do that? Or perhaps we simply want to use the full track?</li>
-</ul></li>
-<li>We may also need to reduce number of simulations (GLMMadaptive took
-20-ish minutes for one simulaiton).</li>
-</ul>
-<p>Below are some of the outcomes:</p>
+\sum_{k=1}^4\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)\]</span></p>
+<p>I have used 100 subjects for training and testing, and repeated 100
+times. When fitting GLMMadpative, I reduce the number of measurements to
+1/10 by taking one every 10 observations. The prediction is on the
+original grid.</p>
 <div id="figure-1" class="section level2" number="3.1">
 <h2><span class="header-section-number">3.1</span> Figure</h2>
-<p><img src="manuscript_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p><img src="manuscript_files/figure-html/fit_sim_small-1.png" width="768" /></p>
 </div>
 <div id="ise-1" class="section level2" number="3.2">
 <h2><span class="header-section-number">3.2</span> ISE</h2>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Integrated squared error
 </caption>
@@ -887,47 +871,47 @@ GLMMadaptive
 Window
 </th>
 <th style="text-align:right;">
-(0.25,0.35]
+0.2
 </th>
 <th style="text-align:right;">
-(0.25,0.45]
+0.4
 </th>
 <th style="text-align:right;">
-(0.25,0.55]
+0.6
 </th>
 <th style="text-align:right;">
-(0.25,0.65]
+0.8
 </th>
 <th style="text-align:right;">
-(0.25,0.35]
+0.2
 </th>
 <th style="text-align:right;">
-(0.25,0.45]
+0.4
 </th>
 <th style="text-align:right;">
-(0.25,0.55]
+0.6
 </th>
 <th style="text-align:right;">
-(0.25,0.65]
+0.8
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align:left;">
-(0.35,0.45]
+(0.2,0.4]
 </td>
 <td style="text-align:right;">
-35.724
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
+151.709
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-48.779
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+374.368
 </td>
 <td style="text-align:right;">
 </td>
@@ -938,23 +922,23 @@ Window
 </tr>
 <tr>
 <td style="text-align:left;">
-(0.45,0.55]
+(0.4,0.6]
 </td>
 <td style="text-align:right;">
-77.379
+189.147
 </td>
 <td style="text-align:right;">
-22.690
+77.904
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-74.537
+268.805
 </td>
 <td style="text-align:right;">
-34.232
+464.796
 </td>
 <td style="text-align:right;">
 </td>
@@ -963,58 +947,58 @@ Window
 </tr>
 <tr>
 <td style="text-align:left;">
-(0.55,0.65]
+(0.6,0.8]
 </td>
 <td style="text-align:right;">
-32.581
+226.314
 </td>
 <td style="text-align:right;">
-20.370
+51.773
 </td>
 <td style="text-align:right;">
-20.043
+17.050
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-48.683
+321.530
 </td>
 <td style="text-align:right;">
-35.666
+286.806
 </td>
 <td style="text-align:right;">
-18.303
+230.564
 </td>
 <td style="text-align:right;">
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-(0.65, 0.75]
+(0.8, 1.0]
 </td>
 <td style="text-align:right;">
-158.191
+113.007
 </td>
 <td style="text-align:right;">
-135.968
+81.718
 </td>
 <td style="text-align:right;">
-130.360
+19.576
 </td>
 <td style="text-align:right;">
-66.648
+13.244
 </td>
 <td style="text-align:right;">
-174.158
+227.965
 </td>
 <td style="text-align:right;">
-141.285
+472.162
 </td>
 <td style="text-align:right;">
-143.370
+341.146
 </td>
 <td style="text-align:right;">
-103.92
+136.831
 </td>
 </tr>
 </tbody>
@@ -1022,9 +1006,9 @@ Window
 </div>
 <div id="auc-1" class="section level2" number="3.3">
 <h2><span class="header-section-number">3.3</span> AUC</h2>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
-Integrated squared error
+Area under the ROC curve
 </caption>
 <thead>
 <tr>
@@ -1055,47 +1039,47 @@ GLMMadaptive
 Window
 </th>
 <th style="text-align:right;">
-(0.25,0.35]
+0.2
 </th>
 <th style="text-align:right;">
-(0.25,0.45]
+0.4
 </th>
 <th style="text-align:right;">
-(0.25,0.55]
+0.6
 </th>
 <th style="text-align:right;">
-(0.25,0.65]
+0.8
 </th>
 <th style="text-align:right;">
-(0.25,0.35]
+0.2
 </th>
 <th style="text-align:right;">
-(0.25,0.45]
+0.4
 </th>
 <th style="text-align:right;">
-(0.25,0.55]
+0.6
 </th>
 <th style="text-align:right;">
-(0.25,0.65]
+0.8
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align:left;">
-(0.35,0.45]
+(0.2,0.4]
 </td>
 <td style="text-align:right;">
-0.657
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
+0.745
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.643
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.674
 </td>
 <td style="text-align:right;">
 </td>
@@ -1106,23 +1090,23 @@ Window
 </tr>
 <tr>
 <td style="text-align:left;">
-(0.45,0.55]
+(0.4,0.6]
 </td>
 <td style="text-align:right;">
-0.611
+0.663
 </td>
 <td style="text-align:right;">
-0.690
+0.733
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.624
+0.623
 </td>
 <td style="text-align:right;">
-0.702
+0.671
 </td>
 <td style="text-align:right;">
 </td>
@@ -1131,77 +1115,122 @@ Window
 </tr>
 <tr>
 <td style="text-align:left;">
-(0.55,0.65]
+(0.6,0.8]
 </td>
 <td style="text-align:right;">
-0.687
+0.712
 </td>
 <td style="text-align:right;">
-0.710
+0.789
 </td>
 <td style="text-align:right;">
-0.714
+0.802
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.666
+0.691
 </td>
 <td style="text-align:right;">
-0.686
+0.700
 </td>
 <td style="text-align:right;">
-0.702
+0.732
 </td>
 <td style="text-align:right;">
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-(0.65, 0.75]
+(0.8, 1.0]
 </td>
 <td style="text-align:right;">
-0.604
+0.741
 </td>
 <td style="text-align:right;">
-0.639
+0.755
 </td>
 <td style="text-align:right;">
-0.636
+0.782
 </td>
 <td style="text-align:right;">
-0.653
+0.785
 </td>
 <td style="text-align:right;">
-0.598
+0.680
 </td>
 <td style="text-align:right;">
-0.593
+0.627
 </td>
 <td style="text-align:right;">
-0.587
+0.679
 </td>
 <td style="text-align:right;">
-0.62
+0.743
 </td>
 </tr>
 </tbody>
 </table>
 <p>There is huge difference in compuation time. GLMMadaptive took 23
 minutes, while fGFPCA took less than 3 seconds.</p>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Computation time (minutes)
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Method
+</th>
+<th style="text-align:right;">
+Fit
+</th>
+<th style="text-align:right;">
+Prediction
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+fGFPCA
+</td>
+<td style="text-align:right;">
+0.043
+</td>
+<td style="text-align:right;">
+1.405
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GLMMadaptive
+</td>
+<td style="text-align:right;">
+5.842
+</td>
+<td style="text-align:right;">
+0.023
+</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 <div id="nhanes-data-application" class="section level1" number="4">
 <h1><span class="header-section-number">4</span> NHANES data
 application</h1>
-<p>We take 80% (7010) subjects for training, 20% (1753) for
-out-of-sample prediction.</p>
-<p>In the GLMMadaptive model, I could only fit a model with random
-intercept. It took more than 20 minutes for model fitting.</p>
+<p>We take 500 subjects for training, 500 for out-of-sample prediction.
+When using the full sample The debiase step (mgcv::bam) in fGFPCA took a
+really a long time, and GLMM adaptive only works for intercept-only
+model. In the debias step, re-evaluated eigenvalues also lost their
+decreasing nature.</p>
+<p>In addition to reduce sample size, maybe we could just drop the
+debias step and only interpolate the eigenfunctions?</p>
 <p><img src="manuscript_files/figure-html/nhance_example-1.png" width="672" /></p>
 <div id="auc-2" class="section level2" number="4.1">
 <h2><span class="header-section-number">4.1</span> AUC</h2>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Area Under the ROC curve
 </caption>
@@ -1286,7 +1315,6 @@ Window
 <div id="figure-2" class="section level2" number="4.2">
 <h2><span class="header-section-number">4.2</span> Figure</h2>
 <p><img src="manuscript_files/figure-html/pred_nhanes-1.png" width="960" /></p>
-<p><img src="manuscript_files/figure-html/small_exp-1.png" width="672" /></p>
 </div>
 </div>
 <div id="additional-figures" class="section level1" number="5">
@@ -1296,7 +1324,25 @@ number="5.1">
 <h2><span class="header-section-number">5.1</span> fGFPCA algorithm
 demonstration</h2>
 <p><img src="manuscript_files/figure-html/binning-1.png" width="672" /></p>
-<p><img src="manuscript_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p><img src="manuscript_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+</div>
+<div id="example-of-continuous-and-binary-nhanes" class="section level2"
+number="5.2">
+<h2><span class="header-section-number">5.2</span> Example of continuous
+and binary NHANES</h2>
+<pre><code>## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
+## ℹ Please use `linewidth` instead.
+## This warning is displayed once every 8 hours.
+## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+## generated.</code></pre>
+<pre><code>## `geom_smooth()` using method = &#39;gam&#39; and formula = &#39;y ~ s(x, bs = &quot;cs&quot;)&#39;</code></pre>
+<p><img src="manuscript_files/figure-html/data_exp-1.png" width="960" /></p>
+</div>
+<div id="dynamic-prediction-example" class="section level2"
+number="5.3">
+<h2><span class="header-section-number">5.3</span> Dynamic prediction
+example</h2>
+<p><img src="manuscript_files/figure-html/dynpred_exp-1.png" width="960" /></p>
 </div>
 </div>
 

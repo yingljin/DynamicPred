@@ -15,6 +15,7 @@ library(gridExtra)
 library(kableExtra)
 library(LaplacesDemon)
 library(mvtnorm)
+library(splines)
 
 
 
@@ -23,7 +24,7 @@ library(mvtnorm)
 
 load(here("Data/sim_data.RData"))
 
-M <- 100 # number of simulations
+M <- 500 # number of simulations
 
 # reduce data
 sim_data <- lapply(sim_data[1:M], function(x){x %>% filter(id %in% c(1:200))})

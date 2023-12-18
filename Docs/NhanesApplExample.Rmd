@@ -1,0 +1,228 @@
+---
+title: "Problem of Step 4 (debias) of fGFPCA on NHANES data"
+author: "Ying Jin"
+output: 
+  html_document:
+    self_contained: yes
+    number_sections: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    font: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(121)
+
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(refund)
+library(lme4)
+library(ROCR)
+library(GLMMadaptive)
+library(kableExtra)
+library(mvtnorm)
+library(mgcv)
+library(splines)
+library(LaplacesDemon)
+theme_set(theme_minimal())
+```
+
+
+```{r}
+# load data
+df <- read_rds(here("Data/nhanes_bi.rds"))
+
+# code
+source(here("Code/GLMM-FPCA.R")) 
+# use pred_latent function to estimate latent function 
+K <- 4
+source(here("Code/OutsampBayes.R"))
+```
+
+
+Fit fGFPCA model
+
+Because step 4 (debias) is very time-consuming, this example is fit on a subset of NHANES dataset, including 500 participants as the training set
+
+```{r data_subset}
+# head(df)
+df <- df %>% rename(id=SEQN, Y=Z)
+
+Ntr <- 1000
+
+train_id <- unique(df$id)[1:Ntr]
+train_df <- df %>% filter(id %in% train_id)
+
+# additional parameters
+J <- length(unique(df$sind))
+```
+
+# Step 1: Bin data
+
+- Bin every 10 observations
+
+```{r, message=FALSE}
+# bin data
+bin_w <- 10 # bin width
+n_bin <- J/bin_w # number of bins
+brks <- seq(0, J, by = bin_w) # cutoff points
+mid <- (brks+bin_w/2)[1:n_bin] # mid points
+
+train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
+train_df$bin <- as.numeric(as.character(train_df$bin))
+```
+
+
+# Step 2:  Local GLMM
+
+```{r}
+# fit model on the training set
+train_bin_lst <- split(train_df, f = train_df$bin)
+
+t1=Sys.time()
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2= Sys.time()
+# t2-t1 
+```
+
+
+```{r}
+df_est_latent <- bind_rows(df_est_latent) 
+# head(df_est_latent)
+
+# example estimated latent function
+rand_id <- sample(train_id, 4)
+df_est_latent %>% 
+  filter(id %in% rand_id) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id, col = "estimated"))+
+  geom_point(aes(x=sind, y = Y, group = id, col = "outcome"), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  labs(x = "Time", y = "Estimated latent function (probablity scale)")
+```
+
+# Step 3: FPCA
+
+```{r}
+uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                         nrow=Ntr, 
+                         ncol=n_bin, byrow = F) 
+# row index subject, column binned time
+
+t1 <- Sys.time()
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
+# keep 4 PCs
+t2 <- Sys.time()
+# t2-t1 
+```
+
+
+```{r PC}
+data.frame(t = mid, fpca_mod$efunctions[, 1:4]) %>%
+  rename(PC1 = X1, PC2=X2, PC3=X3,PX4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") %>%
+  ggplot()+
+  geom_line(aes(x=t, y=value, col = PC))+
+  labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
+```
+
+- Eigenvalues: `r fpca_mod$evalues`
+- Proportion of variance explained with four PCs: `r fpca_mod$pve`
+
+
+# Step 4: Re-evaluation
+
+## Extend the eigenfunctions back to the original grid with B-spline basis 
+
+```{r interplate}
+# Re-evaluation
+## grid extension
+p <- 3 # order of b splines 
+knots <- 35 # number of knots (same from FPCA model)
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+
+B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                   outer.ok = TRUE)$design  # evaluate B-splines on original grid
+
+
+df_phi <- matrix(NA, J, K) 
+for(k in 1:K){
+  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+  df_phi[,k] <- Bnew %*% coef(lm_mod)
+}# project binned eigenfunctions onto the original grid
+```
+
+
+Below presents the result of re-evaluation. Points are values of PC functions on the binned grid estimated from FPCA, and lines are values of re-evaluated PC functions on the original measurement grid. 
+
+```{r}
+df_pc1 <- data.frame(t=1:J,  df_phi) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
+
+df_pc2 <- data.frame(t = mid, fpca_mod$efunctions) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
+
+left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
+  ggplot()+
+  geom_line(aes(x=t, y=value.x, col = PC), linewidth = 0.2)+
+  geom_point(aes(x=t, y=value.y, col = PC), na.rm = T, alpha = 0.5, size = 0.5)+
+  labs(x="Time", y="", title = "Re-evaluate eigenfunctions on the original grid")
+
+```
+
+
+## Debias the eigenvalues with GLMM
+
+
+```{r revaluation}
+df_phi <- data.frame(sind = 1:J, df_phi)
+colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+train_df <- train_df %>% 
+  left_join(df_phi, by = "sind")
+train_df$id <- as.factor(train_df$id)
+
+t1 <- Sys.time()
+debias_glmm <- bam(Y ~ s(sind, bs="cc")+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"), 
+                   family = binomial, 
+                   data=train_df, 
+                   method = "fREML",
+                   discrete = TRUE)
+t2 <- Sys.time()
+# t2-t1
+```
+
+I ran into a few problems at this step. Not only does the mgcv::bam model take a really long time to fit, the re-evaluated eigenvalues are not proportional to the FPCA eigenvalues. They also lost the decreasing nature. Specifically:
+
+- The smoothing parameters from the mgcv::bam model: `r debias_glmm$sp[2:5]`
+- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r 1/debias_glmm$sp[2:5]`
+- The **biased** eigenvalues from FPCA (step 3): `r fpca_mod$evalues[1:4]`
+
+The FPCA eigenvalues, as expected, decreases from PC1 to PC4. However after re-evaluation, the eigenvalue corresponding to PC2 is less than PC3. Also, the proportion of these two set of estimates is not constant, as below: 
+
+```{r, class.source = 'fold-show'}
+# proportion of biased eigenvalues to re-evaluated eigenvalues
+fpca_mod$evalues/(1/debias_glmm$sp[2:5])
+```
+
+
+
+
+
+
+
