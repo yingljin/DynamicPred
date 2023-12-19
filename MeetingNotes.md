@@ -23,11 +23,15 @@ Presentation notes:
 3. Figure before 
 
 # 23/12/14
-Some new questions: 
 1. Second reference method: Generalized Historical model
 g(E[Y_i(s)|Y_i(t), t<s]) = \beta_0(s) + \beta_1 (s)* Y_i(t) for s > t
 2. Run 500 iterations for the small-scale simulation
 3. Fit on the who data set on NHANES (30%-40% for testing maybe?). The debias model may take more than a day to fit
+
+Qeustions:
+1. Essentially, what is the difference between treating Y as a series of binary values or a function?
+
+
 
 
 
