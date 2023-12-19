@@ -40,7 +40,7 @@ df <- read_rds(here("Data/nhanes_bi.rds"))
 # code
 source(here("Code/GLMM-FPCA.R")) 
 # use pred_latent function to estimate latent function 
-K <- 4
+K <- 3
 source(here("Code/OutsampBayes.R"))
 ```
 
@@ -109,6 +109,8 @@ df_est_latent %>%
 
 # Step 3: FPCA
 
+Follow up on the email yesterday, we would like to see what would happen if we only take the first **three** PC functions. 
+
 ```{r}
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
@@ -118,16 +120,18 @@ mat_est_unique <- matrix(uni_eta_hat$eta_hat,
 
 t1 <- Sys.time()
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
-# keep 4 PCs
+# keep 3 PCs
 t2 <- Sys.time()
 # t2-t1 
+
+# fpca_mod$evalues
 ```
 
 
 ```{r PC}
-data.frame(t = mid, fpca_mod$efunctions[, 1:4]) %>%
-  rename(PC1 = X1, PC2=X2, PC3=X3,PX4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") %>%
+data.frame(t = mid, fpca_mod$efunctions) %>%
+  rename(PC1 = X1, PC2=X2, PC3=X3) %>%
+  pivot_longer(2:4, names_to = "PC") %>%
   ggplot()+
   geom_line(aes(x=t, y=value, col = PC))+
   labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
@@ -167,12 +171,12 @@ Below presents the result of re-evaluation. Points are values of PC functions on
 
 ```{r}
 df_pc1 <- data.frame(t=1:J,  df_phi) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") 
+  rename(PC1=X1, PC2=X2, PC3=X3) %>%
+  pivot_longer(2:4, names_to = "PC") 
 
 df_pc2 <- data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") 
+  rename(PC1=X1, PC2=X2, PC3=X3) %>%
+  pivot_longer(2:4, names_to = "PC") 
 
 left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
   ggplot()+
@@ -185,6 +189,7 @@ left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
 
 ## Debias the eigenvalues with GLMM
 
+Again, here we use the three PC functions in the random effect part. 
 
 ```{r revaluation}
 df_phi <- data.frame(sind = 1:J, df_phi)
@@ -197,27 +202,27 @@ t1 <- Sys.time()
 debias_glmm <- bam(Y ~ s(sind, bs="cc")+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
-                     s(id, by=phi3, bs="re")+
-                     s(id, by=phi4, bs="re"), 
+                     s(id, by=phi3, bs="re"),
+                     # s(id, by=phi4, bs="re"), 
                    family = binomial, 
                    data=train_df, 
                    method = "fREML",
                    discrete = TRUE)
 t2 <- Sys.time()
-# t2-t1
+# t2-t1 # 3.5 minutes
 ```
 
-I ran into a few problems at this step. Not only does the mgcv::bam model take a really long time to fit, the re-evaluated eigenvalues are not proportional to the FPCA eigenvalues. They also lost the decreasing nature. Specifically:
+It seems that the eigenvalues are still losing their decreasing nature. The eigenvalue corresponding to PC2 is still smaller than PC3. Specifically
 
-- The smoothing parameters from the mgcv::bam model: `r debias_glmm$sp[2:5]`
-- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r 1/debias_glmm$sp[2:5]`
-- The **biased** eigenvalues from FPCA (step 3): `r fpca_mod$evalues[1:4]`
+- The smoothing parameters from the mgcv::bam model: `r debias_glmm$sp[2:4]`
+- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r 1/debias_glmm$sp[2:4]`
+- The **biased** eigenvalues from FPCA (step 3): `r fpca_mod$evalues[1:3]`
 
-The FPCA eigenvalues, as expected, decreases from PC1 to PC4. However after re-evaluation, the eigenvalue corresponding to PC2 is less than PC3. Also, the proportion of these two set of estimates is not constant, as below: 
+Also, the proportion of these two set of estimates is not constant, as below: 
 
 ```{r, class.source = 'fold-show'}
 # proportion of biased eigenvalues to re-evaluated eigenvalues
-fpca_mod$evalues/(1/debias_glmm$sp[2:5])
+fpca_mod$evalues/(1/debias_glmm$sp[2:4])
 ```
 
 

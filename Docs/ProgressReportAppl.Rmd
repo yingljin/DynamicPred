@@ -97,21 +97,25 @@ df %>%
 ```
 ## Data split
 
+- 60% subjects for training, 40% for out-of-sample prediction
 - Original sample size took too much time in the debias step of fGFPCA method. 
 - In fact, the debais step does not work very well in this case
-- 500 subjects for training, 500 for out-of-sample prediction
+
 
 ```{r}
 # head(df)
 df <- df %>% rename(id=SEQN, Y=Z)
 
-Ntr <- Nte <- 500
+Ntr <- round(N*0.6)
+Nte <- N - Ntr
 
-train_id <- unique(df$id)[1:500]
-test_id <- unique(df$id)[501:1000]
-
+train_id <- sample(unique(df$id), Ntr)
 train_df <- df %>% filter(id %in% train_id)
-test_df <- df %>% filter(id %in% test_id)
+
+test_df <- df %>% filter(!id %in% train_id)
+test_id <- unique(test_df$id)
+
+
 # 1440*500
 ```
 
@@ -167,9 +171,6 @@ t1 <- Sys.time()
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T)
 t2 <- Sys.time()
 t_fpca <- t2-t1 # 3.21 seconds to fit fPCA model
-
-# dim(fpca_mod$efunctions) # 27 eigenfunctions
-K <- 4
 ```
 
 
@@ -262,7 +263,11 @@ debias_glmm <- bam(Y ~ s(sind, bs="cc")+
                    method = "fREML",
                    discrete = TRUE)
 t2 <- Sys.time()
-t2-t1
+t2-t1 # 20 hours
+
+save(debias_glmm, train_df, test_df,
+      file = here("Data/Appl_debias_model.RData"))
+
 ```
 
 
