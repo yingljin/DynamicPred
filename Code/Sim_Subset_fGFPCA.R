@@ -188,9 +188,9 @@ close(pb)
 
 
 # results
-mean(fit_time)
+mean(fit_time)/60 # in minutes
 class(fit_time)
-sum(lapply(converge_state_list, mean)!=1)
+sum(lapply(converge_state_list, mean)!=1) # all datasets converged
 pred_list_all[[1]] %>%
   filter(t > 0.4) %>%
   View()
@@ -201,9 +201,6 @@ pred_subset_fGFPCA <- pred_list_all
 save(fit_time_subset_fGFPCA, pred_time_subset_fGFPCA, pred_subset_fGFPCA, 
      file = here("Data/SubSimOutput_fGFPCA.RData"))
 
-
-# save convergence status
-converge_state_list[[m]] <- converge_state_m
 
 #### ISE ####
 window <- seq(0, 1, by = 0.2)
