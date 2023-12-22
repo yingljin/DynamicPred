@@ -24,7 +24,7 @@ load(here("Data/sim_data.RData"))
 
 # reduce data
 ## training data
-M <- 100 # number of simulations
+M <- 500 # number of simulations
 
 sim_data <- lapply(sim_data[1:M], function(x){x %>% filter(id %in% c(1:200))})
 lapply(sim_data, dim)
@@ -52,74 +52,80 @@ t_bin <- seq(0, J, by = 10)
 pred_list_all <- list()
 fit_time <- pred_time <- rep(NA, M)
 
+# incorporate a convergen check since some iteration would run into numeric issues
+# such as singularity
+# we skip such datasets, saving results only of the numeric-free datsets
+num_probs <- rep(NA, M)
+
+
 #### GLMMadaptive ####
 
 # The simulation process run into a numeric problem at the 95th iteration
 # (singularity)
 
-pb = txtProgressBar(min = 95, max = M, initial = 0, style = 3) 
-for(m in 95:M){
+pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
+for(m in 1:M){
   
   # data split and training data reduction
-  try_fit <- NA
+  df_train_m <- sim_data[[m]] %>% filter(id %in% 1:100 & sind %in% t_bin) 
   df_test_m <- sim_data[[m]] %>% filter(!id %in% 1:100)
   
-  # model fit
-  while(is.na(try_fit)){
-    df_train_m <- sim_data[[m]] %>% filter(id %in% 1:100 & sind %in% t_bin) 
-    try_fit <- tryCatch(expr={t1 <- Sys.time()
-                              fit_adglmm <- mixed_model(fixed = Y ~ 0+ns(t, df = 4), 
-                                                        random = ~ 0+ns(t, df = 4) | id, 
-                                                        data =  df_train_m, family = binomial())
-                              t2 <- Sys.time()},
-                        error = function(e){NA}
-                        )
-    t_bin <- t_bin+1
+  # model fit with a numeric check
+  t1 <- Sys.time()
+  fit_adglmm <- tryCatch(expr={mixed_model(fixed = Y ~ 0+ns(t, df = 4), 
+                                           random = ~ 0+ns(t, df = 4) | id, 
+                                           data =  df_train_m, family = binomial())},
+                      error = function(e){list(converged = FALSE)}
+                      )
+  t2 <- Sys.time()
+  
+  # skip datasets with numeric problems
+  num_probs[m] <- ifelse(fit_adglmm$converged, 0, 1)  
+  if(fit_adglmm$converged){
     
+  # if the model was successfully fit, then
+      fit_time[m] <- t2-t1 ## minutes
+      
+      # prediction
+      t1 <- Sys.time()
+      pred_m <- list(
+        predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.2),
+                newdata2 =  df_test_m %>% filter(t>0.2), 
+                type = "subject_specific", type_pred = "link",
+                se.fit = FALSE, return_newdata = TRUE)$newdata2,
+        
+        predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.4),
+                newdata2 =  df_test_m %>% filter(t>0.4), 
+                type = "subject_specific", type_pred = "link",
+                se.fit = FALSE, return_newdata = TRUE)$newdata2,
+        
+        predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.6),
+                newdata2 =  df_test_m %>% filter(t>0.6), 
+                type = "subject_specific", type_pred = "link",
+                se.fit = FALSE, return_newdata = TRUE)$newdata2,
+        
+        predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.8),
+                newdata2 =  df_test_m %>% filter(t>0.8), 
+                type = "subject_specific", type_pred = "link",
+                se.fit = FALSE, return_newdata = TRUE)$newdata2)
+      t2 <- Sys.time()
+      pred_time[m] <- t2-t1 # seconds
+      
+      pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred)})
+      df_pred_m <- df_test_m %>% 
+        left_join(pred_m[[1]]) %>% 
+        rename(pred0.2 = pred) %>% 
+        left_join(pred_m[[2]]) %>% 
+        rename(pred0.4 = pred) %>% 
+        left_join(pred_m[[3]]) %>% 
+        rename(pred0.6 = pred) %>% 
+        left_join(pred_m[[4]]) %>% 
+        rename(pred0.8 = pred)
+      
+      pred_list_all[[m]] <- df_pred_m
+      setTxtProgressBar(pb, m)
   }
   
-  fit_time[m] <- t2-t1 ## minutes
-
-  
-  # prediction
-  t1 <- Sys.time()
-  pred_m <- list(
-    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.2),
-            newdata2 =  df_test_m %>% filter(t>0.2), 
-            type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2,
-    
-    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.4),
-            newdata2 =  df_test_m %>% filter(t>0.4), 
-            type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2,
-    
-    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.6),
-            newdata2 =  df_test_m %>% filter(t>0.6), 
-            type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2,
-    
-    predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.8),
-            newdata2 =  df_test_m %>% filter(t>0.8), 
-            type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2)
-  t2 <- Sys.time()
-  pred_time[m] <- t2-t1 # seconds
-  
-  pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred)})
-  df_pred_m <- df_test_m %>% 
-    left_join(pred_m[[1]]) %>% 
-    rename(pred0.2 = pred) %>% 
-    left_join(pred_m[[2]]) %>% 
-    rename(pred0.4 = pred) %>% 
-    left_join(pred_m[[3]]) %>% 
-    rename(pred0.6 = pred) %>% 
-    left_join(pred_m[[4]]) %>% 
-    rename(pred0.8 = pred)
-  
-  pred_list_all[[m]] <- df_pred_m
-  
-  setTxtProgressBar(pb, m)
 }
 
 close(pb)

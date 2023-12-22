@@ -456,14 +456,17 @@ ggarrange(fig_fgfpca_subset, fig_adglmm_subset,
 
 
 ```{r}
-M2 <- length(pred_subset_fGFPCA)
+# M2 <- length(pred_subset_fGFPCA)
 ## ISE container 
-ise_mat_subset <- ise_mat_subset_ref <- 
-  array(NA, dim = c(length(window)-2, length(window)-2, M2))
+ise_mat_subset <- array(NA, dim = c(length(window)-2, length(window)-2, length(pred_subset_fGFPCA)))
+
+pred_subset_adglmm <- pred_subset_adglmm[num_probs==0]
+ise_mat_subset_ref <- array(NA, dim = c(length(window)-2, length(window)-2, length(pred_subset_adglmm)))
+ 
 ```
 
 ```{r ise_fGFPCA_subset}
-for(m in 1:M2){
+for(m in 1:length(pred_subset_fGFPCA)){
   this_df <- pred_subset_fGFPCA[[m]]
   ise_tb_m <- this_df %>%
     mutate(err1 = (pred0.2-eta_i)^2,
@@ -487,7 +490,7 @@ colnames(ise_mat_subset) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r ise_GLMMadaptive_subset}
-for(m in 1:M2){
+for(m in 1:length(pred_subset_adglmm)){
   this_df <- pred_subset_adglmm[[m]]
   ise_tb_m <- this_df %>%
     mutate(err1 = (pred0.2-eta_i)^2,
@@ -526,13 +529,15 @@ data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
 
 ```{r}
 ## auc container 
-auc_mat_subset <- array(NA, dim = c(length(window)-2, length(window)-2, M2))
-auc_mat_subset_ref <- array(NA, dim = c(length(window)-2, length(window)-2, M2))
+auc_mat_subset <- array(NA, dim = c(length(window)-2, length(window)-2, 
+                                    length(pred_subset_fGFPCA)))
+auc_mat_subset_ref <- array(NA, dim = c(length(window)-2, length(window)-2, 
+                                        length(pred_subset_adglmm)))
 ```
 
 
 ```{r auc_fGFPCA_subset}
-for(m in 1:M2){
+for(m in 1:length(pred_subset_fGFPCA)){
   this_df <- pred_subset_fGFPCA[[m]]
   
   auc_tb_m <- this_df %>%
@@ -556,7 +561,7 @@ colnames(auc_mat_subset) <- c("0.2", "0.4", "0.6", "0.8")
 ```
 
 ```{r auc_GLMMadaptive_subset}
-for(m in 1:M2){
+for(m in 1:length(pred_subset_adglmm)){
   this_df <- pred_subset_adglmm[[m]]
   
   auc_tb_m <- this_df %>%
@@ -587,14 +592,14 @@ data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
   add_header_above(c(" "= 1, "Observation track" = 8))
 ```
 
-There is huge difference in compuation time. GLMMadaptive took 23 minutes, while fGFPCA took less than 3 seconds.
+Among 500 hundred iterations, `r sum(num_probs)` did not converge for the GLMMadaptive model. No numeric issue for fGFPCA. 
 
 
 ```{r}
 data.frame(
   "Method" = c("fGFPCA", "GLMMadaptive"),
-  "Fit" = c(mean(fit_time_subset_fGFPCA)/60, mean(fit_time_subset_adglmm)),
-           "Prediction"= c(mean(pred_time_subset_fGFPCA), mean(pred_time_subset_adglmm)/60)) %>%
+  "Fit" = c(mean(fit_time_subset_fGFPCA)/60, mean(fit_time_subset_adglmm, na.rm=T)),
+           "Prediction"= c(mean(pred_time_subset_fGFPCA), mean(pred_time_subset_adglmm, na.rm=T)/60)) %>%
   kable(digits = 3, caption = "Computation time (minutes)", booktabs = T) %>%
   kable_styling(full_width = F) 
 ```
