@@ -132,6 +132,7 @@ close(pb)
 
 mean(fit_time)
 mean(pred_time)
+sum(num_probs)
 
 pred_list_all[[96]] %>% filter(t>0.2) %>% View()
 pred_list_all[[99]] %>% filter(t>0.2) %>% View()
@@ -143,6 +144,7 @@ pred_time_subset_adglmm <- pred_time
 pred_subset_adglmm <- pred_list_all
 
 save(fit_time_subset_adglmm, pred_time_subset_adglmm, pred_subset_adglmm, 
+     num_probs,
      file = here("Data/SubSimOutput_GLMMadaptive.RData"))
 
 

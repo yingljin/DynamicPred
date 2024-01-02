@@ -709,7 +709,7 @@ ggarrange(
 
 ## fGFPCA algorithm demonstration
 
-```{r binning}
+```{r binning, eval=FALSE}
 df_nhanes %>% select(SEQN, Z, sind) %>% 
   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>% 
   mutate(SEQN = as.factor(SEQN)) %>% 
@@ -721,7 +721,7 @@ df_nhanes %>% select(SEQN, Z, sind) %>%
 ```
 
 
-```{r}
+```{r,eval=FALSE}
 df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>% 
   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>% 
   mutate(bin = cut(sind, breaks = seq(650, 750, by = 10), 
@@ -756,7 +756,7 @@ df_fig %>%
 
 ## Example of continuous and binary NHANES
 
-```{r}
+```{r, eval=FALSE}
 df_nhanes_cont <- readRDS(here("Data/NHANES_AC_processed.rds"))
 p_cont <- df_nhanes_cont %>% 
   filter(SEQN %in% sample(unique(df_nhanes_cont$SEQN), 4) & WEEKDAY==6) %>% 
@@ -775,7 +775,7 @@ p_cont <- df_nhanes_cont %>%
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 # a example of continuous and binary NHANES data
 p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>% 
   filter(SEQN %in% rand_id3 & Z == 1) %>% 
@@ -788,14 +788,14 @@ p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>%
   labs(x="Time", y="Subject", title = "NHANES binary activity indicator (2011-2014)")
 ```
 
-```{r data_exp, fig.height=4, fig.width=10}
+```{r data_exp, fig.height=4, fig.width=10, eval=FALSE}
 ggarrange(p_cont, p_bi, nrow = 1)
 ```
 
 
 ## Dynamic prediction example
 
-```{r dynpred_exp,  fig.height=4, fig.width=10}
+```{r dynpred_exp,  fig.height=4, fig.width=10, eval=FALSE}
 ggarrange(
   pred_list_all[[1]] %>% 
     filter(id==501) %>%
