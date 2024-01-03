@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-01-02" />
+<meta name="date" content="2024-01-03" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-01-02</h4>
+<h4 class="date">2024-01-03</h4>
 
 </div>
 
@@ -309,6 +309,9 @@ class="math inline">\(t_{m_s}\)</span></li>
 <li>Bin endpoints: <span class="math inline">\((t_{m_s}-\frac{w}{2},
 t_{m_s}+\frac{w}{2}]\)</span></li>
 </ul>
+<pre class="r"><code>grid_exp &lt;- data.frame(t = seq(0, 1, by = 0.01), y = 0)
+ggplot(grid_exp, aes(x=t, y=y))+
+  geom_point(size = 0.5)</code></pre>
 </div>
 <div id="local-glmms" class="section level3" number="1.3.2">
 <h3><span class="header-section-number">1.3.2</span> Local GLMMs</h3>
@@ -419,6 +422,15 @@ k = 1, 2, 3, 4 respectively.</li>
 <li>In the binning step, we bin every 10 observations</li>
 <li>500 simulations were implemented</li>
 </ul>
+<pre class="r"><code>rand_id &lt;- sample(501:600, size = 4)
+pred_list_all[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), show.legend = F)+
+  facet_wrap(~id)+
+  labs(title = &quot;Simulated data&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))</code></pre>
 <p><img src="manuscript_files/figure-html/fig_sim_data-1.png" width="672" /></p>
 </div>
 <div id="reference-method" class="section level2" number="2.2">
@@ -434,10 +446,105 @@ generation scheme. We would expect it to perform terribly.</li>
 </div>
 <div id="figure" class="section level2" number="2.3">
 <h2><span class="header-section-number">2.3</span> Figure</h2>
+<pre class="r"><code># range(pred_list_all[[1]]$pred0.2, na.rm = T)
+fig_fgfpca &lt;- pred_list_all[[1]] %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))
+
+fig_adglmm &lt;- pred_list_ref[[1]] %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))</code></pre>
+<pre class="r"><code>ggarrange(fig_fgfpca, fig_adglmm,
+          nrow = 1, common.legend = T)</code></pre>
 <p><img src="manuscript_files/figure-html/fig_sim-1.png" width="768" /></p>
 </div>
 <div id="ise" class="section level2" number="2.4">
 <h2><span class="header-section-number">2.4</span> ISE</h2>
+<pre class="r"><code>## ISE container 
+ise_mat &lt;- ise_mat_ref &lt;- array(NA, 
+                                dim = c(length(window)-2, length(window)-2, M))
+# dims: prediction window, max obs time, simulation iter</code></pre>
+<pre class="r"><code>## calculation
+for(m in 1:M){
+  this_df &lt;- pred_list_all[[m]]
+  ise_tb &lt;- pred_list_all[[m]] %&gt;%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;)) %&gt;% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+    select(starts_with(&quot;err&quot;))
+  ise_mat[, ,m] &lt;- as.matrix(ise_tb)
+  
+  
+}
+
+mean_ise &lt;- apply(ise_mat, c(1, 2), mean)
+
+# mean_ise &lt;- data.frame(mean_ise) %&gt;%
+#   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+#          .before = 1)
+colnames(mean_ise) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>## calculation
+for(m in 1:M){
+  this_df &lt;- pred_list_ref[[m]]
+  ise_tb &lt;- pred_list_ref[[m]] %&gt;%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;)) %&gt;% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+    select(starts_with(&quot;err&quot;))
+  ise_mat_ref[, ,m] &lt;- as.matrix(ise_tb)
+  
+  
+}
+
+mean_ise_ref &lt;- apply(ise_mat_ref, c(1, 2), mean)
+# mean_ise_ref &lt;- data.frame(mean_ise_ref) %&gt;% 
+#   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+#          .before = 1)
+colnames(mean_ise_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>data.frame(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+           mean_ise, mean_ise_ref, check.names = F) %&gt;%
+  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs=T) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 8))</code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Integrated squared error
@@ -606,6 +713,70 @@ Window
 </div>
 <div id="auc" class="section level2" number="2.5">
 <h2><span class="header-section-number">2.5</span> AUC</h2>
+<pre class="r"><code>## a function to calculate AUC
+get_auc &lt;- function(y, pred){
+  if(sum(is.na(y))&gt;0 | sum(is.na(pred))&gt;0){
+    auc &lt;- NA
+  }
+  else{
+    this_perf &lt;- performance(prediction(pred, y), measure = &quot;auc&quot;)
+    auc &lt;- this_perf@y.values[[1]]
+  }
+  return(auc)
+}</code></pre>
+<pre class="r"><code>## auc container 
+auc_mat &lt;- array(NA, dim = c(length(window)-2, length(window)-2, M))
+auc_mat_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, M))</code></pre>
+<pre class="r"><code>for(m in 1:M){
+  this_df &lt;- pred_list_all[[m]]
+  auc_tb &lt;- this_df %&gt;% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+    select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+    group_by(window) %&gt;%
+    summarise(auc1 = get_auc(Y, pred0.2),
+              auc2 = get_auc(Y, pred0.4),
+              auc3 = get_auc(Y, pred0.6),
+              auc4 = get_auc(Y, pred0.8)) %&gt;%
+    filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+    select(starts_with(&quot;auc&quot;))
+  auc_mat[, ,m] &lt;- as.matrix(auc_tb)
+
+}
+
+
+mean_auc &lt;- apply(auc_mat, c(1, 2), mean)
+# mean_auc &lt;- data.frame(mean_auc) %&gt;% 
+#   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+#          .before = 1)
+colnames(mean_auc) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:M){
+  this_df &lt;- pred_list_ref[[m]]
+  auc_tb &lt;- this_df %&gt;% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+    select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+    group_by(window) %&gt;%
+    summarise(auc1 = get_auc(Y, pred0.2),
+              auc2 = get_auc(Y, pred0.4),
+              auc3 = get_auc(Y, pred0.6),
+              auc4 = get_auc(Y, pred0.8)) %&gt;%
+    filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+    select(starts_with(&quot;auc&quot;))
+  auc_mat_ref[, ,m] &lt;- as.matrix(auc_tb)
+
+}
+
+
+mean_auc_ref &lt;- apply(auc_mat_ref, c(1, 2), mean)
+# mean_auc &lt;- data.frame(mean_auc) %&gt;% 
+#   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+#          .before = 1)
+colnames(mean_auc_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>data.frame(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+           mean_auc, mean_auc_ref, check.names = F) %&gt;%
+  kable(digits = 3, caption = &quot;Area under the ROC curve&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 8))</code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Area under the ROC curve
@@ -771,6 +942,12 @@ Window
 </tr>
 </tbody>
 </table>
+<pre class="r"><code>data.frame(
+  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;),
+  &quot;Fit&quot; = c(mean(fit_time)/60, mean(fit_time_ref)),
+           &quot;Prediction&quot;= c(mean(pred_time), mean(pred_time_ref)/60)) %&gt;%
+  kable(digits = 3, caption = &quot;Computation time (minutes)&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) </code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Computation time (minutes)
@@ -832,12 +1009,102 @@ that its flexibility is comparable with fGFPCA model, such as:</p>
 times. When fitting GLMMadpative, I reduce the number of measurements to
 1/10 by taking one every 10 observations. The prediction is on the
 original grid.</p>
+<pre class="r"><code>load(here(&quot;Data/SubSimOutput_GLMMadaptive.RData&quot;))
+load(here(&quot;Data/SubSimOutput_fGFPCA.RData&quot;))</code></pre>
 <div id="figure-1" class="section level2" number="3.1">
 <h2><span class="header-section-number">3.1</span> Figure</h2>
+<pre class="r"><code>rand_id2 &lt;- sample(unique(pred_subset_fGFPCA[[1]]$id), 4)
+
+fig_fgfpca_subset &lt;- pred_subset_fGFPCA[[1]] %&gt;%
+  filter(id %in% rand_id2) %&gt;%
+  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))
+
+fig_adglmm_subset &lt;- pred_subset_adglmm[[1]] %&gt;% 
+  filter(id %in% rand_id2) %&gt;%
+  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5))</code></pre>
+<pre class="r"><code>ggarrange(fig_fgfpca_subset, fig_adglmm_subset,
+          nrow = 1, common.legend = T)</code></pre>
 <p><img src="manuscript_files/figure-html/fit_sim_small-1.png" width="768" /></p>
 </div>
 <div id="ise-1" class="section level2" number="3.2">
 <h2><span class="header-section-number">3.2</span> ISE</h2>
+<pre class="r"><code># M2 &lt;- length(pred_subset_fGFPCA)
+## ISE container 
+ise_mat_subset &lt;- array(NA, dim = c(length(window)-2, length(window)-2, length(pred_subset_fGFPCA)))
+
+pred_subset_adglmm &lt;- pred_subset_adglmm[num_probs==0]
+ise_mat_subset_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, length(pred_subset_adglmm)))</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_fGFPCA)){
+  this_df &lt;- pred_subset_fGFPCA[[m]]
+  ise_tb_m &lt;- this_df %&gt;%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;)) %&gt;% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+    select(starts_with(&quot;err&quot;)) %&gt;% as.matrix()
+  ise_mat_subset[,,m] &lt;- ise_tb_m
+}
+
+ise_mat_subset &lt;- apply(ise_mat_subset, c(1, 2), mean)
+
+colnames(ise_mat_subset) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_adglmm)){
+  this_df &lt;- pred_subset_adglmm[[m]]
+  ise_tb_m &lt;- this_df %&gt;%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;)) %&gt;% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+    select(starts_with(&quot;err&quot;)) %&gt;% as.matrix()
+  ise_mat_subset_ref[,,m] &lt;- ise_tb_m
+}
+
+ise_mat_subset_ref &lt;- apply(ise_mat_subset_ref, c(1, 2), mean)
+
+
+colnames(ise_mat_subset_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+           ise_mat_subset, ise_mat_subset_ref, check.names = F) %&gt;%
+  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Integrated squared error
@@ -1006,6 +1273,58 @@ Window
 </div>
 <div id="auc-1" class="section level2" number="3.3">
 <h2><span class="header-section-number">3.3</span> AUC</h2>
+<pre class="r"><code>## auc container 
+auc_mat_subset &lt;- array(NA, dim = c(length(window)-2, length(window)-2, 
+                                    length(pred_subset_fGFPCA)))
+auc_mat_subset_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, 
+                                        length(pred_subset_adglmm)))</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_fGFPCA)){
+  this_df &lt;- pred_subset_fGFPCA[[m]]
+  
+  auc_tb_m &lt;- this_df %&gt;%
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+  select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+  group_by(window) %&gt;%
+  summarise(auc1 = get_auc(Y, pred0.2),
+            auc2 = get_auc(Y, pred0.4),
+            auc3 = get_auc(Y, pred0.6),
+            auc4 = get_auc(Y, pred0.8)) %&gt;%
+  filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+  select(starts_with(&quot;auc&quot;)) %&gt;% as.matrix()
+  
+  auc_mat_subset[, , m] &lt;- auc_tb_m
+  
+}
+
+
+auc_mat_subset &lt;- apply(auc_mat_subset, c(1,2), mean)
+colnames(auc_mat_subset) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_adglmm)){
+  this_df &lt;- pred_subset_adglmm[[m]]
+  
+  auc_tb_m &lt;- this_df %&gt;%
+  mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
+  select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+  group_by(window) %&gt;%
+  summarise(auc1 = get_auc(Y, pred0.2),
+            auc2 = get_auc(Y, pred0.4),
+            auc3 = get_auc(Y, pred0.6),
+            auc4 = get_auc(Y, pred0.8)) %&gt;%
+  filter(window != &quot;[0,0.2]&quot;) %&gt;% 
+  select(starts_with(&quot;auc&quot;)) %&gt;% as.matrix()
+  
+  auc_mat_subset_ref[, , m] &lt;- auc_tb_m
+  
+}
+
+auc_mat_subset_ref &lt;- apply(auc_mat_subset_ref, c(1,2), mean)
+colnames(auc_mat_subset_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+           auc_mat_subset, auc_mat_subset_ref, check.names = F) %&gt;%
+  kable(digits = 3, caption = &quot;Area under the ROC curve&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Area under the ROC curve
@@ -1173,6 +1492,12 @@ Window
 </table>
 <p>Among 500 hundred iterations, 6 did not converge for the GLMMadaptive
 model. No numeric issue for fGFPCA.</p>
+<pre class="r"><code>data.frame(
+  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;),
+  &quot;Fit&quot; = c(mean(fit_time_subset_fGFPCA)/60, mean(fit_time_subset_adglmm, na.rm=T)),
+           &quot;Prediction&quot;= c(mean(pred_time_subset_fGFPCA), mean(pred_time_subset_adglmm, na.rm=T)/60)) %&gt;%
+  kable(digits = 3, caption = &quot;Computation time (minutes)&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) </code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Computation time (minutes)
@@ -1227,9 +1552,49 @@ model. In the debias step, re-evaluated eigenvalues also lost their
 decreasing nature.</p>
 <p>In addition to reduce sample size, maybe we could just drop the
 debias step and only interpolate the eigenfunctions?</p>
+<pre class="r"><code>df_nhanes &lt;- read_rds(here(&quot;Data/nhanes_bi.rds&quot;))
+load(here(&quot;Data/ApplOutput.RData&quot;))</code></pre>
+<pre class="r"><code>df_nhanes %&gt;% select(SEQN, Z, sind) %&gt;% 
+  filter(SEQN %in% unique(nhanes_pred_adglmm$id) | SEQN %in% unique(nhanes_pred_fgfpca$id)) %&gt;%
+  mutate(Z = factor(Z, levels = 0:1, labels = c(&quot;Inactive&quot;, &quot;Active&quot;))) %&gt;%
+  mutate(SEQN = factor(SEQN)) %&gt;%
+  ggplot()+
+  geom_tile(aes(x=sind, y = SEQN, fill = Z))+
+  labs(x=&quot;Time&quot;, y=&quot;Subject&quot;, title = &quot;Overview of NHANES binary activity indicator&quot;)+
+  theme(axis.text.y = element_blank())+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480),
+                     labels = c(&quot;Midnight&quot;, &quot;8am&quot;, &quot;4pm&quot;, &quot;Midnight&quot;))</code></pre>
 <p><img src="manuscript_files/figure-html/nhance_example-1.png" width="672" /></p>
 <div id="auc-2" class="section level2" number="4.1">
 <h2><span class="header-section-number">4.1</span> AUC</h2>
+<pre class="r"><code>window3 &lt;- c(0, 480, 960, 1440)
+
+auc_mat_nhanes &lt;- nhanes_pred_fgfpca %&gt;%
+  mutate(window = cut(t, breaks = window3, include.lowest = T)) %&gt;% 
+  select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+  group_by(window) %&gt;%
+  summarise(auc1 = get_auc(Y, pred480),
+            auc2 = get_auc(Y, pred960)) %&gt;%
+  filter(window != &quot;[0,480]&quot;) %&gt;% 
+  select(starts_with(&quot;auc&quot;))
+
+colnames(auc_mat_nhanes) &lt;- c(&quot;8am&quot;, &quot;4pm&quot;)</code></pre>
+<pre class="r"><code>auc_mat_nhanes2 &lt;- nhanes_pred_adglmm %&gt;%
+  mutate(window = cut(t, breaks = window3, include.lowest = T)) %&gt;% 
+  select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+  group_by(window) %&gt;%
+  summarise(auc1 = get_auc(Y, pred480),
+            auc2 = get_auc(Y, pred960)) %&gt;%
+  filter(window != &quot;[0,480]&quot;) %&gt;% 
+  select(starts_with(&quot;auc&quot;))
+
+colnames(auc_mat_nhanes2) &lt;- c(&quot;8am&quot;, &quot;4pm&quot;)</code></pre>
+<pre class="r"><code>data.frame(Window = c(&quot;8am-4pm&quot;, &quot;4am-midnight&quot;),
+           auc_mat_nhanes, auc_mat_nhanes2, check.names = F) %&gt;%
+  kable(digits = 3, caption = &quot;Area Under the ROC curve&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 2, &quot;GLMMadaptive&quot; = 2)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Area Under the ROC curve
@@ -1314,26 +1679,266 @@ Window
 </div>
 <div id="figure-2" class="section level2" number="4.2">
 <h2><span class="header-section-number">4.2</span> Figure</h2>
+<pre class="r"><code>rand_id3 &lt;- sample(unique(nhanes_pred_fgfpca$id), 4)
+
+ggarrange(
+  nhanes_pred_fgfpca %&gt;% 
+    filter(id %in% rand_id3) %&gt;%
+    mutate_at(vars(starts_with(&quot;pred&quot;)), function(x)exp(x)/(1+exp(x))) %&gt;% 
+    ggplot()+
+    geom_line(aes(x=t, y = pred480, col = &quot;8am&quot;), linetype = &quot;dashed&quot;, na.rm = T)+
+    geom_line(aes(x=t, y = pred960, col = &quot;4pm&quot;),linetype = &quot;dashed&quot;, na.rm = T)+
+    geom_point(aes(x=t, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = &quot;Time&quot;, y = &quot;fGFPCA&quot;)+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480), 
+                     labels = c(&quot;Midnight&quot;, &quot;8am&quot;, &quot;4pm&quot;, &quot;Midnight&quot;))+
+  theme(axis.text = element_text(size = 5)),
+  
+  nhanes_pred_adglmm %&gt;% 
+    filter(id %in% rand_id3) %&gt;%
+    mutate_at(vars(starts_with(&quot;pred&quot;)), function(x)exp(x)/(1+exp(x))) %&gt;% 
+    ggplot()+
+    geom_line(aes(x=t, y = pred480, col = &quot;8am&quot;), linetype = &quot;dashed&quot;, na.rm = T)+
+    geom_line(aes(x=t, y = pred960, col = &quot;4pm&quot;),linetype = &quot;dashed&quot;, na.rm = T)+
+    geom_point(aes(x=t, y = Y, col = &quot;Outcome&quot;), size = 0.2)+
+    facet_wrap(~id)+
+    labs(x = &quot;Time&quot;, y = &quot;GLMMadaptive&quot;)+
+  scale_x_continuous(breaks = seq(0, 1440, by = 480), 
+                     labels = c(&quot;Midnight&quot;, &quot;8am&quot;, &quot;4pm&quot;, &quot;Midnight&quot;))+
+  theme(axis.text = element_text(size = 5)),
+  nrow = 1, common.legend = T)</code></pre>
 <p><img src="manuscript_files/figure-html/pred_nhanes-1.png" width="960" /></p>
 </div>
 </div>
-<div id="additional-figures" class="section level1" number="5">
-<h1><span class="header-section-number">5</span> Additional figures</h1>
-<div id="fgfpca-algorithm-demonstration" class="section level2"
-number="5.1">
-<h2><span class="header-section-number">5.1</span> fGFPCA algorithm
-demonstration</h2>
+<div id="the-second-reference-method" class="section level1" number="5">
+<h1><span class="header-section-number">5</span> The second reference
+method:</h1>
+<p>We would like to use a second reference method for predictive
+performance comparision. This would be a generalized
+function-on-function regression where the history records are used to
+predict a equal length of outcome. Formulation as follows:</p>
+<p><span class="math display">\[g(E[Y_i(t)]) = \beta_0(t) + \beta_1
+(t)Y_i(s),\ s&lt;t\]</span></p>
+<p>In this case, the outcome must be evaluated at the same time points
+as the covariate. That is, s and t must have the same number of
+measurement points. For example, if t is (0, 0.2], then s can be either
+(0.2, 0.4), (0.4, 0.6), (0.6, 0.8) or (0.8, 1).</p>
+<p>What to do when the history t is (0, 0.4)? How share we prediction on
+0.2 windows including (0.4, 0.6), (0.6, 0.8) or (0.8, 1)? Does this mean
+we do not utilize the full observed track but instead only take the most
+recent subtrack (0.2, 0.4)? Such scenarios remains unclear.</p>
+<p>As for the model fitting, I am not sure how to construct a
+function-on-function regression using bam or gam. While most functions I
+found in R does not account for the “generalized” part. At first glance,
+the model framework is the same as a regular functional regression
+model:</p>
+<p><span class="math display">\[g(E[Y_i(t)]) = \sum_{k}\xi_{k}\phi_k(t)
++ Y_i(t)\sum_{l}\zeta_{l}\phi_l(s),\ s&lt;t\]</span></p>
+<p>so I fit a gam model where history is [0, 0.2) and future is [0.2,
+0.4).</p>
+<pre class="r"><code>load(here(&quot;Data/sim_data.RData&quot;))
+
+# Let&#39;s start with a one-simulation example
+df_m &lt;- sim_data[[1]]
+# class(df_m$Y)
+# df_m$Y &lt;- as.factor(df_m$Y)
+
+# observation/prediction window 
+windows &lt;- seq(0, 1, by = 0.2)
+df_m$window &lt;- cut(df_m$t, breaks=windows, labels = 1:5,
+                       include.lowest = T)
+
+# split data
+N_train &lt;- 500
+N_test &lt;- 100
+train_df &lt;- df_m %&gt;% filter(id %in% 1:N_train)
+test_df &lt;- df_m %&gt;% filter(!id %in% 1:N_train)
+
+# put covariates and outcome together
+dfm1_tr &lt;- train_df %&gt;% filter(window==2) %&gt;% 
+  rename(Yf=Y, tf=t) %&gt;%
+  left_join(train_df %&gt;% filter(window==1) %&gt;% select(id, sind, t, Y) %&gt;% 
+              mutate(sind=sind+200) %&gt;%
+              rename(Yh=Y, th = t))
+
+dfm1_te &lt;- test_df %&gt;% filter(window==2) %&gt;% 
+  rename(Yf=Y) %&gt;%
+  left_join(test_df %&gt;% filter(window==1) %&gt;% select(id, sind, Y) %&gt;% 
+              mutate(sind=sind+200) %&gt;%
+              rename(Yh=Y))
+
+# class(dfm1_tr$Yh)</code></pre>
+<pre class="r fold-show"><code>fitm1 &lt;- bam(Yf ~ s(tf, bs=&quot;cc&quot;, k=20) + s(tf, bs=&quot;cc&quot;, k=20, by = Yh) , 
+                   family = binomial, data=dfm1_tr, 
+                   method = &quot;fREML&quot;,
+                   discrete = TRUE)
+summary(fitm1)</code></pre>
+<pre><code>## 
+## Family: binomial 
+## Link function: logit 
+## 
+## Formula:
+## Yf ~ s(tf, bs = &quot;cc&quot;, k = 20) + s(tf, bs = &quot;cc&quot;, k = 20, by = Yh)
+## 
+## Parametric coefficients:
+##              Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.138150   0.008973   -15.4   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##            edf Ref.df  Chi.sq p-value    
+## s(tf)    1.371 18.000   2.913  0.0767 .  
+## s(tf):Yh 4.272  5.334 349.435  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.00354   Deviance explained = 0.26%
+## fREML = 1.6104e+05  Scale est. = 1         n = 100000</code></pre>
+<p>However, the prediction result of this model is very wired. Below is
+the in-sample estimation of latent process. I am not sure if this is
+because of a wrong design matrix or ignoring the individual random
+effect.</p>
+<pre class="r"><code>dfm1_tr$eta_est &lt;- predict(fitm1, newdata = dfm1_tr, type = &quot;link&quot;)
+dfm1_tr %&gt;% filter(id %in% 1:4) %&gt;% 
+  mutate_at(vars(eta_i, eta_est), inv.logit) %&gt;%
+  ggplot()+
+  geom_line(aes(x=tf, y=eta_i, col = &quot;true&quot;))+
+  geom_line(aes(x=tf, y=eta_est, col = &quot;pred&quot;))+
+  facet_wrap(~id)</code></pre>
+<p><img src="manuscript_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<p>Thinking about the two problems above, perhaps I would want to use
+the following framework instead. This framework doesn’t require same
+density of s and t. But I am not sure how to construct the design matrix
+for this.</p>
+<p><span class="math display">\[g(E[Y_i(t)]) = \beta_0(t) +
+\int_{s}\beta_1(t, s)Y_i(s), \ s&lt;t\]</span></p>
+<p>or</p>
+<p><span class="math display">\[g(E[Y_i(t)]) = \beta_0(t) + F(Y_i(s), s,
+t), \ s&lt;t\]</span></p>
+<p>Perhaps I can try using <a
+href="https://rdrr.io/cran/refund/man/ff.html">refund::ff</a></p>
+<pre class="r fold-show"><code>library(refund)
+
+th &lt;- unique(dfm1_tr$th)
+tf &lt;- unique(dfm1_tr$tf)
+
+Yhmat &lt;- matrix(dfm1_tr$Yh, nrow=N_train, ncol = length(th), byrow = T)
+
+Yhmat2 &lt;- Yhmat[rep(1:N_train, each = length(th)), ]
+Yf &lt;- dfm1_tr$Yf
+# length(Yf)
+# dim(Yhmat2)
+
+fitm1 &lt;- fgam(Yf ~ s(tf, bs=&quot;cc&quot;, k=10) + af(Yhmat2, argvals=th) , 
+                   family = binomial())</code></pre>
+<pre><code>## Error in FUN(X[[i]], ...): length(get(nm, envir = frmlenv)) == nobs is not TRUE</code></pre>
+<pre class="r fold-show"><code># I couldn&#39;t get this function to work
+# I think for each observation in the future, all of the history is used as predictor
+# therefore the whole historical function is repeatedly used for each subject?</code></pre>
 </div>
-<div id="example-of-continuous-and-binary-nhanes" class="section level2"
-number="5.2">
-<h2><span class="header-section-number">5.2</span> Example of continuous
-and binary NHANES</h2>
-</div>
-<div id="dynamic-prediction-example" class="section level2"
-number="5.3">
-<h2><span class="header-section-number">5.3</span> Dynamic prediction
-example</h2>
-</div>
+<div id="additional-figures" class="section level1" number="6">
+<h1><span class="header-section-number">6</span> Additional figures</h1>
+<!-- ## fGFPCA algorithm demonstration -->
+<!-- ```{r binning, eval=FALSE} -->
+<!-- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
+<!--   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>%  -->
+<!--   mutate(SEQN = as.factor(SEQN)) %>%  -->
+<!--   ggplot()+ -->
+<!--   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+ -->
+<!--   geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+ -->
+<!--   scale_y_continuous(breaks = c(0, 1))+ -->
+<!--   labs(x="Time", y="", title = "NHANES binary activity indicator") -->
+<!-- ``` -->
+<!-- ```{r,eval=FALSE} -->
+<!-- df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
+<!--   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>%  -->
+<!--   mutate(bin = cut(sind, breaks = seq(650, 750, by = 10),  -->
+<!--                    labels = seq(655, 745, by = 10), -->
+<!--                    include.lowest = T))  -->
+<!-- bin_mid <- seq(655, 745, by = 10) -->
+<!-- for(i in bin_mid){ -->
+<!--   df_bin_i <- df_fig %>% filter(bin==i)  -->
+<!--   glm_i <- glmer(Z ~ 1 + (1|SEQN), data = df_bin_i, family = binomial, nAGQ=0) -->
+<!--   eta_i <- predict(glm_i, type = "link") -->
+<!--   df_fig$eta_hat[df_fig$bin==i] <- eta_i -->
+<!-- } -->
+<!-- df_fig %>%  -->
+<!--   mutate(SEQN = as.factor(SEQN), -->
+<!--          eta_hat = exp(eta_hat)/(1+exp(eta_hat)), -->
+<!--          bin=as.numeric(as.character(bin))) %>%  -->
+<!--   ggplot()+ -->
+<!--   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+ -->
+<!--   geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+ -->
+<!--   geom_point(aes(x=bin, y=eta_hat, col = SEQN))+ -->
+<!--   geom_line(aes(x=bin, y=eta_hat, col = SEQN))+ -->
+<!--   scale_y_continuous(breaks = c(0, 1))+ -->
+<!--   labs(x="Time", y="", title = "NHANES binary activity indicator") -->
+<!-- ``` -->
+<!-- ## Example of continuous and binary NHANES -->
+<!-- ```{r, eval=FALSE} -->
+<!-- df_nhanes_cont <- readRDS(here("Data/NHANES_AC_processed.rds")) -->
+<!-- p_cont <- df_nhanes_cont %>%  -->
+<!--   filter(SEQN %in% sample(unique(df_nhanes_cont$SEQN), 4) & WEEKDAY==6) %>%  -->
+<!--   select(starts_with("min"), SEQN) %>% -->
+<!--   pivot_longer(1:1440, names_to = "Minute") %>%  -->
+<!--   mutate(Minute = gsub("MIN", "", Minute)) %>% -->
+<!--   mutate(Minute = as.numeric(Minute), -->
+<!--          SEQN=as.factor(SEQN)) %>% -->
+<!--   ggplot(aes(x=Minute, y=value, col=SEQN))+ -->
+<!--   geom_point(size = 0.5, alpha=0.5)+ -->
+<!--   geom_smooth(se=F, size = 0.5)+ -->
+<!--   scale_x_continuous(breaks = seq(0, 1440, by = 480), -->
+<!--                      labels = c("Midnight", "8am", "4pm", "Midnight"))+ -->
+<!--   theme(axis.text = element_text(size = 5))+ -->
+<!--   labs(y="", title = "NHANES Activitiy count (2003-2004)") -->
+<!-- ``` -->
+<!-- ```{r, eval=FALSE} -->
+<!-- # a example of continuous and binary NHANES data -->
+<!-- p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
+<!--   filter(SEQN %in% rand_id3 & Z == 1) %>%  -->
+<!--   mutate(SEQN = as.factor(SEQN)) %>%  -->
+<!--   ggplot()+ -->
+<!--   geom_point(aes(x=sind, y = SEQN), size = 0.5)+ -->
+<!--   scale_x_continuous(breaks = seq(0, 1440, by = 480), -->
+<!--                      labels = c("Midnight", "8am", "4pm", "Midnight"))+ -->
+<!--   theme(axis.text = element_text(size = 5))+ -->
+<!--   labs(x="Time", y="Subject", title = "NHANES binary activity indicator (2011-2014)") -->
+<!-- ``` -->
+<!-- ```{r data_exp, fig.height=4, fig.width=10, eval=FALSE} -->
+<!-- ggarrange(p_cont, p_bi, nrow = 1) -->
+<!-- ``` -->
+<!-- ## Dynamic prediction example -->
+<!-- ```{r dynpred_exp,  fig.height=4, fig.width=10, eval=FALSE} -->
+<!-- ggarrange( -->
+<!--   pred_list_all[[1]] %>%  -->
+<!--     filter(id==501) %>% -->
+<!--     mutate(eta_i = ifelse(t<=0.2, eta_i, NA)) %>% -->
+<!--     ggplot()+ -->
+<!--     geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+ -->
+<!--     geom_line(aes(x=t, y=pred0.2, col = "Predicted"), na.rm = T,  -->
+<!--               linetype = "dashed")+ -->
+<!--     geom_vline(xintercept = 0.2, linetype = "dashed")+ -->
+<!--     labs(x="Time", y="")+ -->
+<!--     scale_x_continuous(breaks = seq(0, 1, by = 0.2))+ -->
+<!--     theme(axis.text = element_text(size = 5))+ -->
+<!--     ylim(-1.2, 1.7), -->
+<!--  pred_list_all[[1]] %>%  -->
+<!--     filter(id==501) %>% -->
+<!--     mutate(eta_i = ifelse(t<=0.4, eta_i, NA)) %>% -->
+<!--     ggplot()+ -->
+<!--     geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+ -->
+<!--     geom_line(aes(x=t, y=pred0.4, col = "Predicted"), na.rm = T,  -->
+<!--               linetype = "dashed")+ -->
+<!--     geom_vline(xintercept = 0.4, linetype = "dashed")+ -->
+<!--     labs(x="Time", y="")+ -->
+<!--     scale_x_continuous(breaks = seq(0, 1, by = 0.2))+ -->
+<!--     theme(axis.text = element_text(size = 5))+ -->
+<!--    ylim(-1.2, 1.7), -->
+<!--  nrow = 1, common.legend = T -->
+<!--   ) -->
+<!-- ``` -->
 </div>
 
 

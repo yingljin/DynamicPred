@@ -27,10 +27,14 @@ J <- max(df$sind) # 1440 measures for each subject
 t <- unique(df$sind)
 K <- 4 # number of eigenfunctions to use
 
+# functions
+source(here("Code/GLMM-FPCA.R")) 
+source(here("Code/OutSampBayes.R"))
 
 #### Data split ####
-# 80% (7010) subjects for training, 20% (1753) for out-of-sample prediction
-train_id <- sample(unique(df$id), size = N*0.8)
+
+# 60% (5257) subjects for training, 40% (3506) for out-of-sample prediction
+train_id <- sample(unique(df$id), size = N*0.6)
 test_id <- setdiff(unique(df$id), train_id)
 
 train_df <- df %>% filter(id %in% train_id)
@@ -39,25 +43,37 @@ test_df <- df %>% filter(id %in% test_id)
 
 ##### fGFPCA #####
 
-# functions
-source(here("Code/GLMM-FPCA.R")) 
-source(here("Code/OutSampBayes.R"))
 
-# bin data
+# Step 1: Bin every 10 observations
 bin_w <- 10 # bin width
 n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
-mid_t <- t[mid] # time value corresponding to mid points
 
 train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
 train_df$bin <- as.numeric(as.character(train_df$bin))
 
-# local GLMM
-bin_lst <- split(train_df, f = train_df$bin)
-df_est_latent <- lapply(bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+# Step 2:  Local GLMM
+## fit model on the training set
+train_bin_lst <- split(train_df, f = train_df$bin)
+t1=Sys.time()
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+t2= Sys.time()
+t2-t1 
+
 df_est_latent <- bind_rows(df_est_latent) 
-head(df_est_latent)
+## example estimated latent function
+rand_id <- sample(train_id, 4)
+df_est_latent %>% 
+  filter(id %in% rand_id) %>%
+  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=eta_hat, group = id, col = "estimated"))+
+  geom_point(aes(x=sind, y = Y, group = id, col = "outcome"), size = 0.5)+
+  facet_wrap(~id, scales = "free")+
+  labs(x = "Time", y = "Estimated latent function (probablity scale)")
+
+
 
 # FPCA
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)

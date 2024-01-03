@@ -19,7 +19,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 options(knitr.kable.NA = "")
 
 set.seed(1120)
@@ -37,6 +37,7 @@ library(knitr)
 library(mvtnorm)
 library(mgcv)
 library(splines)
+library(boot)
 theme_set(theme_minimal())
 
 load(here("Data/SimOutput_fGFPCA.RData"))
@@ -703,126 +704,230 @@ ggarrange(
   nrow = 1, common.legend = T)
 ```
 
+# The second reference method:
 
+We would like to use a second reference method for predictive performance comparision. This would be a generalized function-on-function regression where the history records are used to predict a equal length of outcome. Formulation as follows:
+
+$$g(E[Y_i(t)]) = \beta_0(t) + \beta_1 (t)Y_i(s),\ s<t$$
+
+In this case, the outcome must be evaluated at the same time points as the covariate. That is, s and t must have the same number of measurement points. For example, if t is (0, 0.2], then s can be either (0.2, 0.4), (0.4, 0.6), (0.6, 0.8) or (0.8, 1).
+
+What to do when the history t is (0, 0.4)? How share we prediction on 0.2 windows including (0.4, 0.6), (0.6, 0.8) or (0.8, 1)? Does this mean we do not utilize the full observed track but instead only take the most recent subtrack (0.2, 0.4)? Such scenarios remains unclear. 
+
+As for the model fitting, I am not sure how to construct a function-on-function regression using bam or gam. While most functions I found in R does not account for the "generalized" part. At first glance, the model framework is the same as a regular functional regression model:
+
+$$g(E[Y_i(t)]) = \sum_{k}\xi_{k}\phi_k(t) + Y_i(t)\sum_{l}\zeta_{l}\phi_l(s),\ s<t$$
+
+so I fit a gam model where history is [0, 0.2) and future is [0.2, 0.4).
+
+
+```{r data_format, message=FALSE}
+load(here("Data/sim_data.RData"))
+
+# Let's start with a one-simulation example
+df_m <- sim_data[[1]]
+# class(df_m$Y)
+# df_m$Y <- as.factor(df_m$Y)
+
+# observation/prediction window 
+windows <- seq(0, 1, by = 0.2)
+df_m$window <- cut(df_m$t, breaks=windows, labels = 1:5,
+                       include.lowest = T)
+
+# split data
+N_train <- 500
+N_test <- 100
+train_df <- df_m %>% filter(id %in% 1:N_train)
+test_df <- df_m %>% filter(!id %in% 1:N_train)
+
+# put covariates and outcome together
+dfm1_tr <- train_df %>% filter(window==2) %>% 
+  rename(Yf=Y, tf=t) %>%
+  left_join(train_df %>% filter(window==1) %>% select(id, sind, t, Y) %>% 
+              mutate(sind=sind+200) %>%
+              rename(Yh=Y, th = t))
+
+dfm1_te <- test_df %>% filter(window==2) %>% 
+  rename(Yf=Y) %>%
+  left_join(test_df %>% filter(window==1) %>% select(id, sind, Y) %>% 
+              mutate(sind=sind+200) %>%
+              rename(Yh=Y))
+
+# class(dfm1_tr$Yh)
+```
+
+
+```{r class.source='fold-show'}
+fitm1 <- bam(Yf ~ s(tf, bs="cc", k=20) + s(tf, bs="cc", k=20, by = Yh) , 
+                   family = binomial, data=dfm1_tr, 
+                   method = "fREML",
+                   discrete = TRUE)
+summary(fitm1)
+```
+
+However, the prediction result of this model is very wired. Below is the in-sample estimation of latent process. I am not sure if this is because of a wrong design matrix or ignoring the individual random effect. 
+
+
+```{r}
+dfm1_tr$eta_est <- predict(fitm1, newdata = dfm1_tr, type = "link")
+dfm1_tr %>% filter(id %in% 1:4) %>% 
+  mutate_at(vars(eta_i, eta_est), inv.logit) %>%
+  ggplot()+
+  geom_line(aes(x=tf, y=eta_i, col = "true"))+
+  geom_line(aes(x=tf, y=eta_est, col = "pred"))+
+  facet_wrap(~id)
+```
+
+Thinking about the two problems above, perhaps I would want to use the following framework instead. This framework doesn't require same density of s and t. But I am not sure how to construct the design matrix for this.
+
+$$g(E[Y_i(t)]) = \beta_0(t) + \int_{s}\beta_1(t, s)Y_i(s), \ s<t$$
+
+or 
+
+$$g(E[Y_i(t)]) = \beta_0(t) + F(Y_i(s), s, t), \ s<t$$
+
+Perhaps I can try using [refund::ff](https://rdrr.io/cran/refund/man/ff.html)
+
+```{r class.source='fold-show', error=TRUE}
+library(refund)
+
+th <- unique(dfm1_tr$th)
+tf <- unique(dfm1_tr$tf)
+
+Yhmat <- matrix(dfm1_tr$Yh, nrow=N_train, ncol = length(th), byrow = T)
+
+Yhmat2 <- Yhmat[rep(1:N_train, each = length(th)), ]
+Yf <- dfm1_tr$Yf
+# length(Yf)
+# dim(Yhmat2)
+
+fitm1 <- fgam(Yf ~ s(tf, bs="cc", k=10) + af(Yhmat2, argvals=th) , 
+                   family = binomial())
+# I couldn't get this function to work
+# I think for each observation in the future, all of the history is used as predictor
+# therefore the whole historical function is repeatedly used for each subject?
+
+
+```
 
 # Additional figures
 
-## fGFPCA algorithm demonstration
+<!-- ## fGFPCA algorithm demonstration -->
 
-```{r binning, eval=FALSE}
-df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>% 
-  mutate(SEQN = as.factor(SEQN)) %>% 
-  ggplot()+
-  geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+
-  geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+
-  scale_y_continuous(breaks = c(0, 1))+
-  labs(x="Time", y="", title = "NHANES binary activity indicator")
-```
-
-
-```{r,eval=FALSE}
-df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>% 
-  mutate(bin = cut(sind, breaks = seq(650, 750, by = 10), 
-                   labels = seq(655, 745, by = 10),
-                   include.lowest = T)) 
-bin_mid <- seq(655, 745, by = 10)
-
-for(i in bin_mid){
-  df_bin_i <- df_fig %>% filter(bin==i) 
-  glm_i <- glmer(Z ~ 1 + (1|SEQN), data = df_bin_i, family = binomial, nAGQ=0)
-  eta_i <- predict(glm_i, type = "link")
-  
-  df_fig$eta_hat[df_fig$bin==i] <- eta_i
-}
+<!-- ```{r binning, eval=FALSE} -->
+<!-- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
+<!--   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>%  -->
+<!--   mutate(SEQN = as.factor(SEQN)) %>%  -->
+<!--   ggplot()+ -->
+<!--   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+ -->
+<!--   geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+ -->
+<!--   scale_y_continuous(breaks = c(0, 1))+ -->
+<!--   labs(x="Time", y="", title = "NHANES binary activity indicator") -->
+<!-- ``` -->
 
 
-df_fig %>% 
-  mutate(SEQN = as.factor(SEQN),
-         eta_hat = exp(eta_hat)/(1+exp(eta_hat)),
-         bin=as.numeric(as.character(bin))) %>% 
-  
-  ggplot()+
-  geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+
-  geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+
-  geom_point(aes(x=bin, y=eta_hat, col = SEQN))+
-  geom_line(aes(x=bin, y=eta_hat, col = SEQN))+
-  scale_y_continuous(breaks = c(0, 1))+
-  labs(x="Time", y="", title = "NHANES binary activity indicator")
+<!-- ```{r,eval=FALSE} -->
+<!-- df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
+<!--   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>%  -->
+<!--   mutate(bin = cut(sind, breaks = seq(650, 750, by = 10),  -->
+<!--                    labels = seq(655, 745, by = 10), -->
+<!--                    include.lowest = T))  -->
+<!-- bin_mid <- seq(655, 745, by = 10) -->
 
-```
+<!-- for(i in bin_mid){ -->
+<!--   df_bin_i <- df_fig %>% filter(bin==i)  -->
+<!--   glm_i <- glmer(Z ~ 1 + (1|SEQN), data = df_bin_i, family = binomial, nAGQ=0) -->
+<!--   eta_i <- predict(glm_i, type = "link") -->
 
-
-## Example of continuous and binary NHANES
-
-```{r, eval=FALSE}
-df_nhanes_cont <- readRDS(here("Data/NHANES_AC_processed.rds"))
-p_cont <- df_nhanes_cont %>% 
-  filter(SEQN %in% sample(unique(df_nhanes_cont$SEQN), 4) & WEEKDAY==6) %>% 
-  select(starts_with("min"), SEQN) %>%
-  pivot_longer(1:1440, names_to = "Minute") %>% 
-  mutate(Minute = gsub("MIN", "", Minute)) %>%
-  mutate(Minute = as.numeric(Minute),
-         SEQN=as.factor(SEQN)) %>%
-  ggplot(aes(x=Minute, y=value, col=SEQN))+
-  geom_point(size = 0.5, alpha=0.5)+
-  geom_smooth(se=F, size = 0.5)+
-  scale_x_continuous(breaks = seq(0, 1440, by = 480),
-                     labels = c("Midnight", "8am", "4pm", "Midnight"))+
-  theme(axis.text = element_text(size = 5))+
-  labs(y="", title = "NHANES Activitiy count (2003-2004)")
-```
+<!--   df_fig$eta_hat[df_fig$bin==i] <- eta_i -->
+<!-- } -->
 
 
-```{r, eval=FALSE}
-# a example of continuous and binary NHANES data
-p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% rand_id3 & Z == 1) %>% 
-  mutate(SEQN = as.factor(SEQN)) %>% 
-  ggplot()+
-  geom_point(aes(x=sind, y = SEQN), size = 0.5)+
-  scale_x_continuous(breaks = seq(0, 1440, by = 480),
-                     labels = c("Midnight", "8am", "4pm", "Midnight"))+
-  theme(axis.text = element_text(size = 5))+
-  labs(x="Time", y="Subject", title = "NHANES binary activity indicator (2011-2014)")
-```
+<!-- df_fig %>%  -->
+<!--   mutate(SEQN = as.factor(SEQN), -->
+<!--          eta_hat = exp(eta_hat)/(1+exp(eta_hat)), -->
+<!--          bin=as.numeric(as.character(bin))) %>%  -->
 
-```{r data_exp, fig.height=4, fig.width=10, eval=FALSE}
-ggarrange(p_cont, p_bi, nrow = 1)
-```
+<!--   ggplot()+ -->
+<!--   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+ -->
+<!--   geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+ -->
+<!--   geom_point(aes(x=bin, y=eta_hat, col = SEQN))+ -->
+<!--   geom_line(aes(x=bin, y=eta_hat, col = SEQN))+ -->
+<!--   scale_y_continuous(breaks = c(0, 1))+ -->
+<!--   labs(x="Time", y="", title = "NHANES binary activity indicator") -->
+
+<!-- ``` -->
 
 
-## Dynamic prediction example
+<!-- ## Example of continuous and binary NHANES -->
 
-```{r dynpred_exp,  fig.height=4, fig.width=10, eval=FALSE}
-ggarrange(
-  pred_list_all[[1]] %>% 
-    filter(id==501) %>%
-    mutate(eta_i = ifelse(t<=0.2, eta_i, NA)) %>%
-    ggplot()+
-    geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+
-    geom_line(aes(x=t, y=pred0.2, col = "Predicted"), na.rm = T, 
-              linetype = "dashed")+
-    geom_vline(xintercept = 0.2, linetype = "dashed")+
-    labs(x="Time", y="")+
-    scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-    theme(axis.text = element_text(size = 5))+
-    ylim(-1.2, 1.7),
-  
- pred_list_all[[1]] %>% 
-    filter(id==501) %>%
-    mutate(eta_i = ifelse(t<=0.4, eta_i, NA)) %>%
-    ggplot()+
-    geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+
-    geom_line(aes(x=t, y=pred0.4, col = "Predicted"), na.rm = T, 
-              linetype = "dashed")+
-    geom_vline(xintercept = 0.4, linetype = "dashed")+
-    labs(x="Time", y="")+
-    scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-    theme(axis.text = element_text(size = 5))+
-   ylim(-1.2, 1.7),
- nrow = 1, common.legend = T
-  )
+<!-- ```{r, eval=FALSE} -->
+<!-- df_nhanes_cont <- readRDS(here("Data/NHANES_AC_processed.rds")) -->
+<!-- p_cont <- df_nhanes_cont %>%  -->
+<!--   filter(SEQN %in% sample(unique(df_nhanes_cont$SEQN), 4) & WEEKDAY==6) %>%  -->
+<!--   select(starts_with("min"), SEQN) %>% -->
+<!--   pivot_longer(1:1440, names_to = "Minute") %>%  -->
+<!--   mutate(Minute = gsub("MIN", "", Minute)) %>% -->
+<!--   mutate(Minute = as.numeric(Minute), -->
+<!--          SEQN=as.factor(SEQN)) %>% -->
+<!--   ggplot(aes(x=Minute, y=value, col=SEQN))+ -->
+<!--   geom_point(size = 0.5, alpha=0.5)+ -->
+<!--   geom_smooth(se=F, size = 0.5)+ -->
+<!--   scale_x_continuous(breaks = seq(0, 1440, by = 480), -->
+<!--                      labels = c("Midnight", "8am", "4pm", "Midnight"))+ -->
+<!--   theme(axis.text = element_text(size = 5))+ -->
+<!--   labs(y="", title = "NHANES Activitiy count (2003-2004)") -->
+<!-- ``` -->
 
-```
+
+<!-- ```{r, eval=FALSE} -->
+<!-- # a example of continuous and binary NHANES data -->
+<!-- p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
+<!--   filter(SEQN %in% rand_id3 & Z == 1) %>%  -->
+<!--   mutate(SEQN = as.factor(SEQN)) %>%  -->
+<!--   ggplot()+ -->
+<!--   geom_point(aes(x=sind, y = SEQN), size = 0.5)+ -->
+<!--   scale_x_continuous(breaks = seq(0, 1440, by = 480), -->
+<!--                      labels = c("Midnight", "8am", "4pm", "Midnight"))+ -->
+<!--   theme(axis.text = element_text(size = 5))+ -->
+<!--   labs(x="Time", y="Subject", title = "NHANES binary activity indicator (2011-2014)") -->
+<!-- ``` -->
+
+<!-- ```{r data_exp, fig.height=4, fig.width=10, eval=FALSE} -->
+<!-- ggarrange(p_cont, p_bi, nrow = 1) -->
+<!-- ``` -->
+
+
+<!-- ## Dynamic prediction example -->
+
+<!-- ```{r dynpred_exp,  fig.height=4, fig.width=10, eval=FALSE} -->
+<!-- ggarrange( -->
+<!--   pred_list_all[[1]] %>%  -->
+<!--     filter(id==501) %>% -->
+<!--     mutate(eta_i = ifelse(t<=0.2, eta_i, NA)) %>% -->
+<!--     ggplot()+ -->
+<!--     geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+ -->
+<!--     geom_line(aes(x=t, y=pred0.2, col = "Predicted"), na.rm = T,  -->
+<!--               linetype = "dashed")+ -->
+<!--     geom_vline(xintercept = 0.2, linetype = "dashed")+ -->
+<!--     labs(x="Time", y="")+ -->
+<!--     scale_x_continuous(breaks = seq(0, 1, by = 0.2))+ -->
+<!--     theme(axis.text = element_text(size = 5))+ -->
+<!--     ylim(-1.2, 1.7), -->
+
+<!--  pred_list_all[[1]] %>%  -->
+<!--     filter(id==501) %>% -->
+<!--     mutate(eta_i = ifelse(t<=0.4, eta_i, NA)) %>% -->
+<!--     ggplot()+ -->
+<!--     geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+ -->
+<!--     geom_line(aes(x=t, y=pred0.4, col = "Predicted"), na.rm = T,  -->
+<!--               linetype = "dashed")+ -->
+<!--     geom_vline(xintercept = 0.4, linetype = "dashed")+ -->
+<!--     labs(x="Time", y="")+ -->
+<!--     scale_x_continuous(breaks = seq(0, 1, by = 0.2))+ -->
+<!--     theme(axis.text = element_text(size = 5))+ -->
+<!--    ylim(-1.2, 1.7), -->
+<!--  nrow = 1, common.legend = T -->
+<!--   ) -->
+
+<!-- ``` -->

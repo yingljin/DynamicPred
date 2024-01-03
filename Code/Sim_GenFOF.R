@@ -66,26 +66,48 @@ test_df <- df_m %>% filter(!id %in% 1:N_train)
 # observed 0-0.2, predict 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0
 # remaining scenarios not clear. Let's wait for now. 
 
+
+# let me try a FOF regression first
 ## time window
 windows <- seq(0, 1, by = 0.2)
 train_df$window <- cut(train_df$t, breaks=windows, labels = 1:5,
                        include.lowest = T)
-train_df$window <- as.numeric(train_df$window)
-table(train_df$window, useNA = "always")
+class(train_df$window)
+table(train_df$window, useNA = "always") # each window has equal number of observations
 
-train_df %>%
-  mutate(sind = sind-200*(window-1)) %>% 
-  select(sind) %>% table(useNA = "always")
-
+# I would like to try a gam model for generalized FOF
+# first some data formatting
 ## observed 0-0.2, predict 0.2-0.4
+dfm1 <- train_df %>% filter(window==2) %>% 
+  rename(Yf=Y) %>%
+  left_join(train_df %>% filter(window==1) %>% select(id, sind, Y) %>% 
+              mutate(sind=sind+200) %>%
+              rename(Yh=Y))
 
-df_mt <- train_df %>%
-  filter(window == 1) %>%
-  select(id, Y) %>% rename(Y_w1 = Y) %>% 
-  mutate(Y)
-  
-  train_df %>% filter(window ==1 | window == 2) %>% 
-  pivot_wider(id_cols = id,
-              values_from = c(t, eta_i, sind, Y),
-              names_from = window)
-?gam
+## gam model
+fitm1 <- bam(Yf ~ s(t, bs="cc", k=10) + s(t, bs="cc", k=10, by = Yh) , 
+                   family = binomial, data=dfm1, 
+                   method = "fREML",
+                   discrete = TRUE)
+
+## prediction?
+test_df$window <- cut(test_df$t, breaks=windows, labels = 1:5,
+                       include.lowest = T)
+table(test_df$window, useNA = "always")
+dfm1_te <- test_df %>% filter(window==2) %>% 
+  rename(Yf=Y) %>%
+  left_join(test_df %>% filter(window==1) %>% select(id, sind, Y) %>% 
+              mutate(sind=sind+200) %>%
+              rename(Yh=Y))
+head(dfm1_te)
+
+pred_m1 <- predict(fitm1, newdata = dfm1_te)
+length(pred_m1)
+dfm1_te$pred_eta <- pred_m1
+
+dfm1_te %>% 
+  filter(id %in% 501:504) %>%
+  ggplot()+
+  geom_line(aes(x=t, y=eta_i, col = "true"))+
+  geom_line(aes(x=t, y=pred_eta, col = "pred"))+
+  facet_wrap(~id)
