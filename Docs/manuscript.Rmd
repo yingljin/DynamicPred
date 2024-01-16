@@ -709,10 +709,9 @@ ggarrange(
 ```{r}
 load(here("Data/sim_data.RData"))
 df_m <- sim_data[[1]]
-df_m %>% filter(t>0.2 & t<=0.4)
 ```
 
-We would like to use a second reference method for predictive performance comparision. In this madel, predictions on a specific interval are all made using the last few observations in the observed window. For example, if we are given observations on [0, 0.2] (j = 1...200), we may use L observations taken right before t=0.2($t_j: j=200, ... 200-(L-1)$) as time-fixed covariate to predict any future time. 
+We would like to use a second reference method for predictive performance comparision. In this model, predictions on a specific interval are all made using the last few observations in the observed window. For example, if we are given observations on [0, 0.2] (j = 1...200), we may use L observations taken right before t=0.2 ($t_j: j=200, ... 200-(L-1)$) as time-fixed covariate to predict any future time. 
 
 Let's write out the model expression (with questionable notation). If the observations if up to $t_m$, then: 
 
@@ -724,7 +723,7 @@ t &> t_m
 
 This is a simple function-on-scalar model with no random effect, meaning all subject with the same last observed outcome would have the same estimated/predicted latent track. This is clearly anti-intuitive. But adding random effects would make out-of-sample prediction impossible. 
 
-Under this framework, for each dataset we need to fit four models: 
+Under this framework, for each dataset we need to fit four models (similar to the GLMMadaptive method): 
 
 - Given 0-0.2, predict 0.2-1
 - Given 0-0.4, predict 0.4-1
@@ -733,7 +732,7 @@ Under this framework, for each dataset we need to fit four models:
 
 Below are some single dataset examples.
 
-## L = 1
+## Example of L = 1, given [0, 0.2] to predict (0.2, 1)
 
 First let try to make prediction on an interval with only one historical observation (L = 1):
 
@@ -764,10 +763,12 @@ test_df <- df_m %>% filter(!id %in% 1:N_train)
 y_obs_max <- train_df %>% filter(window==1) %>% arrange(desc(t)) %>%
   group_by(id) %>%
   slice(L) %>% select(id, Y) %>% rename(yl = Y)
-## to predict (0.2, 0.4), outcome:
+## to predict (0.2, 1), outcome:
 df_pred_tr <- train_df %>% filter(window!=1) %>%
   left_join(y_obs_max, by = "id") %>% 
   mutate_at(vars(Y, yl), as.factor)
+
+# range(df_pred_tr$sind)
 
 # model
 t1 <- Sys.time()
@@ -822,6 +823,184 @@ df_pred_te %>%
   labs(title = "Out-of-sample prediction")
 
 ```
+
+## Example of prediction on one dataset (L = 1)
+
+```{r}
+# table(df_m$window)
+train_df$window <- as.numeric(as.character(train_df$window))
+test_df$window <- as.numeric(as.character(test_df$window))
+test_df2 <- test_df
+
+t1 <- Sys.time()
+for(w in 1:4){
+  # model fit
+  # predictor (training set)
+  y_obs_max <- train_df %>% filter(window==w) %>% arrange(desc(t)) %>%
+    group_by(id) %>%
+    slice(L) %>% select(id, Y) %>% rename(yl = Y)
+  # outcome (training set)
+  df_pred_tr <- train_df %>% filter(window > w) %>%
+    left_join(y_obs_max, by = "id") %>% 
+    mutate_at(vars(Y, yl), as.factor)
+  # model 
+  fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
+                        s(t, bs="cc", k=20, by = yl),
+                   family = binomial, data=df_pred_tr, 
+                   method = "fREML",
+                   discrete = TRUE)
+  
+  # prediction
+  # predictor (testing set)
+  y_obs_max_te <- test_df %>% 
+                filter(window==w) %>% arrange(desc(t)) %>% group_by(id) %>%
+                slice(L) %>% select(id, Y) %>% rename(yl = Y)
+  # outcome (testing set)
+  df_pred_te <- test_df %>% filter(window > w) %>%
+    left_join(y_obs_max_te, by = "id") %>% 
+    mutate_at(vars(Y, yl), as.factor)
+
+  # predict using the FOSR model fit above
+  pred_name <- paste0("pred_w", w)
+  test_df[, pred_name] <- NA
+  test_df[test_df$window>w, pred_name] <- predict(fit_gen_fosr, newdata = df_pred_te, type = "link")
+}
+t2 <- Sys.time()
+# t2-t1
+
+```
+
+
+
+```{r}
+test_df %>%
+  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %>%
+  filter(id %in% rand_id) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=pred_w1, col = "Up to 0.1"), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = "Up to 0.2"), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = "Up to 0.3"), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = "Up to 0.4"), na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = "ture"))+
+  facet_wrap(~id)+
+  labs(title = "Out-of-sample prediction")
+```
+
+
+
+## Example of prediction on one dataset (L = 5)
+
+```{r}
+t1 <- Sys.time()
+for(w in 1:4){
+  # model fit
+  # predictor (training set)
+  y_obs_max <- train_df %>% filter(window==w) %>% group_by(id) %>%
+    slice_max(t, n=5) %>% select(id, Y, sind) %>%
+    mutate(name = sind-min(sind)+1) %>%
+    pivot_wider(id_cols = id, values_from = Y, names_from = "name", names_prefix = "yl")
+  # outcome (training set)
+  df_pred_tr <- train_df %>% filter(window > w) %>%
+    left_join(y_obs_max, by = "id") %>% 
+    mutate_at(vars(Y, starts_with("yl")), as.factor) 
+  fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
+                        s(t, bs="cc", k=20, by = yl5)+
+                        s(t, bs="cc", k=20, by = yl4)+
+                        s(t, bs="cc", k=20, by = yl3)+
+                        s(t, bs="cc", k=20, by = yl2)+
+                        s(t, bs="cc", k=20, by = yl1),
+                   family = binomial, data=df_pred_tr, 
+                   method = "fREML",
+                   discrete = TRUE)
+  
+  # prediction
+  # predictor (testing set)
+  y_obs_max_te <- test_df2 %>% filter(window==w) %>% group_by(id) %>%
+    slice_max(t, n=5) %>% select(id, Y, sind) %>% 
+    mutate(name = sind-min(sind)+1) %>%
+    pivot_wider(id_cols = id, values_from = Y, names_from = name, names_prefix = "yl")
+  # outcome (testing set)
+  df_pred_te <- test_df2 %>% filter(window > w) %>%
+    left_join(y_obs_max_te, by = "id") %>% 
+    mutate_at(vars(Y, starts_with("yl")), as.factor)
+
+  # predict using the FOSR model fit above
+  pred_name <- paste0("pred_w", w)
+  test_df2[, pred_name] <- NA
+  test_df2[test_df2$window>w, pred_name] <- predict(fit_gen_fosr, newdata = df_pred_te, type = "link")
+}
+t2 <- Sys.time()
+# t2-t1
+
+```
+
+
+
+```{r}
+test_df2 %>%
+  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %>%
+  filter(id %in% rand_id) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=pred_w1, col = "Up to 0.1"), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = "Up to 0.2"), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = "Up to 0.3"), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = "Up to 0.4"), na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = "ture"))+
+  facet_wrap(~id)+
+  labs(title = "Out-of-sample prediction")
+```
+
+This method is very, very fast, takes 10 seconds or so, much faster than both fGFPCA and GLMMadaptive. The performance lies in between them for most cases, sometimes worse than GLMMadaptive.
+
+
+Do we really want to use the lag-1 model? 
+
+```{r ise_fosr}
+tb_ies_l5 <- test_df2 %>%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %>%
+    select(id, t, window, starts_with("err")) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != 1) %>%
+  select(starts_with("err"))
+
+tb_ies_l1 <- test_df %>%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %>%
+    select(id, t, window, starts_with("err")) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != 1) %>%
+  select(starts_with("err"))
+
+colnames(tb_ies_l1) <- colnames(tb_ies_l5) <- c("0.2", "0.4", "0.6", "0.8")
+```
+
+
+```{r}
+data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
+           tb_ies_l1, tb_ies_l5, check.names = F) %>%
+  kable(digits = 3, caption = "Integrated squared error", booktabs = T) %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" "=1, "L = 1" = 4, "L = 5" = 4)) %>%
+  add_header_above(c(" "= 1, "Observation track" = 8))
+```
+
+
+
 
 # Additional figures
 

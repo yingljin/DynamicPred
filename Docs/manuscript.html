@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-01-03" />
+<meta name="date" content="2024-01-16" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-01-03</h4>
+<h4 class="date">2024-01-16</h4>
 
 </div>
 
@@ -1714,37 +1714,50 @@ ggarrange(
 <div id="the-second-reference-method" class="section level1" number="5">
 <h1><span class="header-section-number">5</span> The second reference
 method:</h1>
-<p>We would like to use a second reference method for predictive
-performance comparision. This would be a generalized
-function-on-function regression where the history records are used to
-predict a equal length of outcome. Formulation as follows:</p>
-<p><span class="math display">\[g(E[Y_i(t)]) = \beta_0(t) + \beta_1
-(t)Y_i(s),\ s&lt;t\]</span></p>
-<p>In this case, the outcome must be evaluated at the same time points
-as the covariate. That is, s and t must have the same number of
-measurement points. For example, if t is (0, 0.2], then s can be either
-(0.2, 0.4), (0.4, 0.6), (0.6, 0.8) or (0.8, 1).</p>
-<p>What to do when the history t is (0, 0.4)? How share we prediction on
-0.2 windows including (0.4, 0.6), (0.6, 0.8) or (0.8, 1)? Does this mean
-we do not utilize the full observed track but instead only take the most
-recent subtrack (0.2, 0.4)? Such scenarios remains unclear.</p>
-<p>As for the model fitting, I am not sure how to construct a
-function-on-function regression using bam or gam. While most functions I
-found in R does not account for the “generalized” part. At first glance,
-the model framework is the same as a regular functional regression
-model:</p>
-<p><span class="math display">\[g(E[Y_i(t)]) = \sum_{k}\xi_{k}\phi_k(t)
-+ Y_i(t)\sum_{l}\zeta_{l}\phi_l(s),\ s&lt;t\]</span></p>
-<p>so I fit a gam model where history is [0, 0.2) and future is [0.2,
-0.4).</p>
 <pre class="r"><code>load(here(&quot;Data/sim_data.RData&quot;))
+df_m &lt;- sim_data[[1]]</code></pre>
+<p>We would like to use a second reference method for predictive
+performance comparision. In this model, predictions on a specific
+interval are all made using the last few observations in the observed
+window. For example, if we are given observations on [0, 0.2] (j =
+1…200), we may use L observations taken right before t=0.2 (<span
+class="math inline">\(t_j: j=200, ... 200-(L-1)\)</span>) as time-fixed
+covariate to predict any future time.</p>
+<p>Let’s write out the model expression (with questionable notation). If
+the observations if up to <span class="math inline">\(t_m\)</span>,
+then:</p>
+<p><span class="math display">\[\begin{aligned}
+g(E[Y_i(t)]) &amp;= \beta_0(t) +\sum_{l=1}^L \beta_l (t)Y_i(t_l)\\
+l &amp; = m,...m-(j-1)\\
+t &amp;&gt; t_m
+\end{aligned}\]</span></p>
+<p>This is a simple function-on-scalar model with no random effect,
+meaning all subject with the same last observed outcome would have the
+same estimated/predicted latent track. This is clearly anti-intuitive.
+But adding random effects would make out-of-sample prediction
+impossible.</p>
+<p>Under this framework, for each dataset we need to fit four models
+(similar to the GLMMadaptive method):</p>
+<ul>
+<li>Given 0-0.2, predict 0.2-1</li>
+<li>Given 0-0.4, predict 0.4-1</li>
+<li>Given 0-0.6, predict 0.6-1</li>
+<li>Given 0-0.8, predict 0.8-1</li>
+</ul>
+<p>Below are some single dataset examples.</p>
+<div id="example-of-l-1-given-0-0.2-to-predict-0.2-1"
+class="section level2" number="5.1">
+<h2><span class="header-section-number">5.1</span> Example of L = 1,
+given [0, 0.2] to predict (0.2, 1)</h2>
+<p>First let try to make prediction on an interval with only one
+historical observation (L = 1):</p>
+<p><span class="math display">\[\begin{aligned}
+g(E[Y_i(t)]) &amp;= \beta_0(t) +\beta_1(t) Y_i(t_{m})\\
+t &amp;&gt; t_m
+\end{aligned}\]</span></p>
+<pre class="r"><code>L &lt;- 1 # number of observations to use as predictor
 
-# Let&#39;s start with a one-simulation example
-df_m &lt;- sim_data[[1]]
-# class(df_m$Y)
-# df_m$Y &lt;- as.factor(df_m$Y)
-
-# observation/prediction window 
+# prediction window 
 windows &lt;- seq(0, 1, by = 0.2)
 df_m$window &lt;- cut(df_m$t, breaks=windows, labels = 1:5,
                        include.lowest = T)
@@ -1753,90 +1766,408 @@ df_m$window &lt;- cut(df_m$t, breaks=windows, labels = 1:5,
 N_train &lt;- 500
 N_test &lt;- 100
 train_df &lt;- df_m %&gt;% filter(id %in% 1:N_train)
-test_df &lt;- df_m %&gt;% filter(!id %in% 1:N_train)
+test_df &lt;- df_m %&gt;% filter(!id %in% 1:N_train)</code></pre>
+<pre class="r fold-show"><code># format training data
+## given [0, 0.2], predictor would be
+y_obs_max &lt;- train_df %&gt;% filter(window==1) %&gt;% arrange(desc(t)) %&gt;%
+  group_by(id) %&gt;%
+  slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y)
+## to predict (0.2, 1), outcome:
+df_pred_tr &lt;- train_df %&gt;% filter(window!=1) %&gt;%
+  left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
+  mutate_at(vars(Y, yl), as.factor)
 
-# put covariates and outcome together
-dfm1_tr &lt;- train_df %&gt;% filter(window==2) %&gt;% 
-  rename(Yf=Y, tf=t) %&gt;%
-  left_join(train_df %&gt;% filter(window==1) %&gt;% select(id, sind, t, Y) %&gt;% 
-              mutate(sind=sind+200) %&gt;%
-              rename(Yh=Y, th = t))
+# range(df_pred_tr$sind)
 
-dfm1_te &lt;- test_df %&gt;% filter(window==2) %&gt;% 
-  rename(Yf=Y) %&gt;%
-  left_join(test_df %&gt;% filter(window==1) %&gt;% select(id, sind, Y) %&gt;% 
-              mutate(sind=sind+200) %&gt;%
-              rename(Yh=Y))
-
-# class(dfm1_tr$Yh)</code></pre>
-<pre class="r fold-show"><code>fitm1 &lt;- bam(Yf ~ s(tf, bs=&quot;cc&quot;, k=20) + s(tf, bs=&quot;cc&quot;, k=20, by = Yh) , 
-                   family = binomial, data=dfm1_tr, 
+# model
+t1 &lt;- Sys.time()
+fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cc&quot;, k=20) + 
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl),
+                   family = binomial, data=df_pred_tr, 
                    method = &quot;fREML&quot;,
                    discrete = TRUE)
-summary(fitm1)</code></pre>
+t2 &lt;- Sys.time()
+t2-t1</code></pre>
+<pre><code>## Time difference of 0.721633 secs</code></pre>
+<pre class="r fold-show"><code>summary(fit_gen_fosr)</code></pre>
 <pre><code>## 
 ## Family: binomial 
 ## Link function: logit 
 ## 
 ## Formula:
-## Yf ~ s(tf, bs = &quot;cc&quot;, k = 20) + s(tf, bs = &quot;cc&quot;, k = 20, by = Yh)
+## Y ~ s(t, bs = &quot;cc&quot;, k = 20) + s(t, bs = &quot;cc&quot;, k = 20, by = yl)
 ## 
 ## Parametric coefficients:
-##              Estimate Std. Error z value Pr(&gt;|z|)    
-## (Intercept) -0.138150   0.008973   -15.4   &lt;2e-16 ***
-## ---
-## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+##              Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept) -0.001258   0.003210  -0.392    0.695
 ## 
 ## Approximate significance of smooth terms:
-##            edf Ref.df  Chi.sq p-value    
-## s(tf)    1.371 18.000   2.913  0.0767 .  
-## s(tf):Yh 4.272  5.334 349.435  &lt;2e-16 ***
+##               edf Ref.df    Chi.sq  p-value    
+## s(t)      0.06865     18 4.200e-02 1.63e-05 ***
+## s(t):yl0 15.69535     18 6.850e+06  &lt; 2e-16 ***
+## s(t):yl1 13.60727     18 3.671e+06  &lt; 2e-16 ***
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
-## R-sq.(adj) =  0.00354   Deviance explained = 0.26%
-## fREML = 1.6104e+05  Scale est. = 1         n = 100000</code></pre>
-<p>However, the prediction result of this model is very wired. Below is
-the in-sample estimation of latent process. I am not sure if this is
-because of a wrong design matrix or ignoring the individual random
-effect.</p>
-<pre class="r"><code>dfm1_tr$eta_est &lt;- predict(fitm1, newdata = dfm1_tr, type = &quot;link&quot;)
-dfm1_tr %&gt;% filter(id %in% 1:4) %&gt;% 
-  mutate_at(vars(eta_i, eta_est), inv.logit) %&gt;%
+## R-sq.(adj) =  0.029   Deviance explained = 2.11%
+## fREML = 6.3905e+05  Scale est. = 1         n = 400000</code></pre>
+<pre class="r"><code># estimation on the training set
+df_pred_tr$eta_est &lt;- predict(fit_gen_fosr, type = &quot;link&quot;)
+
+df_pred_tr %&gt;%
+  mutate_at(vars(eta_est, eta_i), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
+  filter(id %in% 1:4) %&gt;%
   ggplot()+
-  geom_line(aes(x=tf, y=eta_i, col = &quot;true&quot;))+
-  geom_line(aes(x=tf, y=eta_est, col = &quot;pred&quot;))+
-  facet_wrap(~id)</code></pre>
-<p><img src="manuscript_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
-<p>Thinking about the two problems above, perhaps I would want to use
-the following framework instead. This framework doesn’t require same
-density of s and t. But I am not sure how to construct the design matrix
-for this.</p>
-<p><span class="math display">\[g(E[Y_i(t)]) = \beta_0(t) +
-\int_{s}\beta_1(t, s)Y_i(s), \ s&lt;t\]</span></p>
-<p>or</p>
-<p><span class="math display">\[g(E[Y_i(t)]) = \beta_0(t) + F(Y_i(s), s,
-t), \ s&lt;t\]</span></p>
-<p>Perhaps I can try using <a
-href="https://rdrr.io/cran/refund/man/ff.html">refund::ff</a></p>
-<pre class="r fold-show"><code>library(refund)
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=eta_est, col = &quot;estimate&quot;))+
+  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
+  facet_wrap(~id)+
+  labs(title = &quot;In-sample estimation&quot;)</code></pre>
+<p><img src="manuscript_files/figure-html/est_train-1.png" width="672" /></p>
+<pre class="r"><code># format testing data
+df_pred_te &lt;- test_df %&gt;% filter(window!=1) %&gt;%
+  left_join(test_df %&gt;% 
+              filter(window==1) %&gt;% arrange(desc(t)) %&gt;% group_by(id) %&gt;%
+              slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y),
+            by = &quot;id&quot;) %&gt;% 
+  mutate_at(vars(Y, yl), as.factor)
 
-th &lt;- unique(dfm1_tr$th)
-tf &lt;- unique(dfm1_tr$tf)
+# predict using the FOSR model fit above
+df_pred_te$eta_est &lt;- predict(fit_gen_fosr, newdata = df_pred_te, type = &quot;link&quot;)
 
-Yhmat &lt;- matrix(dfm1_tr$Yh, nrow=N_train, ncol = length(th), byrow = T)
+df_pred_te %&gt;%
+  mutate_at(vars(eta_est, eta_i), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=eta_est, col = &quot;estimate&quot;))+
+  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
+  facet_wrap(~id)+
+  labs(title = &quot;Out-of-sample prediction&quot;)</code></pre>
+<p><img src="manuscript_files/figure-html/pred_test-1.png" width="672" /></p>
+</div>
+<div id="example-of-prediction-on-one-dataset-l-1"
+class="section level2" number="5.2">
+<h2><span class="header-section-number">5.2</span> Example of prediction
+on one dataset (L = 1)</h2>
+<pre class="r"><code># table(df_m$window)
+train_df$window &lt;- as.numeric(as.character(train_df$window))
+test_df$window &lt;- as.numeric(as.character(test_df$window))
+test_df2 &lt;- test_df
 
-Yhmat2 &lt;- Yhmat[rep(1:N_train, each = length(th)), ]
-Yf &lt;- dfm1_tr$Yf
-# length(Yf)
-# dim(Yhmat2)
+t1 &lt;- Sys.time()
+for(w in 1:4){
+  # model fit
+  # predictor (training set)
+  y_obs_max &lt;- train_df %&gt;% filter(window==w) %&gt;% arrange(desc(t)) %&gt;%
+    group_by(id) %&gt;%
+    slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y)
+  # outcome (training set)
+  df_pred_tr &lt;- train_df %&gt;% filter(window &gt; w) %&gt;%
+    left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
+    mutate_at(vars(Y, yl), as.factor)
+  # model 
+  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cc&quot;, k=20) + 
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl),
+                   family = binomial, data=df_pred_tr, 
+                   method = &quot;fREML&quot;,
+                   discrete = TRUE)
+  
+  # prediction
+  # predictor (testing set)
+  y_obs_max_te &lt;- test_df %&gt;% 
+                filter(window==w) %&gt;% arrange(desc(t)) %&gt;% group_by(id) %&gt;%
+                slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y)
+  # outcome (testing set)
+  df_pred_te &lt;- test_df %&gt;% filter(window &gt; w) %&gt;%
+    left_join(y_obs_max_te, by = &quot;id&quot;) %&gt;% 
+    mutate_at(vars(Y, yl), as.factor)
 
-fitm1 &lt;- fgam(Yf ~ s(tf, bs=&quot;cc&quot;, k=10) + af(Yhmat2, argvals=th) , 
-                   family = binomial())</code></pre>
-<pre><code>## Error in FUN(X[[i]], ...): length(get(nm, envir = frmlenv)) == nobs is not TRUE</code></pre>
-<pre class="r fold-show"><code># I couldn&#39;t get this function to work
-# I think for each observation in the future, all of the history is used as predictor
-# therefore the whole historical function is repeatedly used for each subject?</code></pre>
+  # predict using the FOSR model fit above
+  pred_name &lt;- paste0(&quot;pred_w&quot;, w)
+  test_df[, pred_name] &lt;- NA
+  test_df[test_df$window&gt;w, pred_name] &lt;- predict(fit_gen_fosr, newdata = df_pred_te, type = &quot;link&quot;)
+}
+t2 &lt;- Sys.time()
+# t2-t1</code></pre>
+<pre class="r"><code>test_df %&gt;%
+  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=pred_w1, col = &quot;Up to 0.1&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = &quot;Up to 0.2&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = &quot;Up to 0.3&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = &quot;Up to 0.4&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
+  facet_wrap(~id)+
+  labs(title = &quot;Out-of-sample prediction&quot;)</code></pre>
+<p><img src="manuscript_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+</div>
+<div id="example-of-prediction-on-one-dataset-l-5"
+class="section level2" number="5.3">
+<h2><span class="header-section-number">5.3</span> Example of prediction
+on one dataset (L = 5)</h2>
+<pre class="r"><code>t1 &lt;- Sys.time()
+for(w in 1:4){
+  # model fit
+  # predictor (training set)
+  y_obs_max &lt;- train_df %&gt;% filter(window==w) %&gt;% group_by(id) %&gt;%
+    slice_max(t, n=5) %&gt;% select(id, Y, sind) %&gt;%
+    mutate(name = sind-min(sind)+1) %&gt;%
+    pivot_wider(id_cols = id, values_from = Y, names_from = &quot;name&quot;, names_prefix = &quot;yl&quot;)
+  # outcome (training set)
+  df_pred_tr &lt;- train_df %&gt;% filter(window &gt; w) %&gt;%
+    left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
+    mutate_at(vars(Y, starts_with(&quot;yl&quot;)), as.factor) 
+  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cc&quot;, k=20) + 
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl5)+
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl4)+
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl3)+
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl2)+
+                        s(t, bs=&quot;cc&quot;, k=20, by = yl1),
+                   family = binomial, data=df_pred_tr, 
+                   method = &quot;fREML&quot;,
+                   discrete = TRUE)
+  
+  # prediction
+  # predictor (testing set)
+  y_obs_max_te &lt;- test_df2 %&gt;% filter(window==w) %&gt;% group_by(id) %&gt;%
+    slice_max(t, n=5) %&gt;% select(id, Y, sind) %&gt;% 
+    mutate(name = sind-min(sind)+1) %&gt;%
+    pivot_wider(id_cols = id, values_from = Y, names_from = name, names_prefix = &quot;yl&quot;)
+  # outcome (testing set)
+  df_pred_te &lt;- test_df2 %&gt;% filter(window &gt; w) %&gt;%
+    left_join(y_obs_max_te, by = &quot;id&quot;) %&gt;% 
+    mutate_at(vars(Y, starts_with(&quot;yl&quot;)), as.factor)
+
+  # predict using the FOSR model fit above
+  pred_name &lt;- paste0(&quot;pred_w&quot;, w)
+  test_df2[, pred_name] &lt;- NA
+  test_df2[test_df2$window&gt;w, pred_name] &lt;- predict(fit_gen_fosr, newdata = df_pred_te, type = &quot;link&quot;)
+}
+t2 &lt;- Sys.time()
+# t2-t1</code></pre>
+<pre class="r"><code>test_df2 %&gt;%
+  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=pred_w1, col = &quot;Up to 0.1&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = &quot;Up to 0.2&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = &quot;Up to 0.3&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = &quot;Up to 0.4&quot;), na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
+  facet_wrap(~id)+
+  labs(title = &quot;Out-of-sample prediction&quot;)</code></pre>
+<p><img src="manuscript_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p>This method is very, very fast, takes 10 seconds or so, much faster
+than both fGFPCA and GLMMadaptive. The performance lies in between them
+for most cases, sometimes worse than GLMMadaptive.</p>
+<p>Do we really want to use the lag-1 model?</p>
+<pre class="r"><code>tb_ies_l5 &lt;- test_df2 %&gt;%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %&gt;%
+    select(id, t, window, starts_with(&quot;err&quot;)) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != 1) %&gt;%
+  select(starts_with(&quot;err&quot;))
+
+tb_ies_l1 &lt;- test_df %&gt;%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %&gt;%
+    select(id, t, window, starts_with(&quot;err&quot;)) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != 1) %&gt;%
+  select(starts_with(&quot;err&quot;))
+
+colnames(tb_ies_l1) &lt;- colnames(tb_ies_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
+           tb_ies_l1, tb_ies_l5, check.names = F) %&gt;%
+  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs = T) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot;=1, &quot;L = 1&quot; = 4, &quot;L = 5&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Integrated squared error
+</caption>
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="8">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Observation track
+</div>
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+L = 1
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+L = 5
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+Window
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+(0.2,0.4]
+</td>
+<td style="text-align:right;">
+348.343
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+306.978
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.4,0.6]
+</td>
+<td style="text-align:right;">
+285.238
+</td>
+<td style="text-align:right;">
+252.385
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+274.415
+</td>
+<td style="text-align:right;">
+213.787
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.6,0.8]
+</td>
+<td style="text-align:right;">
+278.837
+</td>
+<td style="text-align:right;">
+308.303
+</td>
+<td style="text-align:right;">
+298.876
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+241.906
+</td>
+<td style="text-align:right;">
+291.673
+</td>
+<td style="text-align:right;">
+241.131
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+326.627
+</td>
+<td style="text-align:right;">
+342.585
+</td>
+<td style="text-align:right;">
+349.281
+</td>
+<td style="text-align:right;">
+347.882
+</td>
+<td style="text-align:right;">
+306.177
+</td>
+<td style="text-align:right;">
+311.937
+</td>
+<td style="text-align:right;">
+366.169
+</td>
+<td style="text-align:right;">
+337.832
+</td>
+</tr>
+</tbody>
+</table>
+</div>
 </div>
 <div id="additional-figures" class="section level1" number="6">
 <h1><span class="header-section-number">6</span> Additional figures</h1>
