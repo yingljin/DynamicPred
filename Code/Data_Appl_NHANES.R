@@ -54,15 +54,15 @@ train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = m
 train_df$bin <- as.numeric(as.character(train_df$bin))
 
 # Step 2:  Local GLMM
-## fit model on the training set
 train_bin_lst <- split(train_df, f = train_df$bin)
+
 t1=Sys.time()
 df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
 t2= Sys.time()
 t2-t1 
 
-df_est_latent <- bind_rows(df_est_latent) 
 ## example estimated latent function
+df_est_latent <- bind_rows(df_est_latent) 
 rand_id <- sample(train_id, 4)
 df_est_latent %>% 
   filter(id %in% rand_id) %>%
@@ -76,58 +76,78 @@ df_est_latent %>%
 
 
 # FPCA
+
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
-head(uni_eta_hat)
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
                          nrow=length(train_id), 
                          ncol=n_bin, byrow = F) 
-fpca_mod <- fpca.face(mat_est_unique, argvals = mid_t, var=T, npc=4)
-ncol(fpca_mod$efunctions)
-fpca_mod$evalues
+# row index subject, column binned time
+
+t1 <- Sys.time()
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
+t2 <- Sys.time()
+t2-t1 
+
+data.frame(t = mid, fpca_mod$efunctions) %>%
+  rename(PC1 = X1, PC2=X2, PC3=X3) %>%
+  pivot_longer(2:4, names_to = "PC") %>%
+  ggplot()+
+  geom_line(aes(x=t, y=value, col = PC))+
+  labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
 
 # Re-evaluation
 ## grid extension
 p <- 3 # order of b splines 
 knots <- 35 # number of knots (same from FPCA model)
 knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
-knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
+knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
 
-B <- spline.des(knots = knots_values, x = mid_t, ord = p + 1,
+B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
                 outer.ok = TRUE)$design  # evaluate B-splines on binned grid
-Bnew <- spline.des(knots = knots_values, x = t, ord = p + 1,
+Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
                    outer.ok = TRUE)$design  # evaluate B-splines on original grid
 
-K
 df_phi <- matrix(NA, J, K) 
 for(k in 1:K){
   lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
   df_phi[,k] <- Bnew %*% coef(lm_mod)
 }# project binned eigenfunctions onto the original grid
 
+# plot
+df_pc1 <- data.frame(t=1:J,  df_phi) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3) %>%
+  pivot_longer(2:4, names_to = "PC") 
 
-plot(mid_t, fpca_mod$efunctions[,4], pch = ".")
-lines(t, df_phi[,4])
+df_pc2 <- data.frame(t = mid, fpca_mod$efunctions) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3) %>%
+  pivot_longer(2:4, names_to = "PC") 
 
-plot(mid_t, fpca_mod$mu, pch=".")
+left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
+  ggplot()+
+  geom_line(aes(x=t, y=value.x, col = PC), linewidth = 0.2)+
+  geom_point(aes(x=t, y=value.y, col = PC), na.rm = T, alpha = 0.5, size = 0.5)+
+  labs(x="Time", y="", title = "Re-evaluate eigenfunctions on the original grid")
 
 ## debias
-df_phi <- data.frame(sind = t, df_phi)
+df_phi <- data.frame(sind = 1:J, df_phi)
 colnames(df_phi) <- c("sind", paste0("phi", 1:K))
 train_df <- train_df %>% 
   left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
 
 t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(sind, bs="cc", k=10)+
+debias_glmm <- bam(Y ~ s(sind, bs="cc")+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
                      s(id, by=phi4, bs="re"), 
-                   family = binomial, data=train_df, 
+                   family = binomial, 
+                   data=train_df, 
                    method = "fREML",
                    discrete = TRUE)
 t2 <- Sys.time()
-t2-t1
+t2-t1 # 21 hours
+save(debias_glmm, file = here("Data/Appl_debias_model.RData"))
 
 
 new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
@@ -135,6 +155,7 @@ plot(t, new_mu)
 
 fpca_mod$evalues
 new_lambda <- 1/debias_glmm$sp # extract re-evaluated lambda
+# the same flip of 2nd and 3nd eigenvalues happened here as well
 fpca_mod$evalues[1:4]/new_lambda
 
 ## rescale

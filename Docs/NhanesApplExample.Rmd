@@ -15,7 +15,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-set.seed(121)
+set.seed(1114)
 
 library(here)
 library(tidyverse)
@@ -40,7 +40,7 @@ df <- read_rds(here("Data/nhanes_bi.rds"))
 # code
 source(here("Code/GLMM-FPCA.R")) 
 # use pred_latent function to estimate latent function 
-K <- 3
+K <- 4
 source(here("Code/OutsampBayes.R"))
 ```
 
@@ -55,7 +55,7 @@ df <- df %>% rename(id=SEQN, Y=Z)
 
 Ntr <- 1000
 
-train_id <- unique(df$id)[1:Ntr]
+train_id <- unique(df$id)[1:Ntr] # training sample size = 1000
 train_df <- df %>% filter(id %in% train_id)
 
 # additional parameters
@@ -124,14 +124,15 @@ fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
 t2 <- Sys.time()
 # t2-t1 
 
-# fpca_mod$evalues
+
+# fpca_mod$evalues/sum(fpca_mod$evalues)
 ```
 
 
 ```{r PC}
 data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1 = X1, PC2=X2, PC3=X3) %>%
-  pivot_longer(2:4, names_to = "PC") %>%
+  rename(PC1 = X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") %>%
   ggplot()+
   geom_line(aes(x=t, y=value, col = PC))+
   labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
@@ -171,12 +172,12 @@ Below presents the result of re-evaluation. Points are values of PC functions on
 
 ```{r}
 df_pc1 <- data.frame(t=1:J,  df_phi) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3) %>%
-  pivot_longer(2:4, names_to = "PC") 
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
 
 df_pc2 <- data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3) %>%
-  pivot_longer(2:4, names_to = "PC") 
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
 
 left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
   ggplot()+
@@ -202,32 +203,118 @@ t1 <- Sys.time()
 debias_glmm <- bam(Y ~ s(sind, bs="cc")+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
-                     s(id, by=phi3, bs="re"),
-                     # s(id, by=phi4, bs="re"), 
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"), 
                    family = binomial, 
                    data=train_df, 
                    method = "fREML",
                    discrete = TRUE)
 t2 <- Sys.time()
-# t2-t1 # 3.5 minutes
+# t2-t1 # 7.5 minutes
 ```
 
 It seems that the eigenvalues are still losing their decreasing nature. The eigenvalue corresponding to PC2 is still smaller than PC3. Specifically
 
-- The smoothing parameters from the mgcv::bam model: `r debias_glmm$sp[2:4]`
-- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r 1/debias_glmm$sp[2:4]`
-- The **biased** eigenvalues from FPCA (step 3): `r fpca_mod$evalues[1:3]`
+- The smoothing parameters from the mgcv::bam model: `r debias_glmm$sp[2:5]`
+- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r 1/debias_glmm$sp[2:5]`
+- The **biased** eigenvalues from FPCA (step 3): `r fpca_mod$evalues[1:4]`
 
 Also, the proportion of these two set of estimates is not constant, as below: 
 
 ```{r, class.source = 'fold-show'}
 # proportion of biased eigenvalues to re-evaluated eigenvalues
-fpca_mod$evalues/(1/debias_glmm$sp[2:4])
+fpca_mod$evalues/(1/debias_glmm$sp[2:5])
 ```
 
 
 
+### Percentage of variance explained by each PC
+
+We now that the variance of individual-specific random effects, in theory, is: 
+
+\[\begin{aligned}
+Var(b_i(t)) & = Var(\sum_{k=1}^K \xi_{ik}\phi_k(t)) \\
+& = \sum_{k=1}
+^K\phi_k(t)^2\lambda_k
+\end{aligned}\]
 
 
+Here I'd like to compare the variantion for each PC calculated using estimated from the **biased** FPCA estimates and the supposedly **debiased** from the dibased GLMM model. 
+
+```{r var_bi_fpca}
+df_pc_fpca <- data.frame(t = mid, fpca_mod$efunctions) %>%
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>% 
+  mutate(eval1=fpca_mod$evalues[1], 
+         eval2=fpca_mod$evalues[2], 
+         eval3=fpca_mod$evalues[3], 
+         eval4=fpca_mod$evalues[4]) %>%
+  mutate(var1 = eval1*PC1^2, var2 = eval2*PC2^2, var3 = eval3*PC3^2, var4 = eval4*PC4^2)
+
+```
 
 
+```{r var_bi_glmm}
+# re-evaluated eigenvalues
+evals_new <- 1/debias_glmm$sp[2:5]
+
+df_pc_glmm <- df_phi %>%
+  mutate(eval1=evals_new[1], 
+         eval2=evals_new[2], 
+         eval3=evals_new[3], 
+         eval4=evals_new[4]) %>%
+  mutate(var1 = eval1*phi1^2, var2 = eval2*phi2^2, var3 = eval3*phi3^2, var4 = eval4*phi4^2)
+```
+
+
+```{r pc_var}
+df_pc_fpca$est <- "FPCA"
+df_pc_glmm$est <- "Debias"
+
+bind_rows(
+  df_pc_fpca %>% select(t, starts_with("var"), est),
+  df_pc_glmm %>% select(sind, starts_with("var"), est) %>% rename(t=sind)
+) %>% 
+  rename(PC1=var1, PC2=var2, PC3=var3, PC4=var4) %>%
+  pivot_longer(2:5, names_to = "PC", values_to = "variance") %>%
+  ggplot()+
+  geom_line(aes(x=t, y=variance, col=est, group=est))+
+  facet_wrap(~PC)+
+  labs(title = "Time-varying variation of each PC")
+
+```
+
+Things I see from the plots above:
+
+1. PC1 basically has no effect in the earlier track. It explains variation later during the day
+2. PC2 seems to work primary at night and a bit earlier time interval from PC1
+3. PC2 and PC3 seems to have similar shape? In fact, I think PC4 has a similar shape as well
+
+
+I am also curious about how the individual scores change after debias
+
+```{r score_df}
+df_score_fpca <- data.frame(id = 1:Ntr, fpca_mod$scores) %>%
+  pivot_longer(2:5, names_to = "PC", values_to = "score") %>%
+  mutate(est = "FPCA")
+
+df_score_glmm <- data.frame(
+  id = 1:Ntr,
+  X1 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi1.")) %>% t(),
+  X2 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi2.")) %>% t(),
+  X3 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi3.")) %>% t(),
+  X4 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi4.")) %>% t()
+  ) %>%
+  pivot_longer(2:5, names_to = "PC", values_to = "score") %>%
+  mutate(est = "Debias")
+
+```
+
+```{r}
+bind_rows(df_score_fpca, df_score_glmm) %>%
+  ggplot(aes(x=est, y=score, col=est))+
+  geom_boxplot()+
+  geom_jitter(size = 0.2, alpha=0.5)+
+  facet_wrap(~PC, scales = "free_y")+
+  labs(title = "Score of each PC")
+
+```

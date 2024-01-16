@@ -706,30 +706,46 @@ ggarrange(
 
 # The second reference method:
 
-We would like to use a second reference method for predictive performance comparision. This would be a generalized function-on-function regression where the history records are used to predict a equal length of outcome. Formulation as follows:
-
-$$g(E[Y_i(t)]) = \beta_0(t) + \beta_1 (t)Y_i(s),\ s<t$$
-
-In this case, the outcome must be evaluated at the same time points as the covariate. That is, s and t must have the same number of measurement points. For example, if t is (0, 0.2], then s can be either (0.2, 0.4), (0.4, 0.6), (0.6, 0.8) or (0.8, 1).
-
-What to do when the history t is (0, 0.4)? How share we prediction on 0.2 windows including (0.4, 0.6), (0.6, 0.8) or (0.8, 1)? Does this mean we do not utilize the full observed track but instead only take the most recent subtrack (0.2, 0.4)? Such scenarios remains unclear. 
-
-As for the model fitting, I am not sure how to construct a function-on-function regression using bam or gam. While most functions I found in R does not account for the "generalized" part. At first glance, the model framework is the same as a regular functional regression model:
-
-$$g(E[Y_i(t)]) = \sum_{k}\xi_{k}\phi_k(t) + Y_i(t)\sum_{l}\zeta_{l}\phi_l(s),\ s<t$$
-
-so I fit a gam model where history is [0, 0.2) and future is [0.2, 0.4).
-
-
-```{r data_format, message=FALSE}
+```{r}
 load(here("Data/sim_data.RData"))
-
-# Let's start with a one-simulation example
 df_m <- sim_data[[1]]
-# class(df_m$Y)
-# df_m$Y <- as.factor(df_m$Y)
+df_m %>% filter(t>0.2 & t<=0.4)
+```
 
-# observation/prediction window 
+We would like to use a second reference method for predictive performance comparision. In this madel, predictions on a specific interval are all made using the last few observations in the observed window. For example, if we are given observations on [0, 0.2] (j = 1...200), we may use L observations taken right before t=0.2($t_j: j=200, ... 200-(L-1)$) as time-fixed covariate to predict any future time. 
+
+Let's write out the model expression (with questionable notation). If the observations if up to $t_m$, then: 
+
+\[\begin{aligned}
+g(E[Y_i(t)]) &= \beta_0(t) +\sum_{l=1}^L \beta_l (t)Y_i(t_l)\\
+l & = m,...m-(j-1)\\
+t &> t_m 
+\end{aligned}\]
+
+This is a simple function-on-scalar model with no random effect, meaning all subject with the same last observed outcome would have the same estimated/predicted latent track. This is clearly anti-intuitive. But adding random effects would make out-of-sample prediction impossible. 
+
+Under this framework, for each dataset we need to fit four models: 
+
+- Given 0-0.2, predict 0.2-1
+- Given 0-0.4, predict 0.4-1
+- Given 0-0.6, predict 0.6-1
+- Given 0-0.8, predict 0.8-1
+
+Below are some single dataset examples.
+
+## L = 1
+
+First let try to make prediction on an interval with only one historical observation (L = 1):
+
+\[\begin{aligned}
+g(E[Y_i(t)]) &= \beta_0(t) +\beta_1(t) Y_i(t_{m})\\
+t &> t_m 
+\end{aligned}\]
+
+```{r data_format}
+L <- 1 # number of observations to use as predictor
+
+# prediction window 
 windows <- seq(0, 1, by = 0.2)
 df_m$window <- cut(df_m$t, breaks=windows, labels = 1:5,
                        include.lowest = T)
@@ -739,74 +755,71 @@ N_train <- 500
 N_test <- 100
 train_df <- df_m %>% filter(id %in% 1:N_train)
 test_df <- df_m %>% filter(!id %in% 1:N_train)
-
-# put covariates and outcome together
-dfm1_tr <- train_df %>% filter(window==2) %>% 
-  rename(Yf=Y, tf=t) %>%
-  left_join(train_df %>% filter(window==1) %>% select(id, sind, t, Y) %>% 
-              mutate(sind=sind+200) %>%
-              rename(Yh=Y, th = t))
-
-dfm1_te <- test_df %>% filter(window==2) %>% 
-  rename(Yf=Y) %>%
-  left_join(test_df %>% filter(window==1) %>% select(id, sind, Y) %>% 
-              mutate(sind=sind+200) %>%
-              rename(Yh=Y))
-
-# class(dfm1_tr$Yh)
 ```
 
 
-```{r class.source='fold-show'}
-fitm1 <- bam(Yf ~ s(tf, bs="cc", k=20) + s(tf, bs="cc", k=20, by = Yh) , 
-                   family = binomial, data=dfm1_tr, 
+```{r fit_model, class.source='fold-show'}
+# format training data
+## given [0, 0.2], predictor would be
+y_obs_max <- train_df %>% filter(window==1) %>% arrange(desc(t)) %>%
+  group_by(id) %>%
+  slice(L) %>% select(id, Y) %>% rename(yl = Y)
+## to predict (0.2, 0.4), outcome:
+df_pred_tr <- train_df %>% filter(window!=1) %>%
+  left_join(y_obs_max, by = "id") %>% 
+  mutate_at(vars(Y, yl), as.factor)
+
+# model
+t1 <- Sys.time()
+fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
+                        s(t, bs="cc", k=20, by = yl),
+                   family = binomial, data=df_pred_tr, 
                    method = "fREML",
                    discrete = TRUE)
-summary(fitm1)
+t2 <- Sys.time()
+t2-t1
+
+summary(fit_gen_fosr)
 ```
 
-However, the prediction result of this model is very wired. Below is the in-sample estimation of latent process. I am not sure if this is because of a wrong design matrix or ignoring the individual random effect. 
+```{r est_train}
+# estimation on the training set
+df_pred_tr$eta_est <- predict(fit_gen_fosr, type = "link")
 
-
-```{r}
-dfm1_tr$eta_est <- predict(fitm1, newdata = dfm1_tr, type = "link")
-dfm1_tr %>% filter(id %in% 1:4) %>% 
-  mutate_at(vars(eta_i, eta_est), inv.logit) %>%
+df_pred_tr %>%
+  mutate_at(vars(eta_est, eta_i), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %>%
+  filter(id %in% 1:4) %>%
   ggplot()+
-  geom_line(aes(x=tf, y=eta_i, col = "true"))+
-  geom_line(aes(x=tf, y=eta_est, col = "pred"))+
-  facet_wrap(~id)
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=eta_est, col = "estimate"))+
+  geom_line(aes(x=t, y=eta_i, col = "ture"))+
+  facet_wrap(~id)+
+  labs(title = "In-sample estimation")
 ```
 
-Thinking about the two problems above, perhaps I would want to use the following framework instead. This framework doesn't require same density of s and t. But I am not sure how to construct the design matrix for this.
+```{r pred_test}
+# format testing data
+df_pred_te <- test_df %>% filter(window!=1) %>%
+  left_join(test_df %>% 
+              filter(window==1) %>% arrange(desc(t)) %>% group_by(id) %>%
+              slice(L) %>% select(id, Y) %>% rename(yl = Y),
+            by = "id") %>% 
+  mutate_at(vars(Y, yl), as.factor)
 
-$$g(E[Y_i(t)]) = \beta_0(t) + \int_{s}\beta_1(t, s)Y_i(s), \ s<t$$
+# predict using the FOSR model fit above
+df_pred_te$eta_est <- predict(fit_gen_fosr, newdata = df_pred_te, type = "link")
 
-or 
-
-$$g(E[Y_i(t)]) = \beta_0(t) + F(Y_i(s), s, t), \ s<t$$
-
-Perhaps I can try using [refund::ff](https://rdrr.io/cran/refund/man/ff.html)
-
-```{r class.source='fold-show', error=TRUE}
-library(refund)
-
-th <- unique(dfm1_tr$th)
-tf <- unique(dfm1_tr$tf)
-
-Yhmat <- matrix(dfm1_tr$Yh, nrow=N_train, ncol = length(th), byrow = T)
-
-Yhmat2 <- Yhmat[rep(1:N_train, each = length(th)), ]
-Yf <- dfm1_tr$Yf
-# length(Yf)
-# dim(Yhmat2)
-
-fitm1 <- fgam(Yf ~ s(tf, bs="cc", k=10) + af(Yhmat2, argvals=th) , 
-                   family = binomial())
-# I couldn't get this function to work
-# I think for each observation in the future, all of the history is used as predictor
-# therefore the whole historical function is repeatedly used for each subject?
-
+df_pred_te %>%
+  mutate_at(vars(eta_est, eta_i), function(x){exp(x)/(1+exp(x))}) %>%
+  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %>%
+  filter(id %in% rand_id) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.5)+
+  geom_line(aes(x=t, y=eta_est, col = "estimate"))+
+  geom_line(aes(x=t, y=eta_i, col = "ture"))+
+  facet_wrap(~id)+
+  labs(title = "Out-of-sample prediction")
 
 ```
 

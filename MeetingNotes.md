@@ -31,7 +31,16 @@ g(E[Y_i(s)|Y_i(t), t<s]) = \beta_0(s) + \beta_1 (s)* Y_i(t) for s > t
 Qeustions:
 1. Essentially, what is the difference between treating Y as a series of binary values or a function?
 
+# 24/1/11
+Data application
+1. Run on the whole data and see what happens with eigenvalues
+2. Percentage variance explained by each PC and time domain
 
+--- Ask for the paper where conclusion lambda = 1/sp
+--- What happened to the fGFPCA paper estiamtes? 
+
+2nd reference method
+1. Actually, for each interval, use the observation immediately before the start of the interval as a time-fixed observation. All predictions will be made based on this single observation. This is a function-on-scalar regression
 
 
 
