@@ -772,8 +772,8 @@ df_pred_tr <- train_df %>% filter(window!=1) %>%
 
 # model
 t1 <- Sys.time()
-fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
-                        s(t, bs="cc", k=20, by = yl),
+fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+                        s(t, bs="cr", k=20, by = yl),
                    family = binomial, data=df_pred_tr, 
                    method = "fREML",
                    discrete = TRUE)
@@ -844,8 +844,8 @@ for(w in 1:4){
     left_join(y_obs_max, by = "id") %>% 
     mutate_at(vars(Y, yl), as.factor)
   # model 
-  fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
-                        s(t, bs="cc", k=20, by = yl),
+  fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+                        s(t, bs="cr", k=20, by = yl),
                    family = binomial, data=df_pred_tr, 
                    method = "fREML",
                    discrete = TRUE)
@@ -905,12 +905,12 @@ for(w in 1:4){
   df_pred_tr <- train_df %>% filter(window > w) %>%
     left_join(y_obs_max, by = "id") %>% 
     mutate_at(vars(Y, starts_with("yl")), as.factor) 
-  fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
-                        s(t, bs="cc", k=20, by = yl5)+
-                        s(t, bs="cc", k=20, by = yl4)+
-                        s(t, bs="cc", k=20, by = yl3)+
-                        s(t, bs="cc", k=20, by = yl2)+
-                        s(t, bs="cc", k=20, by = yl1),
+  fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+                        s(t, bs="cr", k=20, by = yl5)+
+                        s(t, bs="cr", k=20, by = yl4)+
+                        s(t, bs="cr", k=20, by = yl3)+
+                        s(t, bs="cr", k=20, by = yl2)+
+                        s(t, bs="cr", k=20, by = yl1),
                    family = binomial, data=df_pred_tr, 
                    method = "fREML",
                    discrete = TRUE)
@@ -993,7 +993,8 @@ colnames(tb_ies_l1) <- colnames(tb_ies_l5) <- c("0.2", "0.4", "0.6", "0.8")
 ```{r}
 data.frame(Window = c("(0.2,0.4]", "(0.4,0.6]", "(0.6,0.8]", "(0.8, 1.0]"),
            tb_ies_l1, tb_ies_l5, check.names = F) %>%
-  kable(digits = 3, caption = "Integrated squared error", booktabs = T) %>%
+  kable(digits = 3, caption = "Integrated squared error", booktabs = T,
+        table.attr = "style = \"color: black;\"") %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" "=1, "L = 1" = 4, "L = 5" = 4)) %>%
   add_header_above(c(" "= 1, "Observation track" = 8))

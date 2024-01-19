@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-01-16" />
+<meta name="date" content="2024-01-19" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-01-16</h4>
+<h4 class="date">2024-01-19</h4>
 
 </div>
 
@@ -1781,36 +1781,37 @@ df_pred_tr &lt;- train_df %&gt;% filter(window!=1) %&gt;%
 
 # model
 t1 &lt;- Sys.time()
-fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cc&quot;, k=20) + 
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl),
+fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=20) + 
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl),
                    family = binomial, data=df_pred_tr, 
                    method = &quot;fREML&quot;,
                    discrete = TRUE)
 t2 &lt;- Sys.time()
 t2-t1</code></pre>
-<pre><code>## Time difference of 0.721633 secs</code></pre>
+<pre><code>## Time difference of 0.79983 secs</code></pre>
 <pre class="r fold-show"><code>summary(fit_gen_fosr)</code></pre>
 <pre><code>## 
 ## Family: binomial 
 ## Link function: logit 
 ## 
 ## Formula:
-## Y ~ s(t, bs = &quot;cc&quot;, k = 20) + s(t, bs = &quot;cc&quot;, k = 20, by = yl)
+## Y ~ s(t, bs = &quot;cr&quot;, k = 20) + s(t, bs = &quot;cr&quot;, k = 20, by = yl)
 ## 
 ## Parametric coefficients:
 ##              Estimate Std. Error z value Pr(&gt;|z|)
-## (Intercept) -0.001258   0.003210  -0.392    0.695
+## (Intercept) -0.001354   0.003211  -0.422    0.673
 ## 
 ## Approximate significance of smooth terms:
-##               edf Ref.df    Chi.sq  p-value    
-## s(t)      0.06865     18 4.200e-02 1.63e-05 ***
-## s(t):yl0 15.69535     18 6.850e+06  &lt; 2e-16 ***
-## s(t):yl1 13.60727     18 3.671e+06  &lt; 2e-16 ***
+##              edf   Ref.df   Chi.sq p-value    
+## s(t)     0.05307  0.06663    0.001   0.977    
+## s(t):yl0 8.54888 10.51629 3904.461  &lt;2e-16 ***
+## s(t):yl1 9.61523 11.75471 2594.975  &lt;2e-16 ***
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
-## R-sq.(adj) =  0.029   Deviance explained = 2.11%
-## fREML = 6.3905e+05  Scale est. = 1         n = 400000</code></pre>
+## Rank: 57/58
+## R-sq.(adj) =  0.0296   Deviance explained = 2.15%
+## fREML = 6.3891e+05  Scale est. = 1         n = 400000</code></pre>
 <pre class="r"><code># estimation on the training set
 df_pred_tr$eta_est &lt;- predict(fit_gen_fosr, type = &quot;link&quot;)
 
@@ -1869,8 +1870,8 @@ for(w in 1:4){
     left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
     mutate_at(vars(Y, yl), as.factor)
   # model 
-  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cc&quot;, k=20) + 
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl),
+  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=20) + 
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl),
                    family = binomial, data=df_pred_tr, 
                    method = &quot;fREML&quot;,
                    discrete = TRUE)
@@ -1923,12 +1924,12 @@ for(w in 1:4){
   df_pred_tr &lt;- train_df %&gt;% filter(window &gt; w) %&gt;%
     left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
     mutate_at(vars(Y, starts_with(&quot;yl&quot;)), as.factor) 
-  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cc&quot;, k=20) + 
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl5)+
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl4)+
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl3)+
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl2)+
-                        s(t, bs=&quot;cc&quot;, k=20, by = yl1),
+  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=20) + 
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl5)+
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl4)+
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl3)+
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl2)+
+                        s(t, bs=&quot;cr&quot;, k=20, by = yl1),
                    family = binomial, data=df_pred_tr, 
                    method = &quot;fREML&quot;,
                    discrete = TRUE)
@@ -1998,11 +1999,12 @@ tb_ies_l1 &lt;- test_df %&gt;%
 colnames(tb_ies_l1) &lt;- colnames(tb_ies_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
 <pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
            tb_ies_l1, tb_ies_l5, check.names = F) %&gt;%
-  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs = T) %&gt;%
+  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs = T,
+        table.attr = &quot;style = \&quot;color: black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
   add_header_above(c(&quot; &quot;=1, &quot;L = 1&quot; = 4, &quot;L = 5&quot; = 4)) %&gt;%
   add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <caption>
 Integrated squared error
 </caption>
@@ -2066,7 +2068,7 @@ Window
 (0.2,0.4]
 </td>
 <td style="text-align:right;">
-348.343
+347.027
 </td>
 <td style="text-align:right;">
 </td>
@@ -2075,7 +2077,7 @@ Window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-306.978
+304.100
 </td>
 <td style="text-align:right;">
 </td>
@@ -2089,20 +2091,20 @@ Window
 (0.4,0.6]
 </td>
 <td style="text-align:right;">
-285.238
+285.249
 </td>
 <td style="text-align:right;">
-252.385
+249.844
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-274.415
+274.051
 </td>
 <td style="text-align:right;">
-213.787
+209.148
 </td>
 <td style="text-align:right;">
 </td>
@@ -2114,24 +2116,24 @@ Window
 (0.6,0.8]
 </td>
 <td style="text-align:right;">
-278.837
+278.855
 </td>
 <td style="text-align:right;">
-308.303
+308.348
 </td>
 <td style="text-align:right;">
-298.876
+297.257
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-241.906
+241.598
 </td>
 <td style="text-align:right;">
-291.673
+291.369
 </td>
 <td style="text-align:right;">
-241.131
+236.536
 </td>
 <td style="text-align:right;">
 </td>
@@ -2141,28 +2143,28 @@ Window
 (0.8, 1.0]
 </td>
 <td style="text-align:right;">
-326.627
+324.049
 </td>
 <td style="text-align:right;">
-342.585
+338.808
 </td>
 <td style="text-align:right;">
-349.281
+348.584
 </td>
 <td style="text-align:right;">
-347.882
+346.941
 </td>
 <td style="text-align:right;">
-306.177
+302.110
 </td>
 <td style="text-align:right;">
-311.937
+302.478
 </td>
 <td style="text-align:right;">
-366.169
+365.062
 </td>
 <td style="text-align:right;">
-337.832
+336.012
 </td>
 </tr>
 </tbody>
