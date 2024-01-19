@@ -43,4 +43,13 @@ Data application
 1. Actually, for each interval, use the observation immediately before the start of the interval as a time-fixed observation. All predictions will be made based on this single observation. This is a function-on-scalar regression
 
 
+# 24/1/18
+1. Send Andrew the NHANES document, with summary statistics and histograms of score distribution
+- The score for PC3 is very skewed (negatively) on binned data. It may have drawn variation from the night time. 
+- Also, report variantion explained by each PC
+- Ask Suni about the conclusion linking eigenvalues and smoothing parameters. 
+
+
+
+
 

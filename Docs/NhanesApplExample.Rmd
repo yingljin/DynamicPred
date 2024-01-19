@@ -29,6 +29,7 @@ library(mvtnorm)
 library(mgcv)
 library(splines)
 library(LaplacesDemon)
+library(arsenal)
 theme_set(theme_minimal())
 ```
 
@@ -109,7 +110,6 @@ df_est_latent %>%
 
 # Step 3: FPCA
 
-Follow up on the email yesterday, we would like to see what would happen if we only take the first **three** PC functions. 
 
 ```{r}
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
@@ -138,8 +138,7 @@ data.frame(t = mid, fpca_mod$efunctions) %>%
   labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
 ```
 
-- Eigenvalues: `r fpca_mod$evalues`
-- Proportion of variance explained with four PCs: `r fpca_mod$pve`
+- Proportion of variance explained with four PCs: `r round(fpca_mod$pve, 3)`
 
 
 # Step 4: Re-evaluation
@@ -190,7 +189,6 @@ left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
 
 ## Debias the eigenvalues with GLMM
 
-Again, here we use the three PC functions in the random effect part. 
 
 ```{r revaluation}
 df_phi <- data.frame(sind = 1:J, df_phi)
@@ -198,9 +196,12 @@ colnames(df_phi) <- c("sind", paste0("phi", 1:K))
 train_df <- train_df %>% 
   left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
+```
 
+
+```{r, class.source='fold-show'}
 t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(sind, bs="cc")+
+debias_glmm <- bam(Y ~ s(sind, bs="cr")+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
@@ -210,27 +211,21 @@ debias_glmm <- bam(Y ~ s(sind, bs="cc")+
                    method = "fREML",
                    discrete = TRUE)
 t2 <- Sys.time()
-# t2-t1 # 7.5 minutes
+# t2-t1 # less than 7.5 minutes
 ```
 
-It seems that the eigenvalues are still losing their decreasing nature. The eigenvalue corresponding to PC2 is still smaller than PC3. Specifically
+It seems that the re-evaluated eigenvalues lost their decreasing nature. The eigenvalue corresponding to PC2 is smaller than PC3. Specifically
 
-- The smoothing parameters from the mgcv::bam model: `r debias_glmm$sp[2:5]`
-- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r 1/debias_glmm$sp[2:5]`
-- The **biased** eigenvalues from FPCA (step 3): `r fpca_mod$evalues[1:4]`
+- The smoothing parameters from the mgcv::bam model: `r round(debias_glmm$sp[2:5], 4)`
 
-Also, the proportion of these two set of estimates is not constant, as below: 
+- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r round(1/debias_glmm$sp[2:5], 3)`
+- The **biased** eigenvalues from FPCA (step 3): `r round(fpca_mod$evalues[1:4], 3)`
 
-```{r, class.source = 'fold-show'}
-# proportion of biased eigenvalues to re-evaluated eigenvalues
-fpca_mod$evalues/(1/debias_glmm$sp[2:5])
-```
+Below I try to investigate the cause of this problem. 
 
+### Variance explained by each PC
 
-
-### Percentage of variance explained by each PC
-
-We now that the variance of individual-specific random effects, in theory, is: 
+The variance of individual-specific random effects, in theory, is: 
 
 \[\begin{aligned}
 Var(b_i(t)) & = Var(\sum_{k=1}^K \xi_{ik}\phi_k(t)) \\
@@ -239,7 +234,7 @@ Var(b_i(t)) & = Var(\sum_{k=1}^K \xi_{ik}\phi_k(t)) \\
 \end{aligned}\]
 
 
-Here I'd like to compare the variantion for each PC calculated using estimated from the **biased** FPCA estimates and the supposedly **debiased** from the dibased GLMM model. 
+Here I'd like to compare the variation from each PC calculated using estimated from the **biased** FPCA estimates (binned grid) and the supposedly **debiased** from the dibased GLMM model (original grid). 
 
 ```{r var_bi_fpca}
 df_pc_fpca <- data.frame(t = mid, fpca_mod$efunctions) %>%
@@ -279,7 +274,8 @@ bind_rows(
   ggplot()+
   geom_line(aes(x=t, y=variance, col=est, group=est))+
   facet_wrap(~PC)+
-  labs(title = "Time-varying variation of each PC")
+  labs(title = "Time-varying variation of each PC", x="Time", y = "Variation",
+       col = "")
 
 ```
 
@@ -289,8 +285,9 @@ Things I see from the plots above:
 2. PC2 seems to work primary at night and a bit earlier time interval from PC1
 3. PC2 and PC3 seems to have similar shape? In fact, I think PC4 has a similar shape as well
 
+### Estimates of score
 
-I am also curious about how the individual scores change after debias
+I am also curious about how the individual score estimates change after debias
 
 ```{r score_df}
 df_score_fpca <- data.frame(id = 1:Ntr, fpca_mod$scores) %>%
@@ -307,14 +304,45 @@ df_score_glmm <- data.frame(
   pivot_longer(2:5, names_to = "PC", values_to = "score") %>%
   mutate(est = "Debias")
 
+df_score <- bind_rows(df_score_fpca, df_score_glmm) %>%
+  mutate(PC = gsub("X", "PC", PC)) 
 ```
 
-```{r}
-bind_rows(df_score_fpca, df_score_glmm) %>%
+```{r score_box}
+df_score %>%
   ggplot(aes(x=est, y=score, col=est))+
   geom_boxplot()+
   geom_jitter(size = 0.2, alpha=0.5)+
   facet_wrap(~PC, scales = "free_y")+
-  labs(title = "Score of each PC")
+  labs(title = "Score estimates of each PC", x = "", y="Score estimates",
+       col = "")
 
 ```
+
+```{r score_hist}
+df_score %>% 
+  ggplot()+
+  geom_histogram(aes(x=score), bins = 100)+
+  facet_grid(rows = vars(PC), cols = vars(est), scales = "free")+
+  labs(title = "Distribution of score estimates", x = "Score estimates",
+       y= "")
+
+```
+
+From figures above, the score estimates on the binned grid (FPCA) of the 3rd PC is quite skewed negatively (and the 2nd PC slightly positively?)
+
+Below are summary statistics 
+
+```{r score_sum_stat}
+df_score %>%
+  pivot_wider(names_from = PC, values_from = score) %>%
+  tableby(est ~ PC1 + PC2 + PC3 + PC4, data = .,
+          control = tableby.control(total = F, 
+                                    test = F)) %>% 
+  summary() %>% 
+  kable(table.attr = "style = \"color: black;\"", escape =F) %>% 
+  kable_styling(full_width = F)
+ 
+```
+
+
