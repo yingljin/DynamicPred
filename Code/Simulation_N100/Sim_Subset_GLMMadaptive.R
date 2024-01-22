@@ -18,7 +18,7 @@ library(splines)
 
 
 
-#### load simulated data ####
+#### load and reduce simulated data ####
 
 load(here("Data/sim_data.RData"))
 

@@ -78,12 +78,12 @@ for(m in 1:M){
     df_pred_tr <- train_df %>% filter(window > w) %>%
       left_join(y_obs_max, by = "id") %>% 
       mutate_at(vars(Y, starts_with("yl")), as.factor) 
-    fit_gen_fosr <- bam(Y ~ s(t, bs="cc", k=20) + 
-                          s(t, bs="cc", k=20, by = yl5)+
-                          s(t, bs="cc", k=20, by = yl4)+
-                          s(t, bs="cc", k=20, by = yl3)+
-                          s(t, bs="cc", k=20, by = yl2)+
-                          s(t, bs="cc", k=20, by = yl1),
+    fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+                          s(t, bs="cr", k=20, by = yl5)+
+                          s(t, bs="cr", k=20, by = yl4)+
+                          s(t, bs="cr", k=20, by = yl3)+
+                          s(t, bs="cr", k=20, by = yl2)+
+                          s(t, bs="cr", k=20, by = yl1),
                         family = binomial, data=df_pred_tr, 
                         method = "fREML",
                         discrete = TRUE)
@@ -114,7 +114,7 @@ for(m in 1:M){
 
 close(pb)
 
-save(pred_list_gfofr, t_vec_gfofr, file = here("SimOutput_GFOSR.RData"))
+save(pred_list_gfofr, t_vec_gfofr, file = here("Data/SimOutput_GFOSR_L5.RData"))
 
 pred_list_gfofr[[197]] %>%
   filter(t>0.55 & t<0.65)
