@@ -45,7 +45,8 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 
 N_train <- 500 # training sample size
 N_test <- 100 # testing sample szie 
-L <- 5 # number of last observations used as time-fixed predictor
+# L <- 5 # number of last observations used as time-fixed predictor
+L <- 1
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 #### Simulation ####
@@ -78,11 +79,16 @@ for(m in 1:M){
     df_pred_tr <- train_df %>% filter(window > w) %>%
       left_join(y_obs_max, by = "id") %>% 
       mutate_at(vars(Y, starts_with("yl")), as.factor) 
+    # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+    #                       s(t, bs="cr", k=20, by = yl5)+
+    #                       s(t, bs="cr", k=20, by = yl4)+
+    #                       s(t, bs="cr", k=20, by = yl3)+
+    #                       s(t, bs="cr", k=20, by = yl2)+
+    #                       s(t, bs="cr", k=20, by = yl1),
+    #                     family = binomial, data=df_pred_tr, 
+    #                     method = "fREML",
+    #                     discrete = TRUE)
     fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
-                          s(t, bs="cr", k=20, by = yl5)+
-                          s(t, bs="cr", k=20, by = yl4)+
-                          s(t, bs="cr", k=20, by = yl3)+
-                          s(t, bs="cr", k=20, by = yl2)+
                           s(t, bs="cr", k=20, by = yl1),
                         family = binomial, data=df_pred_tr, 
                         method = "fREML",
@@ -114,10 +120,20 @@ for(m in 1:M){
 
 close(pb)
 
-save(pred_list_gfofr, t_vec_gfofr, file = here("Data/SimOutput_GFOSR_L5.RData"))
+save(pred_list_gfofr, t_vec_gfofr, file = here("Data/SimOutput_GFOSR_L1.RData"))
 
-pred_list_gfofr[[197]] %>%
+pred_list_gfofr[[399]] %>%
   filter(t>0.55 & t<0.65)
   View()
+  
+pred_list_gfofr[[399]] %>% filter(id %in% c(501, 511, 521, 531)) %>% 
+    ggplot()+
+    geom_point(aes(x=t, y=Y))+
+    geom_line(aes(x=t, y=plogis(eta_i), col = "red"))+
+    geom_line(aes(x=t, y=plogis(pred_w1), col = "w1"))+
+    geom_line(aes(x=t, y=plogis(pred_w2), col = "w2"))+
+    geom_line(aes(x=t, y=plogis(pred_w3), col = "w3"))+
+    geom_line(aes(x=t, y=plogis(pred_w4), col = "w4"))+
+    facet_wrap(~id)
 
 # test_df %>% filter(sind > 400)

@@ -53,7 +53,8 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 
 #### model set up ####
 
-L <- 5 # number of last observations used as time-fixed predictor
+L <- 1
+# L <- 5 # number of last observations used as time-fixed predictor
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 
@@ -88,13 +89,18 @@ for(m in 1:M){
     df_pred_tr <- train_df %>% filter(window > w) %>%
       left_join(y_obs_max, by = "id") %>% 
       mutate_at(vars(Y, starts_with("yl")), as.factor) 
-    fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
-                          s(t, bs="cr", k=20, by = yl5)+
-                          s(t, bs="cr", k=20, by = yl4)+
-                          s(t, bs="cr", k=20, by = yl3)+
-                          s(t, bs="cr", k=20, by = yl2)+
+    # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
+    #                       s(t, bs="cr", k=20, by = yl5)+
+    #                       s(t, bs="cr", k=20, by = yl4)+
+    #                       s(t, bs="cr", k=20, by = yl3)+
+    #                       s(t, bs="cr", k=20, by = yl2)+
+    #                       s(t, bs="cr", k=20, by = yl1),
+    #                     family = binomial, data=df_pred_tr,
+    #                     method = "fREML",
+    #                     discrete = TRUE)
+    fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
                           s(t, bs="cr", k=20, by = yl1),
-                        family = binomial, data=df_pred_tr, 
+                        family = binomial, data=df_pred_tr,
                         method = "fREML",
                         discrete = TRUE)
     
@@ -125,7 +131,7 @@ for(m in 1:M){
 close(pb)
 
 save(pred_list_gfofr_subset, t_vec_gfofr_subset, 
-     file = here("Data/SubSimOutput_GFOSR_L5.RData"))
+     file = here("Data/SubSimOutput_GFOSR_L1.RData"))
 
 pred_list_gfofr_subset[[375]] %>% 
   filter(t>0.55 & t<0.65) %>% View()
