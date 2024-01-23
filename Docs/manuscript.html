@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-01-19" />
+<meta name="date" content="2024-01-22" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-01-19</h4>
+<h4 class="date">2024-01-22</h4>
 
 </div>
 
@@ -309,9 +309,6 @@ class="math inline">\(t_{m_s}\)</span></li>
 <li>Bin endpoints: <span class="math inline">\((t_{m_s}-\frac{w}{2},
 t_{m_s}+\frac{w}{2}]\)</span></li>
 </ul>
-<pre class="r"><code>grid_exp &lt;- data.frame(t = seq(0, 1, by = 0.01), y = 0)
-ggplot(grid_exp, aes(x=t, y=y))+
-  geom_point(size = 0.5)</code></pre>
 </div>
 <div id="local-glmms" class="section level3" number="1.3.2">
 <h3><span class="header-section-number">1.3.2</span> Local GLMMs</h3>
@@ -396,11 +393,69 @@ class="math inline">\(\xi_{uk}\)</span> through quadratic
 approximation.</p>
 </div>
 </div>
-<div id="larger-scale-simulation" class="section level1" number="2">
-<h1><span class="header-section-number">2</span> Larger-scale
+<div id="reference-method" class="section level1" number="2">
+<h1><span class="header-section-number">2</span> Reference method</h1>
+<div id="glmmadaptive" class="section level2" number="2.1">
+<h2><span class="header-section-number">2.1</span> GLMMadaptive</h2>
+<ul>
+<li>For large datasets, we can fit a model with random intercept and
+slope for time. It is doable on 500 datasets, but obviously too simple
+for the data generation scheme. We would expect it to perform
+terribly.</li>
+</ul>
+<p><span class="math display">\[g(E(Y_i(t))) =
+\beta_0+\beta_1t+b_{i0}+b_{i1}t\]</span></p>
+<ul>
+<li>For small datasets, we would like to fit fGFPCA and GLMMadaptive on
+a dataset with smaller sample size and/or smaller measurement density.
+For the GLMMadaptive model, we would set it up with spline basis
+functions so that its flexibility is comparable with fGFPCA model, such
+as:</li>
+</ul>
+<p><span class="math display">\[g(E(Y_i(t))) =
+\sum_{k=1}^4\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)\]</span></p>
+</div>
+<div id="generalized-functional-on-scalar-regression"
+class="section level2" number="2.2">
+<h2><span class="header-section-number">2.2</span> Generalized
+functional-on-scalar regression</h2>
+<p>We would like to use a second reference method for predictive
+performance comparision. In this model, predictions on a specific
+interval are all made using the last few observations in the observed
+window. For example, if we are given observations on [0, 0.2] (j =
+1…200), we may use L observations taken right before t=0.2 (<span
+class="math inline">\(t_j: j=200, ... 200-(L-1)\)</span>) as time-fixed
+covariate to predict any future time.</p>
+<p>Let’s write out the model expression (with questionable notation). If
+the observations if up to <span class="math inline">\(t_m\)</span>,
+then:</p>
+<p><span class="math display">\[\begin{aligned}
+g(E[Y_i(t)]) &amp;= \beta_0(t) +\sum_{l=1}^L \beta_l (t)Y_i(t_l)\\
+l &amp; = m,...m-(j-1)\\
+t &amp;&gt; t_m
+\end{aligned}\]</span></p>
+<p>This is a simple function-on-scalar model with no random effect,
+meaning all subject with the same last observed outcome would have the
+same estimated/predicted latent track. This is clearly anti-intuitive.
+But adding random effects would make out-of-sample prediction
+impossible.</p>
+<p>Under both frameworks, for each dataset we need to fit four models
+(similar to the GLMMadaptive method):</p>
+<ul>
+<li>Given 0-0.2, predict 0.2-1</li>
+<li>Given 0-0.4, predict 0.4-1</li>
+<li>Given 0-0.6, predict 0.6-1</li>
+<li>Given 0-0.8, predict 0.8-1</li>
+</ul>
+<p>But prediction performance will be reported by equal-length time
+window.</p>
+</div>
+</div>
+<div id="larger-scale-simulation" class="section level1" number="3">
+<h1><span class="header-section-number">3</span> Larger-scale
 simulation</h1>
-<div id="simulation-set-up" class="section level2" number="2.1">
-<h2><span class="header-section-number">2.1</span> Simulation set
+<div id="simulation-set-up" class="section level2" number="3.1">
+<h2><span class="header-section-number">3.1</span> Simulation set
 up</h2>
 <p>Here we simulate binary data from cyclic latent process:</p>
 <p><span class="math display">\[\begin{aligned}
@@ -422,30 +477,21 @@ k = 1, 2, 3, 4 respectively.</li>
 <li>In the binning step, we bin every 10 observations</li>
 <li>500 simulations were implemented</li>
 </ul>
-<pre class="r"><code>rand_id &lt;- sample(501:600, size = 4)
-pred_list_all[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), show.legend = F)+
-  facet_wrap(~id)+
-  labs(title = &quot;Simulated data&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))</code></pre>
-<p><img src="manuscript_files/figure-html/fig_sim_data-1.png" width="672" /></p>
 </div>
-<div id="reference-method" class="section level2" number="2.2">
-<h2><span class="header-section-number">2.2</span> Reference method</h2>
-<ul>
-<li>GLMMadaptive</li>
-<li>Here we can fit a model with random intercept and slope for time. It
-is doable on 500 datasets, but obviously too simple for the data
-generation scheme. We would expect it to perform terribly.</li>
-</ul>
-<p><span class="math display">\[g(E(Y_i(t))) =
-\beta_0+\beta_1t+b_{i0}+b_{i1}t\]</span></p>
-</div>
-<div id="figure" class="section level2" number="2.3">
-<h2><span class="header-section-number">2.3</span> Figure</h2>
+<div id="figure" class="section level2" number="3.2">
+<h2><span class="header-section-number">3.2</span> Figure</h2>
+<pre class="r"><code>load(here(&quot;Data/SimOutput_fGFPCA.RData&quot;))
+load(here(&quot;Data/SimOutput_GLMMadaptive.RData&quot;))
+load(here(&quot;Data/SimOutput_GFOSR_L1.RData&quot;))
+pred_list_gfosr_l1 &lt;- pred_list_gfofr
+t_vec_gfosr_l1 &lt;- t_vec_gfofr
+rm(pred_list_gfofr, t_vec_gfofr)
+load(here(&quot;Data/SimOutput_GFOSR_L5.RData&quot;))
+pred_list_gfosr_l5 &lt;- pred_list_gfofr
+t_vec_gfosr_l5 &lt;- t_vec_gfofr
+rm(pred_list_gfofr, t_vec_gfofr)
+
+rand_id &lt;- sample(501:600, size = 2)</code></pre>
 <pre class="r"><code># range(pred_list_all[[1]]$pred0.2, na.rm = T)
 fig_fgfpca &lt;- pred_list_all[[1]] %&gt;%
   filter(id %in% rand_id) %&gt;%
@@ -457,10 +503,11 @@ fig_fgfpca &lt;- pred_list_all[[1]] %&gt;%
   geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;)+
+  facet_wrap(~id, nrow = 1)+
+  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5))
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))
 
 fig_adglmm &lt;- pred_list_ref[[1]] %&gt;%
   filter(id %in% rand_id) %&gt;%
@@ -472,23 +519,59 @@ fig_adglmm &lt;- pred_list_ref[[1]] %&gt;%
   geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id)+
-  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;)+
+  facet_wrap(~id, nrow = 1)+
+  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;, 
+       x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5))</code></pre>
-<pre class="r"><code>ggarrange(fig_fgfpca, fig_adglmm,
-          nrow = 1, common.legend = T)</code></pre>
-<p><img src="manuscript_files/figure-html/fig_sim-1.png" width="768" /></p>
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))
+
+fig_gfosr_l1 &lt;- pred_list_gfosr_l1[[1]] %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id, nrow = 1)+
+  labs(title = &quot;GFOSR (L=1)&quot;, col = &quot;Maximum observation time&quot;,
+       x=&quot;Time&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))
+
+fig_gfosr_l5 &lt;- pred_list_gfosr_l5[[1]] %&gt;%
+  filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id, nrow = 1)+
+  labs(title = &quot;GFOSR (L=5)&quot;, col = &quot;Maximum observation time&quot;,
+       x=&quot;Time&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))</code></pre>
+<pre class="r"><code>ggarrange(fig_fgfpca, fig_adglmm, fig_gfosr_l1, fig_gfosr_l5,
+          ncol = 1, common.legend = T)</code></pre>
+<p><img src="manuscript_files/figure-html/fig_sim-1.png" width="480" /></p>
 </div>
-<div id="ise" class="section level2" number="2.4">
-<h2><span class="header-section-number">2.4</span> ISE</h2>
+<div id="ise" class="section level2" number="3.3">
+<h2><span class="header-section-number">3.3</span> ISE</h2>
 <pre class="r"><code>## ISE container 
-ise_mat &lt;- ise_mat_ref &lt;- array(NA, 
-                                dim = c(length(window)-2, length(window)-2, M))
+ise_fgfpca &lt;- ise_adglmm &lt;- ise_gfosr_l1 &lt;- ise_gfosr_l5 &lt;- 
+  array(NA, dim = c(length(window)-2, length(window)-2, M))
 # dims: prediction window, max obs time, simulation iter</code></pre>
 <pre class="r"><code>## calculation
 for(m in 1:M){
-  this_df &lt;- pred_list_all[[m]]
+  # this_df &lt;- pred_list_all[[m]]
   ise_tb &lt;- pred_list_all[[m]] %&gt;%
     mutate(err1 = (pred0.2-eta_i)^2,
            err2 = (pred0.4-eta_i)^2,
@@ -502,20 +585,20 @@ for(m in 1:M){
     summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
     filter(window != &quot;[0,0.2]&quot;) %&gt;% 
     select(starts_with(&quot;err&quot;))
-  ise_mat[, ,m] &lt;- as.matrix(ise_tb)
+  ise_fgfpca[, ,m] &lt;- as.matrix(ise_tb)
   
   
 }
 
-mean_ise &lt;- apply(ise_mat, c(1, 2), mean)
+mean_ise_fgfpca &lt;- apply(ise_fgfpca, c(1, 2), mean)
 
 # mean_ise &lt;- data.frame(mean_ise) %&gt;%
 #   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
 #          .before = 1)
-colnames(mean_ise) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+colnames(mean_ise_fgfpca) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
 <pre class="r"><code>## calculation
 for(m in 1:M){
-  this_df &lt;- pred_list_ref[[m]]
+  # this_df &lt;- pred_list_gfosr_l1[[m]]
   ise_tb &lt;- pred_list_ref[[m]] %&gt;%
     mutate(err1 = (pred0.2-eta_i)^2,
            err2 = (pred0.4-eta_i)^2,
@@ -529,47 +612,75 @@ for(m in 1:M){
     summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
     filter(window != &quot;[0,0.2]&quot;) %&gt;% 
     select(starts_with(&quot;err&quot;))
-  ise_mat_ref[, ,m] &lt;- as.matrix(ise_tb)
-  
-  
+  ise_adglmm[, ,m] &lt;- as.matrix(ise_tb)
 }
 
-mean_ise_ref &lt;- apply(ise_mat_ref, c(1, 2), mean)
-# mean_ise_ref &lt;- data.frame(mean_ise_ref) %&gt;% 
-#   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-#          .before = 1)
-colnames(mean_ise_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>data.frame(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-           mean_ise, mean_ise_ref, check.names = F) %&gt;%
-  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs=T) %&gt;%
+mean_ise_adglmm &lt;- apply(ise_adglmm, c(1, 2), mean)
+colnames(mean_ise_adglmm) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>## calculation
+for(m in 1:M){
+  # this_df &lt;- pred_list_ref[[m]]
+  ise_tb &lt;- pred_list_gfosr_l1[[m]] %&gt;%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;), window) %&gt;% 
+    # mutate(window = factor(window, levels = 1:5, 
+    #                        labels = c(&quot;[0,0.2]&quot;, &quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;,))) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != 1) %&gt;% 
+    select(starts_with(&quot;err&quot;))
+  ise_gfosr_l1[, ,m] &lt;- as.matrix(ise_tb)
+}
+
+mean_ise_gfosr_l1 &lt;- apply(ise_gfosr_l1, c(1, 2), mean)
+colnames(mean_ise_gfosr_l1) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>## calculation
+for(m in 1:M){
+  # this_df &lt;- pred_list_ref[[m]]
+  ise_tb &lt;- pred_list_gfosr_l5[[m]] %&gt;%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;), window) %&gt;% 
+    # mutate(window = factor(window, levels = 1:5, 
+    #                        labels = c(&quot;[0,0.2]&quot;, &quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;,))) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != 1) %&gt;% 
+    select(starts_with(&quot;err&quot;))
+  ise_gfosr_l5[, ,m] &lt;- as.matrix(ise_tb)
+}
+
+mean_ise_gfosr_l5 &lt;- apply(ise_gfosr_l5, c(1, 2), mean)
+colnames(mean_ise_gfosr_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>rbind(mean_ise_fgfpca, mean_ise_adglmm, 
+           mean_ise_gfosr_l1, mean_ise_gfosr_l5) %&gt;%
+  as_tibble() %&gt;%
+  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
+                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
+         .before=1) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 8))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Integrated squared error
-</caption>
+  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
+<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="8">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Maximum observation time
-</div>
-</th>
-</tr>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-fGFPCA
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-GLMMadaptive
 </div>
 </th>
 </tr>
@@ -589,23 +700,16 @@ Window
 <th style="text-align:right;">
 0.8
 </th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
 </tr>
 </thead>
 <tbody>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>fGFPCA</strong>
+</td>
+</tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.2, 0.4]
 </td>
 <td style="text-align:right;">
@@ -617,18 +721,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-387.708
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.4, 0.6]
 </td>
 <td style="text-align:right;">
@@ -641,19 +736,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-291.579
-</td>
-<td style="text-align:right;">
-269.799
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.6, 0.8]
 </td>
 <td style="text-align:right;">
@@ -667,20 +752,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-315.778
-</td>
-<td style="text-align:right;">
-282.736
-</td>
-<td style="text-align:right;">
-278.242
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.8, 1.0]
 </td>
 <td style="text-align:right;">
@@ -695,6 +769,61 @@ Window
 <td style="text-align:right;">
 12.005
 </td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GLMMadaptive</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+387.708
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+291.579
+</td>
+<td style="text-align:right;">
+269.799
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+315.778
+</td>
+<td style="text-align:right;">
+282.736
+</td>
+<td style="text-align:right;">
+278.242
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
 <td style="text-align:right;">
 563.011
 </td>
@@ -705,14 +834,148 @@ Window
 597.746
 </td>
 <td style="text-align:right;">
-600.34
+600.340
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=1)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+362.476
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+286.614
+</td>
+<td style="text-align:right;">
+262.552
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+385.701
+</td>
+<td style="text-align:right;">
+410.508
+</td>
+<td style="text-align:right;">
+389.305
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+328.482
+</td>
+<td style="text-align:right;">
+341.274
+</td>
+<td style="text-align:right;">
+354.211
+</td>
+<td style="text-align:right;">
+347.067
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=5)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+274.947
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+277.438
+</td>
+<td style="text-align:right;">
+220.209
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+322.338
+</td>
+<td style="text-align:right;">
+373.108
+</td>
+<td style="text-align:right;">
+325.017
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+290.982
+</td>
+<td style="text-align:right;">
+318.079
+</td>
+<td style="text-align:right;">
+350.850
+</td>
+<td style="text-align:right;">
+333.580
 </td>
 </tr>
 </tbody>
 </table>
 </div>
-<div id="auc" class="section level2" number="2.5">
-<h2><span class="header-section-number">2.5</span> AUC</h2>
+<div id="auc" class="section level2" number="3.4">
+<h2><span class="header-section-number">3.4</span> AUC</h2>
 <pre class="r"><code>## a function to calculate AUC
 get_auc &lt;- function(y, pred){
   if(sum(is.na(y))&gt;0 | sum(is.na(pred))&gt;0){
@@ -725,8 +988,8 @@ get_auc &lt;- function(y, pred){
   return(auc)
 }</code></pre>
 <pre class="r"><code>## auc container 
-auc_mat &lt;- array(NA, dim = c(length(window)-2, length(window)-2, M))
-auc_mat_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, M))</code></pre>
+auc_fgfpca &lt;- auc_adglmm &lt;- auc_gfosr_l1 &lt;- auc_gfosr_l5 &lt;- 
+  array(NA, dim = c(length(window)-2, length(window)-2, M))</code></pre>
 <pre class="r"><code>for(m in 1:M){
   this_df &lt;- pred_list_all[[m]]
   auc_tb &lt;- this_df %&gt;% 
@@ -739,16 +1002,15 @@ auc_mat_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, M))</cod
               auc4 = get_auc(Y, pred0.8)) %&gt;%
     filter(window != &quot;[0,0.2]&quot;) %&gt;% 
     select(starts_with(&quot;auc&quot;))
-  auc_mat[, ,m] &lt;- as.matrix(auc_tb)
-
+  auc_fgfpca[, ,m] &lt;- as.matrix(auc_tb)
 }
 
 
-mean_auc &lt;- apply(auc_mat, c(1, 2), mean)
+mean_auc_fgfpca &lt;- apply(auc_fgfpca, c(1, 2), mean)
 # mean_auc &lt;- data.frame(mean_auc) %&gt;% 
 #   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
 #          .before = 1)
-colnames(mean_auc) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+colnames(mean_auc_fgfpca) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
 <pre class="r"><code>for(m in 1:M){
   this_df &lt;- pred_list_ref[[m]]
   auc_tb &lt;- this_df %&gt;% 
@@ -761,47 +1023,69 @@ colnames(mean_auc) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &q
               auc4 = get_auc(Y, pred0.8)) %&gt;%
     filter(window != &quot;[0,0.2]&quot;) %&gt;% 
     select(starts_with(&quot;auc&quot;))
-  auc_mat_ref[, ,m] &lt;- as.matrix(auc_tb)
+  auc_adglmm[, ,m] &lt;- as.matrix(auc_tb)
 
 }
 
 
-mean_auc_ref &lt;- apply(auc_mat_ref, c(1, 2), mean)
-# mean_auc &lt;- data.frame(mean_auc) %&gt;% 
-#   mutate(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-#          .before = 1)
-colnames(mean_auc_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>data.frame(Window = c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-           mean_auc, mean_auc_ref, check.names = F) %&gt;%
-  kable(digits = 3, caption = &quot;Area under the ROC curve&quot;, booktabs = T) %&gt;%
+mean_auc_adglmm &lt;- apply(auc_adglmm, c(1, 2), mean)
+colnames(mean_auc_adglmm) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:M){
+  this_df &lt;- pred_list_gfosr_l1[[m]]
+  auc_tb &lt;- this_df %&gt;% 
+    select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+    group_by(window) %&gt;%
+    summarise(auc1 = get_auc(Y, pred_w1),
+              auc2 = get_auc(Y, pred_w2),
+              auc3 = get_auc(Y, pred_w3),
+              auc4 = get_auc(Y, pred_w4)) %&gt;%
+    filter(window != 1) %&gt;% 
+    select(starts_with(&quot;auc&quot;))
+  auc_gfosr_l1[, ,m] &lt;- as.matrix(auc_tb)
+
+}
+
+
+mean_auc_gfosr_l1 &lt;- apply(auc_gfosr_l1, c(1, 2), mean)
+colnames(mean_auc_gfosr_l1) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:M){
+  this_df &lt;- pred_list_gfosr_l5[[m]]
+  auc_tb &lt;- this_df %&gt;% 
+    select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+    group_by(window) %&gt;%
+    summarise(auc1 = get_auc(Y, pred_w1),
+              auc2 = get_auc(Y, pred_w2),
+              auc3 = get_auc(Y, pred_w3),
+              auc4 = get_auc(Y, pred_w4)) %&gt;%
+    filter(window != 1) %&gt;% 
+    select(starts_with(&quot;auc&quot;))
+  auc_gfosr_l5[, ,m] &lt;- as.matrix(auc_tb)
+
+}
+
+
+mean_auc_gfosr_l5 &lt;- apply(auc_gfosr_l5, c(1, 2), mean)
+colnames(mean_auc_gfosr_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>rbind(mean_auc_fgfpca, mean_auc_adglmm, 
+           mean_auc_gfosr_l1, mean_auc_gfosr_l5) %&gt;%
+  as_tibble() %&gt;%
+  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
+                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
+         .before=1) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 8))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Area under the ROC curve
-</caption>
+  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
+<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="8">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Maximum observation time
-</div>
-</th>
-</tr>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-fGFPCA
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-GLMMadaptive
 </div>
 </th>
 </tr>
@@ -821,23 +1105,16 @@ Window
 <th style="text-align:right;">
 0.8
 </th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
 </tr>
 </thead>
 <tbody>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>fGFPCA</strong>
+</td>
+</tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.2, 0.4]
 </td>
 <td style="text-align:right;">
@@ -849,18 +1126,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-0.591
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.4, 0.6]
 </td>
 <td style="text-align:right;">
@@ -873,19 +1141,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-0.524
-</td>
-<td style="text-align:right;">
-0.596
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.6, 0.8]
 </td>
 <td style="text-align:right;">
@@ -899,20 +1157,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-0.669
-</td>
-<td style="text-align:right;">
-0.694
-</td>
-<td style="text-align:right;">
-0.687
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.8, 1.0]
 </td>
 <td style="text-align:right;">
@@ -927,6 +1174,61 @@ Window
 <td style="text-align:right;">
 0.784
 </td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GLMMadaptive</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+0.591
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.524
+</td>
+<td style="text-align:right;">
+0.596
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.669
+</td>
+<td style="text-align:right;">
+0.694
+</td>
+<td style="text-align:right;">
+0.687
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
 <td style="text-align:right;">
 0.514
 </td>
@@ -940,28 +1242,163 @@ Window
 0.564
 </td>
 </tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=1)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+0.624
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.543
+</td>
+<td style="text-align:right;">
+0.590
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.604
+</td>
+<td style="text-align:right;">
+0.577
+</td>
+<td style="text-align:right;">
+0.615
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+0.588
+</td>
+<td style="text-align:right;">
+0.564
+</td>
+<td style="text-align:right;">
+0.537
+</td>
+<td style="text-align:right;">
+0.551
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=5)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+0.686
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.563
+</td>
+<td style="text-align:right;">
+0.630
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.669
+</td>
+<td style="text-align:right;">
+0.628
+</td>
+<td style="text-align:right;">
+0.676
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+0.626
+</td>
+<td style="text-align:right;">
+0.606
+</td>
+<td style="text-align:right;">
+0.552
+</td>
+<td style="text-align:right;">
+0.584
+</td>
+</tr>
 </tbody>
 </table>
+</div>
+<div id="time-minutes" class="section level2" number="3.5">
+<h2><span class="header-section-number">3.5</span> Time (minutes)</h2>
+<p>I chose not to report fitting and prediction time separately because
+it is too difficult to tell them apart for the GFOSR models.</p>
 <pre class="r"><code>data.frame(
-  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;),
-  &quot;Fit&quot; = c(mean(fit_time)/60, mean(fit_time_ref)),
-           &quot;Prediction&quot;= c(mean(pred_time), mean(pred_time_ref)/60)) %&gt;%
-  kable(digits = 3, caption = &quot;Computation time (minutes)&quot;, booktabs = T) %&gt;%
+  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;, &quot;GFOSR (L=1)&quot;, &quot;GFOSR (L=5)&quot;),
+  &quot;Time&quot; = c(mean(fit_time/60+pred_time),
+             mean(fit_time_ref+pred_time_ref/60),
+             mean(t_vec_gfosr_l1/60), 
+             mean(t_vec_gfosr_l5/60))) %&gt;%
+  kable(digits = 3, booktabs = T, table.attr = &quot;style = \&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) </code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Computation time (minutes)
-</caption>
+<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="text-align:left;">
 Method
 </th>
 <th style="text-align:right;">
-Fit
-</th>
-<th style="text-align:right;">
-Prediction
+Time
 </th>
 </tr>
 </thead>
@@ -971,10 +1408,7 @@ Prediction
 fGFPCA
 </td>
 <td style="text-align:right;">
-0.725
-</td>
-<td style="text-align:right;">
-1.592
+2.317
 </td>
 </tr>
 <tr>
@@ -982,41 +1416,58 @@ fGFPCA
 GLMMadaptive
 </td>
 <td style="text-align:right;">
-2.287
+2.304
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GFOSR (L=1)
 </td>
 <td style="text-align:right;">
-0.017
+0.025
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GFOSR (L=5)
+</td>
+<td style="text-align:right;">
+0.144
 </td>
 </tr>
 </tbody>
 </table>
-<p>I think we could say that while the total time spend on model fitting
-+ prediction are similar between two methods, fGFPCA achieved much
-better flexibility and much better predictive performance of prediction
-under every scenario.</p>
 </div>
 </div>
-<div id="small-scale-simulation" class="section level1" number="3">
-<h1><span class="header-section-number">3</span> Small-scale
+<div id="small-scale-simulation" class="section level1" number="4">
+<h1><span class="header-section-number">4</span> Small-scale
 simulation</h1>
-<p>Here we would like to fit fGFPCA and GLMMadaptive on a dataset with
-smaller sample size and/or smaller measurement density. For the
-GLMMadaptive model, we would set it up with spline basis functions so
-that its flexibility is comparable with fGFPCA model, such as:</p>
-<p><span class="math display">\[g(E(Y_i(t))) =
-\sum_{k=1}^4\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)\]</span></p>
-<p>I have used 100 subjects for training and testing, and repeated 100
-times. When fitting GLMMadpative, I reduce the number of measurements to
-1/10 by taking one every 10 observations. The prediction is on the
-original grid.</p>
+<p>I have used 100 subjects for training and testing, and repeated 500
+times. When fitting GLMMadpative, I reduce the number of measurements in
+the training dataset to 1/10 by taking one every 10 observations. The
+prediction is on the original grid.</p>
 <pre class="r"><code>load(here(&quot;Data/SubSimOutput_GLMMadaptive.RData&quot;))
-load(here(&quot;Data/SubSimOutput_fGFPCA.RData&quot;))</code></pre>
-<div id="figure-1" class="section level2" number="3.1">
-<h2><span class="header-section-number">3.1</span> Figure</h2>
-<pre class="r"><code>rand_id2 &lt;- sample(unique(pred_subset_fGFPCA[[1]]$id), 4)
 
-fig_fgfpca_subset &lt;- pred_subset_fGFPCA[[1]] %&gt;%
-  filter(id %in% rand_id2) %&gt;%
+load(here(&quot;Data/SubSimOutput_fGFPCA.RData&quot;))
+pred_subset_adglmm &lt;- pred_subset_adglmm[!num_probs]
+fit_time_subset_adglmm &lt;- fit_time_subset_adglmm[!num_probs]
+pred_time_subset_adglmm &lt;- pred_time_subset_adglmm[!num_probs]
+
+load(here(&quot;Data/SubSimOutput_GFOSR_L1.RData&quot;))
+pred_subset_gfosr_l1 &lt;- pred_list_gfofr_subset
+t_subset_gfosr_l1 &lt;- t_vec_gfofr_subset
+rm(pred_list_gfofr_subset, t_vec_gfofr_subset)
+
+load(here(&quot;Data/SubSimOutput_GFOSR_L5.RData&quot;))
+pred_subset_gfosr_l5 &lt;- pred_list_gfofr_subset
+t_subset_gfosr_l5 &lt;- t_vec_gfofr_subset
+rm(pred_list_gfofr_subset, t_vec_gfofr_subset)
+
+rand_id &lt;- sample(101:200, size = 2)</code></pre>
+<div id="figure-1" class="section level2" number="4.1">
+<h2><span class="header-section-number">4.1</span> Figure</h2>
+<pre class="r"><code>fig_fgfpca2 &lt;- pred_subset_fGFPCA[[1]] %&gt;%
+  filter(id %in% rand_id) %&gt;%
   mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
@@ -1026,12 +1477,14 @@ fig_fgfpca_subset &lt;- pred_subset_fGFPCA[[1]] %&gt;%
   geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   facet_wrap(~id)+
-  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;)+
+  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;,
+       x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5))
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))
 
-fig_adglmm_subset &lt;- pred_subset_adglmm[[1]] %&gt;% 
-  filter(id %in% rand_id2) %&gt;%
+fig_adglmm2 &lt;- pred_subset_adglmm[[1]] %&gt;% 
+  filter(id %in% rand_id) %&gt;%
   mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
@@ -1041,21 +1494,55 @@ fig_adglmm_subset &lt;- pred_subset_adglmm[[1]] %&gt;%
   geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   facet_wrap(~id)+
-  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;)+
+  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;,
+       x = &quot;Time&quot;, y = &quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5))</code></pre>
-<pre class="r"><code>ggarrange(fig_fgfpca_subset, fig_adglmm_subset,
-          nrow = 1, common.legend = T)</code></pre>
-<p><img src="manuscript_files/figure-html/fit_sim_small-1.png" width="768" /></p>
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))
+
+fig_gfosr_l1_2 &lt;- pred_subset_gfosr_l1[[1]] %&gt;% 
+  filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = &quot;GFOSR (L=1)&quot;, col = &quot;Maximum observation time&quot;,
+       x = &quot;Time&quot;, y = &quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))
+
+fig_gfosr_l5_2 &lt;- pred_subset_gfosr_l5[[1]] %&gt;% 
+  filter(id %in% rand_id) %&gt;%
+  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  facet_wrap(~id)+
+  labs(title = &quot;GFOSR (L=5)&quot;, col = &quot;Maximum observation time&quot;,
+       x = &quot;Time&quot;, y = &quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(axis.text = element_text(size = 5), 
+        title = element_text(size = 8))</code></pre>
+<pre class="r"><code>ggarrange(fig_fgfpca2, fig_adglmm2, fig_gfosr_l1_2, fig_gfosr_l5_2,
+          ncol = 1, common.legend = T)</code></pre>
+<p><img src="manuscript_files/figure-html/fig_sim2-1.png" width="480" /></p>
 </div>
-<div id="ise-1" class="section level2" number="3.2">
-<h2><span class="header-section-number">3.2</span> ISE</h2>
-<pre class="r"><code># M2 &lt;- length(pred_subset_fGFPCA)
-## ISE container 
-ise_mat_subset &lt;- array(NA, dim = c(length(window)-2, length(window)-2, length(pred_subset_fGFPCA)))
-
-pred_subset_adglmm &lt;- pred_subset_adglmm[num_probs==0]
-ise_mat_subset_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, length(pred_subset_adglmm)))</code></pre>
+<div id="ise-1" class="section level2" number="4.2">
+<h2><span class="header-section-number">4.2</span> ISE</h2>
+<pre class="r"><code>## ISE container 
+ise_fgfpca2 &lt;- ise_adglmm2 &lt;- ise_gfosr_l1_2 &lt;- ise_gfosr_l5_2 &lt;- 
+  array(NA, dim = c(length(window)-2, length(window)-2, M))
+# dims: prediction window, max obs time, simulation iter</code></pre>
 <pre class="r"><code>for(m in 1:length(pred_subset_fGFPCA)){
   this_df &lt;- pred_subset_fGFPCA[[m]]
   ise_tb_m &lt;- this_df %&gt;%
@@ -1071,12 +1558,12 @@ ise_mat_subset_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, l
     summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
     filter(window != &quot;[0,0.2]&quot;) %&gt;% 
     select(starts_with(&quot;err&quot;)) %&gt;% as.matrix()
-  ise_mat_subset[,,m] &lt;- ise_tb_m
+  ise_fgfpca2[,,m] &lt;- ise_tb_m
 }
 
-ise_mat_subset &lt;- apply(ise_mat_subset, c(1, 2), mean)
+mean_ise_fgfpca2 &lt;- apply(ise_fgfpca2, c(1, 2), mean)
 
-colnames(ise_mat_subset) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+colnames(mean_ise_fgfpca2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
 <pre class="r"><code>for(m in 1:length(pred_subset_adglmm)){
   this_df &lt;- pred_subset_adglmm[[m]]
   ise_tb_m &lt;- this_df %&gt;%
@@ -1092,44 +1579,72 @@ colnames(ise_mat_subset) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quo
     summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
     filter(window != &quot;[0,0.2]&quot;) %&gt;% 
     select(starts_with(&quot;err&quot;)) %&gt;% as.matrix()
-  ise_mat_subset_ref[,,m] &lt;- ise_tb_m
+  ise_adglmm2[,,m] &lt;- ise_tb_m
 }
 
-ise_mat_subset_ref &lt;- apply(ise_mat_subset_ref, c(1, 2), mean)
+mean_ise_adglmm2&lt;- apply(ise_adglmm2, c(1, 2), mean, na.rm = T)
 
+colnames(mean_ise_adglmm2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_gfosr_l1)){
+  this_df &lt;- pred_subset_gfosr_l1[[m]]
+  ise_tb_m &lt;- this_df %&gt;%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;), window) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != 1) %&gt;% 
+    select(starts_with(&quot;err&quot;)) %&gt;% as.matrix()
+  ise_gfosr_l1_2[,,m] &lt;- ise_tb_m
+}
 
-colnames(ise_mat_subset_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-           ise_mat_subset, ise_mat_subset_ref, check.names = F) %&gt;%
-  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs = T) %&gt;%
+mean_ise_gfosr_l1_2&lt;- apply(ise_gfosr_l1_2, c(1, 2), mean, na.rm = T)
+
+colnames(mean_ise_gfosr_l1_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_gfosr_l5)){
+  this_df &lt;- pred_subset_gfosr_l5[[m]]
+  ise_tb_m &lt;- this_df %&gt;%
+    mutate(err1 = (pred_w1-eta_i)^2,
+           err2 = (pred_w2-eta_i)^2,
+           err3 = (pred_w3-eta_i)^2,
+           err4 = (pred_w4-eta_i)^2) %&gt;%
+    select(id, t, starts_with(&quot;err&quot;), window) %&gt;% 
+    group_by(window, id) %&gt;% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
+    group_by(window) %&gt;% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
+    filter(window != 1) %&gt;% 
+    select(starts_with(&quot;err&quot;)) %&gt;% as.matrix()
+  ise_gfosr_l5_2[,,m] &lt;- ise_tb_m
+}
+
+mean_ise_gfosr_l5_2 &lt;- apply(ise_gfosr_l5_2, c(1, 2), mean, na.rm = T)
+
+colnames(mean_ise_gfosr_l5_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>rbind(mean_ise_fgfpca2, mean_ise_adglmm2, 
+           mean_ise_gfosr_l1_2, mean_ise_gfosr_l5_2) %&gt;%
+  as_tibble() %&gt;%
+  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
+                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
+         .before=1) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Integrated squared error
-</caption>
+  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
+<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="8">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Observation track
-</div>
-</th>
-</tr>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-fGFPCA
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-GLMMadaptive
+Maximum observation time
 </div>
 </th>
 </tr>
@@ -1149,24 +1664,17 @@ Window
 <th style="text-align:right;">
 0.8
 </th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
 </tr>
 </thead>
 <tbody>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>fGFPCA</strong>
+</td>
+</tr>
 <tr>
-<td style="text-align:left;">
-(0.2,0.4]
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
 </td>
 <td style="text-align:right;">
 150.641
@@ -1177,19 +1685,10 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-374.836
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-(0.4,0.6]
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
 </td>
 <td style="text-align:right;">
 188.065
@@ -1201,20 +1700,10 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-268.390
-</td>
-<td style="text-align:right;">
-463.337
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-(0.6,0.8]
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
 </td>
 <td style="text-align:right;">
 224.001
@@ -1227,20 +1716,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-319.731
-</td>
-<td style="text-align:right;">
-287.001
-</td>
-<td style="text-align:right;">
-233.510
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.8, 1.0]
 </td>
 <td style="text-align:right;">
@@ -1255,6 +1733,61 @@ Window
 <td style="text-align:right;">
 13.399
 </td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GLMMadaptive</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+374.836
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+268.390
+</td>
+<td style="text-align:right;">
+463.337
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+319.731
+</td>
+<td style="text-align:right;">
+287.001
+</td>
+<td style="text-align:right;">
+233.510
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
 <td style="text-align:right;">
 228.335
 </td>
@@ -1268,19 +1801,150 @@ Window
 131.993
 </td>
 </tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=1)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+367.282
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+290.781
+</td>
+<td style="text-align:right;">
+265.809
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+386.705
+</td>
+<td style="text-align:right;">
+408.427
+</td>
+<td style="text-align:right;">
+388.427
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+331.488
+</td>
+<td style="text-align:right;">
+342.935
+</td>
+<td style="text-align:right;">
+354.800
+</td>
+<td style="text-align:right;">
+347.627
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=5)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+286.853
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+286.628
+</td>
+<td style="text-align:right;">
+227.225
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+328.612
+</td>
+<td style="text-align:right;">
+374.572
+</td>
+<td style="text-align:right;">
+326.522
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+301.165
+</td>
+<td style="text-align:right;">
+324.817
+</td>
+<td style="text-align:right;">
+353.888
+</td>
+<td style="text-align:right;">
+335.139
+</td>
+</tr>
 </tbody>
 </table>
 </div>
-<div id="auc-1" class="section level2" number="3.3">
-<h2><span class="header-section-number">3.3</span> AUC</h2>
+<div id="auc-1" class="section level2" number="4.3">
+<h2><span class="header-section-number">4.3</span> AUC</h2>
 <pre class="r"><code>## auc container 
-auc_mat_subset &lt;- array(NA, dim = c(length(window)-2, length(window)-2, 
-                                    length(pred_subset_fGFPCA)))
-auc_mat_subset_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2, 
-                                        length(pred_subset_adglmm)))</code></pre>
+auc_fgfpca2 &lt;- auc_adglmm2 &lt;- auc_gfosr_l1_2 &lt;- auc_gfosr_l5_2 &lt;- 
+  array(NA, dim = c(length(window)-2, length(window)-2, M))</code></pre>
 <pre class="r"><code>for(m in 1:length(pred_subset_fGFPCA)){
   this_df &lt;- pred_subset_fGFPCA[[m]]
-  
   auc_tb_m &lt;- this_df %&gt;%
   mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
   select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
@@ -1292,16 +1956,14 @@ auc_mat_subset_ref &lt;- array(NA, dim = c(length(window)-2, length(window)-2,
   filter(window != &quot;[0,0.2]&quot;) %&gt;% 
   select(starts_with(&quot;auc&quot;)) %&gt;% as.matrix()
   
-  auc_mat_subset[, , m] &lt;- auc_tb_m
+  auc_fgfpca2[, , m] &lt;- auc_tb_m
   
 }
 
-
-auc_mat_subset &lt;- apply(auc_mat_subset, c(1,2), mean)
-colnames(auc_mat_subset) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+mean_auc_fgfpca2 &lt;- apply(auc_fgfpca2, c(1,2), mean)
+colnames(mean_auc_fgfpca2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
 <pre class="r"><code>for(m in 1:length(pred_subset_adglmm)){
   this_df &lt;- pred_subset_adglmm[[m]]
-  
   auc_tb_m &lt;- this_df %&gt;%
   mutate(window = cut(t, breaks = window, include.lowest = T)) %&gt;% 
   select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
@@ -1313,43 +1975,68 @@ colnames(auc_mat_subset) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quo
   filter(window != &quot;[0,0.2]&quot;) %&gt;% 
   select(starts_with(&quot;auc&quot;)) %&gt;% as.matrix()
   
-  auc_mat_subset_ref[, , m] &lt;- auc_tb_m
+  auc_adglmm2[, , m] &lt;- auc_tb_m
   
 }
 
-auc_mat_subset_ref &lt;- apply(auc_mat_subset_ref, c(1,2), mean)
-colnames(auc_mat_subset_ref) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-           auc_mat_subset, auc_mat_subset_ref, check.names = F) %&gt;%
-  kable(digits = 3, caption = &quot;Area under the ROC curve&quot;, booktabs = T) %&gt;%
+mean_auc_adglmm2 &lt;- apply(auc_adglmm2, c(1,2), mean, na.rm = T)
+colnames(mean_auc_adglmm2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_gfosr_l1)){
+  this_df &lt;- pred_subset_gfosr_l1[[m]]
+  auc_tb_m &lt;- this_df %&gt;%
+  select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+  group_by(window) %&gt;%
+  summarise(auc1 = get_auc(Y, pred_w1),
+            auc2 = get_auc(Y, pred_w2),
+            auc3 = get_auc(Y, pred_w3),
+            auc4 = get_auc(Y, pred_w4)) %&gt;%
+  filter(window != 1) %&gt;% 
+  select(starts_with(&quot;auc&quot;)) %&gt;% as.matrix()
+  
+  auc_gfosr_l1_2[, , m] &lt;- auc_tb_m
+  
+}
+
+mean_auc_gfosr_l1_2 &lt;- apply(auc_gfosr_l1_2, c(1,2), mean)
+colnames(mean_auc_gfosr_l1_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>for(m in 1:length(pred_subset_gfosr_l5)){
+  this_df &lt;- pred_subset_gfosr_l5[[m]]
+  auc_tb_m &lt;- this_df %&gt;%
+  select(Y, starts_with(&quot;pred&quot;), window) %&gt;%
+  group_by(window) %&gt;%
+  summarise(auc1 = get_auc(Y, pred_w1),
+            auc2 = get_auc(Y, pred_w2),
+            auc3 = get_auc(Y, pred_w3),
+            auc4 = get_auc(Y, pred_w4)) %&gt;%
+  filter(window != 1) %&gt;% 
+  select(starts_with(&quot;auc&quot;)) %&gt;% as.matrix()
+  
+  auc_gfosr_l5_2[, , m] &lt;- auc_tb_m
+  
+}
+
+mean_auc_gfosr_l5_2 &lt;- apply(auc_gfosr_l5_2, c(1,2), mean)
+colnames(mean_auc_gfosr_l5_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
+<pre class="r"><code>rbind(mean_auc_fgfpca2, mean_auc_adglmm2, 
+           mean_auc_gfosr_l1_2, mean_auc_gfosr_l5_2) %&gt;%
+  as_tibble() %&gt;%
+  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
+                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
+         .before=1) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Area under the ROC curve
-</caption>
+  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
+<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="8">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Observation track
-</div>
-</th>
-</tr>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-fGFPCA
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-GLMMadaptive
+Maximum observation time
 </div>
 </th>
 </tr>
@@ -1369,24 +2056,17 @@ Window
 <th style="text-align:right;">
 0.8
 </th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
 </tr>
 </thead>
 <tbody>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>fGFPCA</strong>
+</td>
+</tr>
 <tr>
-<td style="text-align:left;">
-(0.2,0.4]
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
 </td>
 <td style="text-align:right;">
 0.746
@@ -1397,19 +2077,10 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-0.672
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-(0.4,0.6]
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
 </td>
 <td style="text-align:right;">
 0.662
@@ -1421,20 +2092,10 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-0.622
-</td>
-<td style="text-align:right;">
-0.671
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-(0.6,0.8]
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
 </td>
 <td style="text-align:right;">
 0.710
@@ -1447,20 +2108,9 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
-<td style="text-align:right;">
-0.689
-</td>
-<td style="text-align:right;">
-0.698
-</td>
-<td style="text-align:right;">
-0.731
-</td>
-<td style="text-align:right;">
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
 (0.8, 1.0]
 </td>
 <td style="text-align:right;">
@@ -1475,6 +2125,61 @@ Window
 <td style="text-align:right;">
 0.784
 </td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GLMMadaptive</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+0.672
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.622
+</td>
+<td style="text-align:right;">
+0.671
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.689
+</td>
+<td style="text-align:right;">
+0.698
+</td>
+<td style="text-align:right;">
+0.731
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
 <td style="text-align:right;">
 0.681
 </td>
@@ -1488,30 +2193,164 @@ Window
 0.743
 </td>
 </tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=1)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+0.620
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.536
+</td>
+<td style="text-align:right;">
+0.590
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.598
+</td>
+<td style="text-align:right;">
+0.574
+</td>
+<td style="text-align:right;">
+0.613
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+0.580
+</td>
+<td style="text-align:right;">
+0.556
+</td>
+<td style="text-align:right;">
+0.536
+</td>
+<td style="text-align:right;">
+0.551
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="5" style="border-bottom: 1px solid;">
+<strong>GFOSR (L=5)</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+0.679
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.549
+</td>
+<td style="text-align:right;">
+0.627
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.656
+</td>
+<td style="text-align:right;">
+0.617
+</td>
+<td style="text-align:right;">
+0.668
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+0.611
+</td>
+<td style="text-align:right;">
+0.588
+</td>
+<td style="text-align:right;">
+0.551
+</td>
+<td style="text-align:right;">
+0.578
+</td>
+</tr>
 </tbody>
 </table>
 <p>Among 500 hundred iterations, 6 did not converge for the GLMMadaptive
 model. No numeric issue for fGFPCA.</p>
+</div>
+</div>
+<div id="time" class="section level1" number="5">
+<h1><span class="header-section-number">5</span> Time</h1>
 <pre class="r"><code>data.frame(
-  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;),
-  &quot;Fit&quot; = c(mean(fit_time_subset_fGFPCA)/60, mean(fit_time_subset_adglmm, na.rm=T)),
-           &quot;Prediction&quot;= c(mean(pred_time_subset_fGFPCA), mean(pred_time_subset_adglmm, na.rm=T)/60)) %&gt;%
-  kable(digits = 3, caption = &quot;Computation time (minutes)&quot;, booktabs = T) %&gt;%
+  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;, &quot;GFOSR (L=1)&quot;, &quot;GFOSR (L=5)&quot;),
+  &quot;Time&quot; = c(mean(fit_time_subset_fGFPCA/60+pred_time_subset_fGFPCA),
+             mean(fit_time_subset_adglmm+pred_time_subset_adglmm/60),
+             mean(t_subset_gfosr_l1/60), 
+             mean(t_subset_gfosr_l5/60))) %&gt;%
+  kable(digits = 3, booktabs = T, table.attr = &quot;style = \&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) </code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Computation time (minutes)
-</caption>
+<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="text-align:left;">
 Method
 </th>
 <th style="text-align:right;">
-Fit
-</th>
-<th style="text-align:right;">
-Prediction
+Time
 </th>
 </tr>
 </thead>
@@ -1521,10 +2360,7 @@ Prediction
 fGFPCA
 </td>
 <td style="text-align:right;">
-0.045
-</td>
-<td style="text-align:right;">
-1.584
+1.629
 </td>
 </tr>
 <tr>
@@ -1532,18 +2368,30 @@ fGFPCA
 GLMMadaptive
 </td>
 <td style="text-align:right;">
-5.455
+5.479
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GFOSR (L=1)
 </td>
 <td style="text-align:right;">
-0.024
+0.010
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GFOSR (L=5)
+</td>
+<td style="text-align:right;">
+0.054
 </td>
 </tr>
 </tbody>
 </table>
 </div>
-</div>
-<div id="nhanes-data-application" class="section level1" number="4">
-<h1><span class="header-section-number">4</span> NHANES data
+<div id="nhanes-data-application" class="section level1" number="6">
+<h1><span class="header-section-number">6</span> NHANES data
 application</h1>
 <p>We take 500 subjects for training, 500 for out-of-sample prediction.
 When using the full sample The debiase step (mgcv::bam) in fGFPCA took a
@@ -1565,8 +2413,8 @@ load(here(&quot;Data/ApplOutput.RData&quot;))</code></pre>
   scale_x_continuous(breaks = seq(0, 1440, by = 480),
                      labels = c(&quot;Midnight&quot;, &quot;8am&quot;, &quot;4pm&quot;, &quot;Midnight&quot;))</code></pre>
 <p><img src="manuscript_files/figure-html/nhance_example-1.png" width="672" /></p>
-<div id="auc-2" class="section level2" number="4.1">
-<h2><span class="header-section-number">4.1</span> AUC</h2>
+<div id="auc-2" class="section level2" number="6.1">
+<h2><span class="header-section-number">6.1</span> AUC</h2>
 <pre class="r"><code>window3 &lt;- c(0, 480, 960, 1440)
 
 auc_mat_nhanes &lt;- nhanes_pred_fgfpca %&gt;%
@@ -1677,8 +2525,8 @@ Window
 </tbody>
 </table>
 </div>
-<div id="figure-2" class="section level2" number="4.2">
-<h2><span class="header-section-number">4.2</span> Figure</h2>
+<div id="figure-2" class="section level2" number="6.2">
+<h2><span class="header-section-number">6.2</span> Figure</h2>
 <pre class="r"><code>rand_id3 &lt;- sample(unique(nhanes_pred_fgfpca$id), 4)
 
 ggarrange(
@@ -1711,468 +2559,8 @@ ggarrange(
 <p><img src="manuscript_files/figure-html/pred_nhanes-1.png" width="960" /></p>
 </div>
 </div>
-<div id="the-second-reference-method" class="section level1" number="5">
-<h1><span class="header-section-number">5</span> The second reference
-method:</h1>
-<pre class="r"><code>load(here(&quot;Data/sim_data.RData&quot;))
-df_m &lt;- sim_data[[1]]</code></pre>
-<p>We would like to use a second reference method for predictive
-performance comparision. In this model, predictions on a specific
-interval are all made using the last few observations in the observed
-window. For example, if we are given observations on [0, 0.2] (j =
-1…200), we may use L observations taken right before t=0.2 (<span
-class="math inline">\(t_j: j=200, ... 200-(L-1)\)</span>) as time-fixed
-covariate to predict any future time.</p>
-<p>Let’s write out the model expression (with questionable notation). If
-the observations if up to <span class="math inline">\(t_m\)</span>,
-then:</p>
-<p><span class="math display">\[\begin{aligned}
-g(E[Y_i(t)]) &amp;= \beta_0(t) +\sum_{l=1}^L \beta_l (t)Y_i(t_l)\\
-l &amp; = m,...m-(j-1)\\
-t &amp;&gt; t_m
-\end{aligned}\]</span></p>
-<p>This is a simple function-on-scalar model with no random effect,
-meaning all subject with the same last observed outcome would have the
-same estimated/predicted latent track. This is clearly anti-intuitive.
-But adding random effects would make out-of-sample prediction
-impossible.</p>
-<p>Under this framework, for each dataset we need to fit four models
-(similar to the GLMMadaptive method):</p>
-<ul>
-<li>Given 0-0.2, predict 0.2-1</li>
-<li>Given 0-0.4, predict 0.4-1</li>
-<li>Given 0-0.6, predict 0.6-1</li>
-<li>Given 0-0.8, predict 0.8-1</li>
-</ul>
-<p>Below are some single dataset examples.</p>
-<div id="example-of-l-1-given-0-0.2-to-predict-0.2-1"
-class="section level2" number="5.1">
-<h2><span class="header-section-number">5.1</span> Example of L = 1,
-given [0, 0.2] to predict (0.2, 1)</h2>
-<p>First let try to make prediction on an interval with only one
-historical observation (L = 1):</p>
-<p><span class="math display">\[\begin{aligned}
-g(E[Y_i(t)]) &amp;= \beta_0(t) +\beta_1(t) Y_i(t_{m})\\
-t &amp;&gt; t_m
-\end{aligned}\]</span></p>
-<pre class="r"><code>L &lt;- 1 # number of observations to use as predictor
-
-# prediction window 
-windows &lt;- seq(0, 1, by = 0.2)
-df_m$window &lt;- cut(df_m$t, breaks=windows, labels = 1:5,
-                       include.lowest = T)
-
-# split data
-N_train &lt;- 500
-N_test &lt;- 100
-train_df &lt;- df_m %&gt;% filter(id %in% 1:N_train)
-test_df &lt;- df_m %&gt;% filter(!id %in% 1:N_train)</code></pre>
-<pre class="r fold-show"><code># format training data
-## given [0, 0.2], predictor would be
-y_obs_max &lt;- train_df %&gt;% filter(window==1) %&gt;% arrange(desc(t)) %&gt;%
-  group_by(id) %&gt;%
-  slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y)
-## to predict (0.2, 1), outcome:
-df_pred_tr &lt;- train_df %&gt;% filter(window!=1) %&gt;%
-  left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
-  mutate_at(vars(Y, yl), as.factor)
-
-# range(df_pred_tr$sind)
-
-# model
-t1 &lt;- Sys.time()
-fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=20) + 
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl),
-                   family = binomial, data=df_pred_tr, 
-                   method = &quot;fREML&quot;,
-                   discrete = TRUE)
-t2 &lt;- Sys.time()
-t2-t1</code></pre>
-<pre><code>## Time difference of 0.79983 secs</code></pre>
-<pre class="r fold-show"><code>summary(fit_gen_fosr)</code></pre>
-<pre><code>## 
-## Family: binomial 
-## Link function: logit 
-## 
-## Formula:
-## Y ~ s(t, bs = &quot;cr&quot;, k = 20) + s(t, bs = &quot;cr&quot;, k = 20, by = yl)
-## 
-## Parametric coefficients:
-##              Estimate Std. Error z value Pr(&gt;|z|)
-## (Intercept) -0.001354   0.003211  -0.422    0.673
-## 
-## Approximate significance of smooth terms:
-##              edf   Ref.df   Chi.sq p-value    
-## s(t)     0.05307  0.06663    0.001   0.977    
-## s(t):yl0 8.54888 10.51629 3904.461  &lt;2e-16 ***
-## s(t):yl1 9.61523 11.75471 2594.975  &lt;2e-16 ***
-## ---
-## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
-## 
-## Rank: 57/58
-## R-sq.(adj) =  0.0296   Deviance explained = 2.15%
-## fREML = 6.3891e+05  Scale est. = 1         n = 400000</code></pre>
-<pre class="r"><code># estimation on the training set
-df_pred_tr$eta_est &lt;- predict(fit_gen_fosr, type = &quot;link&quot;)
-
-df_pred_tr %&gt;%
-  mutate_at(vars(eta_est, eta_i), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
-  filter(id %in% 1:4) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.5)+
-  geom_line(aes(x=t, y=eta_est, col = &quot;estimate&quot;))+
-  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
-  facet_wrap(~id)+
-  labs(title = &quot;In-sample estimation&quot;)</code></pre>
-<p><img src="manuscript_files/figure-html/est_train-1.png" width="672" /></p>
-<pre class="r"><code># format testing data
-df_pred_te &lt;- test_df %&gt;% filter(window!=1) %&gt;%
-  left_join(test_df %&gt;% 
-              filter(window==1) %&gt;% arrange(desc(t)) %&gt;% group_by(id) %&gt;%
-              slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y),
-            by = &quot;id&quot;) %&gt;% 
-  mutate_at(vars(Y, yl), as.factor)
-
-# predict using the FOSR model fit above
-df_pred_te$eta_est &lt;- predict(fit_gen_fosr, newdata = df_pred_te, type = &quot;link&quot;)
-
-df_pred_te %&gt;%
-  mutate_at(vars(eta_est, eta_i), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.5)+
-  geom_line(aes(x=t, y=eta_est, col = &quot;estimate&quot;))+
-  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
-  facet_wrap(~id)+
-  labs(title = &quot;Out-of-sample prediction&quot;)</code></pre>
-<p><img src="manuscript_files/figure-html/pred_test-1.png" width="672" /></p>
-</div>
-<div id="example-of-prediction-on-one-dataset-l-1"
-class="section level2" number="5.2">
-<h2><span class="header-section-number">5.2</span> Example of prediction
-on one dataset (L = 1)</h2>
-<pre class="r"><code># table(df_m$window)
-train_df$window &lt;- as.numeric(as.character(train_df$window))
-test_df$window &lt;- as.numeric(as.character(test_df$window))
-test_df2 &lt;- test_df
-
-t1 &lt;- Sys.time()
-for(w in 1:4){
-  # model fit
-  # predictor (training set)
-  y_obs_max &lt;- train_df %&gt;% filter(window==w) %&gt;% arrange(desc(t)) %&gt;%
-    group_by(id) %&gt;%
-    slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y)
-  # outcome (training set)
-  df_pred_tr &lt;- train_df %&gt;% filter(window &gt; w) %&gt;%
-    left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
-    mutate_at(vars(Y, yl), as.factor)
-  # model 
-  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=20) + 
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl),
-                   family = binomial, data=df_pred_tr, 
-                   method = &quot;fREML&quot;,
-                   discrete = TRUE)
-  
-  # prediction
-  # predictor (testing set)
-  y_obs_max_te &lt;- test_df %&gt;% 
-                filter(window==w) %&gt;% arrange(desc(t)) %&gt;% group_by(id) %&gt;%
-                slice(L) %&gt;% select(id, Y) %&gt;% rename(yl = Y)
-  # outcome (testing set)
-  df_pred_te &lt;- test_df %&gt;% filter(window &gt; w) %&gt;%
-    left_join(y_obs_max_te, by = &quot;id&quot;) %&gt;% 
-    mutate_at(vars(Y, yl), as.factor)
-
-  # predict using the FOSR model fit above
-  pred_name &lt;- paste0(&quot;pred_w&quot;, w)
-  test_df[, pred_name] &lt;- NA
-  test_df[test_df$window&gt;w, pred_name] &lt;- predict(fit_gen_fosr, newdata = df_pred_te, type = &quot;link&quot;)
-}
-t2 &lt;- Sys.time()
-# t2-t1</code></pre>
-<pre class="r"><code>test_df %&gt;%
-  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.5)+
-  geom_line(aes(x=t, y=pred_w1, col = &quot;Up to 0.1&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=pred_w2, col = &quot;Up to 0.2&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=pred_w3, col = &quot;Up to 0.3&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=pred_w4, col = &quot;Up to 0.4&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
-  facet_wrap(~id)+
-  labs(title = &quot;Out-of-sample prediction&quot;)</code></pre>
-<p><img src="manuscript_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
-</div>
-<div id="example-of-prediction-on-one-dataset-l-5"
-class="section level2" number="5.3">
-<h2><span class="header-section-number">5.3</span> Example of prediction
-on one dataset (L = 5)</h2>
-<pre class="r"><code>t1 &lt;- Sys.time()
-for(w in 1:4){
-  # model fit
-  # predictor (training set)
-  y_obs_max &lt;- train_df %&gt;% filter(window==w) %&gt;% group_by(id) %&gt;%
-    slice_max(t, n=5) %&gt;% select(id, Y, sind) %&gt;%
-    mutate(name = sind-min(sind)+1) %&gt;%
-    pivot_wider(id_cols = id, values_from = Y, names_from = &quot;name&quot;, names_prefix = &quot;yl&quot;)
-  # outcome (training set)
-  df_pred_tr &lt;- train_df %&gt;% filter(window &gt; w) %&gt;%
-    left_join(y_obs_max, by = &quot;id&quot;) %&gt;% 
-    mutate_at(vars(Y, starts_with(&quot;yl&quot;)), as.factor) 
-  fit_gen_fosr &lt;- bam(Y ~ s(t, bs=&quot;cr&quot;, k=20) + 
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl5)+
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl4)+
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl3)+
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl2)+
-                        s(t, bs=&quot;cr&quot;, k=20, by = yl1),
-                   family = binomial, data=df_pred_tr, 
-                   method = &quot;fREML&quot;,
-                   discrete = TRUE)
-  
-  # prediction
-  # predictor (testing set)
-  y_obs_max_te &lt;- test_df2 %&gt;% filter(window==w) %&gt;% group_by(id) %&gt;%
-    slice_max(t, n=5) %&gt;% select(id, Y, sind) %&gt;% 
-    mutate(name = sind-min(sind)+1) %&gt;%
-    pivot_wider(id_cols = id, values_from = Y, names_from = name, names_prefix = &quot;yl&quot;)
-  # outcome (testing set)
-  df_pred_te &lt;- test_df2 %&gt;% filter(window &gt; w) %&gt;%
-    left_join(y_obs_max_te, by = &quot;id&quot;) %&gt;% 
-    mutate_at(vars(Y, starts_with(&quot;yl&quot;)), as.factor)
-
-  # predict using the FOSR model fit above
-  pred_name &lt;- paste0(&quot;pred_w&quot;, w)
-  test_df2[, pred_name] &lt;- NA
-  test_df2[test_df2$window&gt;w, pred_name] &lt;- predict(fit_gen_fosr, newdata = df_pred_te, type = &quot;link&quot;)
-}
-t2 &lt;- Sys.time()
-# t2-t1</code></pre>
-<pre class="r"><code>test_df2 %&gt;%
-  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  mutate_at(vars(Y), function(x){as.numeric(as.character(x))}) %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.5)+
-  geom_line(aes(x=t, y=pred_w1, col = &quot;Up to 0.1&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=pred_w2, col = &quot;Up to 0.2&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=pred_w3, col = &quot;Up to 0.3&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=pred_w4, col = &quot;Up to 0.4&quot;), na.rm=T)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;ture&quot;))+
-  facet_wrap(~id)+
-  labs(title = &quot;Out-of-sample prediction&quot;)</code></pre>
-<p><img src="manuscript_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
-<p>This method is very, very fast, takes 10 seconds or so, much faster
-than both fGFPCA and GLMMadaptive. The performance lies in between them
-for most cases, sometimes worse than GLMMadaptive.</p>
-<p>Do we really want to use the lag-1 model?</p>
-<pre class="r"><code>tb_ies_l5 &lt;- test_df2 %&gt;%
-    mutate(err1 = (pred_w1-eta_i)^2,
-           err2 = (pred_w2-eta_i)^2,
-           err3 = (pred_w3-eta_i)^2,
-           err4 = (pred_w4-eta_i)^2) %&gt;%
-    select(id, t, window, starts_with(&quot;err&quot;)) %&gt;% 
-    group_by(window, id) %&gt;% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
-    group_by(window) %&gt;% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
-    filter(window != 1) %&gt;%
-  select(starts_with(&quot;err&quot;))
-
-tb_ies_l1 &lt;- test_df %&gt;%
-    mutate(err1 = (pred_w1-eta_i)^2,
-           err2 = (pred_w2-eta_i)^2,
-           err3 = (pred_w3-eta_i)^2,
-           err4 = (pred_w4-eta_i)^2) %&gt;%
-    select(id, t, window, starts_with(&quot;err&quot;)) %&gt;% 
-    group_by(window, id) %&gt;% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %&gt;% 
-    group_by(window) %&gt;% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %&gt;%
-    filter(window != 1) %&gt;%
-  select(starts_with(&quot;err&quot;))
-
-colnames(tb_ies_l1) &lt;- colnames(tb_ies_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>data.frame(Window = c(&quot;(0.2,0.4]&quot;, &quot;(0.4,0.6]&quot;, &quot;(0.6,0.8]&quot;, &quot;(0.8, 1.0]&quot;),
-           tb_ies_l1, tb_ies_l5, check.names = F) %&gt;%
-  kable(digits = 3, caption = &quot;Integrated squared error&quot;, booktabs = T,
-        table.attr = &quot;style = \&quot;color: black;\&quot;&quot;) %&gt;%
-  kable_styling(full_width = F) %&gt;% 
-  add_header_above(c(&quot; &quot;=1, &quot;L = 1&quot; = 4, &quot;L = 5&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Observation track&quot; = 8))</code></pre>
-<table style="color: black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
-<caption>
-Integrated squared error
-</caption>
-<thead>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="8">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Observation track
-</div>
-</th>
-</tr>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-L = 1
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-L = 5
-</div>
-</th>
-</tr>
-<tr>
-<th style="text-align:left;">
-Window
-</th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left;">
-(0.2,0.4]
-</td>
-<td style="text-align:right;">
-347.027
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-304.100
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-(0.4,0.6]
-</td>
-<td style="text-align:right;">
-285.249
-</td>
-<td style="text-align:right;">
-249.844
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-274.051
-</td>
-<td style="text-align:right;">
-209.148
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-(0.6,0.8]
-</td>
-<td style="text-align:right;">
-278.855
-</td>
-<td style="text-align:right;">
-308.348
-</td>
-<td style="text-align:right;">
-297.257
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-241.598
-</td>
-<td style="text-align:right;">
-291.369
-</td>
-<td style="text-align:right;">
-236.536
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-324.049
-</td>
-<td style="text-align:right;">
-338.808
-</td>
-<td style="text-align:right;">
-348.584
-</td>
-<td style="text-align:right;">
-346.941
-</td>
-<td style="text-align:right;">
-302.110
-</td>
-<td style="text-align:right;">
-302.478
-</td>
-<td style="text-align:right;">
-365.062
-</td>
-<td style="text-align:right;">
-336.012
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<div id="additional-figures" class="section level1" number="6">
-<h1><span class="header-section-number">6</span> Additional figures</h1>
+<div id="additional-figures" class="section level1" number="7">
+<h1><span class="header-section-number">7</span> Additional figures</h1>
 <!-- ## fGFPCA algorithm demonstration -->
 <!-- ```{r binning, eval=FALSE} -->
 <!-- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
