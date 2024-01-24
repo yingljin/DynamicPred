@@ -52,7 +52,6 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
   facet_wrap(~id)
 
 #### model set up ####
-
 L <- 1
 # L <- 5 # number of last observations used as time-fixed predictor
 windows <- seq(0, 1, by = 0.2) # prediction window
