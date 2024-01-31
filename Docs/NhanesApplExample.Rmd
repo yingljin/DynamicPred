@@ -15,7 +15,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-set.seed(1114)
+set.seed(130)
 
 library(here)
 library(tidyverse)
@@ -46,20 +46,12 @@ source(here("Code/OutsampBayes.R"))
 ```
 
 
-Fit fGFPCA model
-
-Because step 4 (debias) is very time-consuming, this example is fit on a subset of NHANES dataset, including 1000 participants as the training set
+# Fit fGFPCA model
 
 ```{r data_subset}
 # head(df)
 df <- df %>% rename(id=SEQN, Y=Z)
-
-Ntr <- 1000
-
-train_id <- unique(df$id)[1:Ntr] # training sample size = 1000
-train_df <- df %>% filter(id %in% train_id)
-
-# additional parameters
+N <- length(unique(df$id))
 J <- length(unique(df$sind))
 ```
 
@@ -74,134 +66,69 @@ n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
 
-train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
-train_df$bin <- as.numeric(as.character(train_df$bin))
+df$bin <- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
+df$bin <- as.numeric(as.character(df$bin))
 ```
 
 
-# Step 2:  Local GLMM
+# Step 2-4:  Local GLMM, fPCA, splines interpolation and GLMM reevaluation
 
-```{r}
-# fit model on the training set
-train_bin_lst <- split(train_df, f = train_df$bin)
+I'd like to investigate with different sample sizes.
 
-t1=Sys.time()
-df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
-t2= Sys.time()
-# t2-t1 
-```
+```{r, cache=TRUE, results='hide'}
+# sample size 
+N_sub <- rep(500, 4)
+fpca_model_list <- list()
+interp_pc_est <- list()
+debias_model_list <- list()
+time_vec <- rep(NA, length(N_sub))
 
-
-```{r}
-df_est_latent <- bind_rows(df_est_latent) 
-# head(df_est_latent)
-
-# example estimated latent function
-rand_id <- sample(train_id, 4)
-df_est_latent %>% 
-  filter(id %in% rand_id) %>%
-  mutate(eta_hat = exp(eta_hat)/(1+exp(eta_hat))) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y=eta_hat, group = id, col = "estimated"))+
-  geom_point(aes(x=sind, y = Y, group = id, col = "outcome"), size = 0.5)+
-  facet_wrap(~id, scales = "free")+
-  labs(x = "Time", y = "Estimated latent function (probablity scale)")
-```
-
-# Step 3: FPCA
-
-
-```{r}
-uni_eta_hat <- df_est_latent %>% filter(bin==sind)
-mat_est_unique <- matrix(uni_eta_hat$eta_hat,
-                         nrow=Ntr, 
-                         ncol=n_bin, byrow = F) 
-# row index subject, column binned time
-
-t1 <- Sys.time()
-fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
-# keep 3 PCs
-t2 <- Sys.time()
-# t2-t1 
-
-
-# fpca_mod$evalues/sum(fpca_mod$evalues)
-```
-
-
-```{r PC}
-data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1 = X1, PC2=X2, PC3=X3, PC4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") %>%
-  ggplot()+
-  geom_line(aes(x=t, y=value, col = PC))+
-  labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
-```
-
-- Proportion of variance explained with four PCs: `r round(fpca_mod$pve, 3)`
-
-
-# Step 4: Re-evaluation
-
-## Extend the eigenfunctions back to the original grid with B-spline basis 
-
-```{r interplate}
-# Re-evaluation
-## grid extension
-p <- 3 # order of b splines 
-knots <- 35 # number of knots (same from FPCA model)
-knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
-knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
-
-B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
-                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
-Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
-                   outer.ok = TRUE)$design  # evaluate B-splines on original grid
-
-
-df_phi <- matrix(NA, J, K) 
-for(k in 1:K){
-  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-  df_phi[,k] <- Bnew %*% coef(lm_mod)
-}# project binned eigenfunctions onto the original grid
-```
-
-
-Below presents the result of re-evaluation. Points are values of PC functions on the binned grid estimated from FPCA, and lines are values of re-evaluated PC functions on the original measurement grid. 
-
-```{r}
-df_pc1 <- data.frame(t=1:J,  df_phi) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") 
-
-df_pc2 <- data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") 
-
-left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
-  ggplot()+
-  geom_line(aes(x=t, y=value.x, col = PC), linewidth = 0.2)+
-  geom_point(aes(x=t, y=value.y, col = PC), na.rm = T, alpha = 0.5, size = 0.5)+
-  labs(x="Time", y="", title = "Re-evaluate eigenfunctions on the original grid")
-
-```
-
-
-## Debias the eigenvalues with GLMM
-
-
-```{r revaluation}
-df_phi <- data.frame(sind = 1:J, df_phi)
-colnames(df_phi) <- c("sind", paste0("phi", 1:K))
-train_df <- train_df %>% 
-  left_join(df_phi, by = "sind")
-train_df$id <- as.factor(train_df$id)
-```
-
-
-```{r, class.source='fold-show'}
-t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(sind, bs="cr")+
+pb <- txtProgressBar(min=0, max = length(N_sub), style = 3)
+for(i in seq_along(N_sub)){
+  
+  # training sample of a certain size
+  Ntr <- N_sub[i]
+  train_id <- sample(unique(df$id), size = Ntr) 
+  train_df <- df %>% filter(id %in% train_id)
+  
+  t1=Sys.time()
+  # local GLMM
+  train_bin_lst <- split(train_df, f = train_df$bin)
+  df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+  df_est_latent <- bind_rows(df_est_latent) 
+  
+  # FPCA
+  uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+  mat_est_unique <- matrix(uni_eta_hat$eta_hat, nrow=Ntr, ncol=n_bin, byrow = F) 
+  fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
+  fpca_model_list[[i]] <- fpca_mod
+  
+  # interpolation
+  p <- 3 # order of b splines 
+  knots <- 35 # number of knots (same from FPCA model)
+  knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+  knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+  
+  B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                  outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+  Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                     outer.ok = TRUE)$design  # evaluate B-splines on original grid
+  
+  
+  df_phi <- matrix(NA, J, K) 
+  for(k in 1:K){
+    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+    df_phi[,k] <- Bnew %*% coef(lm_mod)
+  }# project binned eigenfunctions onto the original grid
+  interp_pc_est[[i]] <- df_phi
+  
+  # debias model
+  df_phi <- data.frame(sind = 1:J, df_phi)
+  colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+  train_df <- train_df %>% 
+    left_join(df_phi, by = "sind")
+  train_df$id <- as.factor(train_df$id)
+  debias_glmm <- bam(Y ~ s(sind, bs="cr")+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
@@ -210,139 +137,71 @@ debias_glmm <- bam(Y ~ s(sind, bs="cr")+
                    data=train_df, 
                    method = "fREML",
                    discrete = TRUE)
-t2 <- Sys.time()
-# t2-t1 # less than 7.5 minutes
+  debias_model_list[[i]] <- debias_glmm
+  t2 <- Sys.time()
+  
+  time_vec[i] <- as.numeric(t2-t1, unit = "secs")
+  
+  setTxtProgressBar(pb, i)
+}
+
+close(pb)
 ```
 
-It seems that the re-evaluated eigenvalues lost their decreasing nature. The eigenvalue corresponding to PC2 is smaller than PC3. Specifically
+<!-- - Time spent on model fitting -->
 
-- The smoothing parameters from the mgcv::bam model: `r round(debias_glmm$sp[2:5], 4)`
+```{r, eval=FALSE}
+time_vec
+```
 
-- The re-evaluated eigenvalues, which are inverse of the smoothing parameters above: `r round(1/debias_glmm$sp[2:5], 3)`
-- The **biased** eigenvalues from FPCA (step 3): `r round(fpca_mod$evalues[1:4], 3)`
+<!-- - FPCA eigenvalues -->
 
-Below I try to investigate the cause of this problem. 
+```{r, eval=FALSE}
+lapply(fpca_model_list, function(x){x$evalues})
+lapply(fpca_model_list, function(x){x$pve})
+```
 
-### Variance explained by each PC
+- Eigenvalues from debias models
 
-The variance of individual-specific random effects, in theory, is: 
+```{r}
+lapply(debias_model_list, function(x){1/x$sp[2:5]})
+```
 
-\[\begin{aligned}
-Var(b_i(t)) & = Var(\sum_{k=1}^K \xi_{ik}\phi_k(t)) \\
-& = \sum_{k=1}
-^K\phi_k(t)^2\lambda_k
-\end{aligned}\]
+- PC functions
 
+```{r}
+pc_plot_list <- list()
 
-Here I'd like to compare the variation from each PC calculated using estimated from the **biased** FPCA estimates (binned grid) and the supposedly **debiased** from the dibased GLMM model (original grid). 
+for(i in  1:length(N_sub)){
+  
+  df_phi1 <- data.frame(t=mid, fpca_model_list[[i]]$efunctions)
+  df_phi2 <- data.frame(t = 1:J, interp_pc_est[[i]])
+  
+  this_plot <- left_join(df_phi2, df_phi1, by = "t") %>%
+    ggplot()+
+    geom_point(aes(x=t, y=X1.y, col = "PC1"), na.rm = T, size = 0.5)+
+    geom_point(aes(x=t, y=X2.y, col = "PC2"), na.rm = T, size = 0.5)+
+    geom_point(aes(x=t, y=X3.y, col = "PC3"), na.rm = T, size = 0.5)+
+    geom_point(aes(x=t, y=X4.y, col = "PC4"), na.rm = T, size = 0.5)+
+    geom_line(aes(x=t, y=X1.x, col = "PC1"))+
+    geom_line(aes(x=t, y=X2.x, col = "PC2"))+
+    geom_line(aes(x=t, y=X3.x, col = "PC3"))+
+    geom_line(aes(x=t, y=X4.x, col = "PC4"))+
+    labs(x="time", y = "", title = paste0("Iter", i))
+  
+  pc_plot_list[[i]] <- this_plot
+  
+}
 
-```{r var_bi_fpca}
-df_pc_fpca <- data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>% 
-  mutate(eval1=fpca_mod$evalues[1], 
-         eval2=fpca_mod$evalues[2], 
-         eval3=fpca_mod$evalues[3], 
-         eval4=fpca_mod$evalues[4]) %>%
-  mutate(var1 = eval1*PC1^2, var2 = eval2*PC2^2, var3 = eval3*PC3^2, var4 = eval4*PC4^2)
-
+ggarrange(plotlist = pc_plot_list, common.legend = T)
 ```
 
 
-```{r var_bi_glmm}
-# re-evaluated eigenvalues
-evals_new <- 1/debias_glmm$sp[2:5]
-
-df_pc_glmm <- df_phi %>%
-  mutate(eval1=evals_new[1], 
-         eval2=evals_new[2], 
-         eval3=evals_new[3], 
-         eval4=evals_new[4]) %>%
-  mutate(var1 = eval1*phi1^2, var2 = eval2*phi2^2, var3 = eval3*phi3^2, var4 = eval4*phi4^2)
-```
+The "reverse eigenvalue problem" does not always happen. When training sample size is small (like maybe 200), the problem happened less. So this is definately a numeric problem. But a very small sample also would induce sigularity issues.
 
 
-```{r pc_var}
-df_pc_fpca$est <- "FPCA"
-df_pc_glmm$est <- "Debias"
+Some other thoughts:
 
-bind_rows(
-  df_pc_fpca %>% select(t, starts_with("var"), est),
-  df_pc_glmm %>% select(sind, starts_with("var"), est) %>% rename(t=sind)
-) %>% 
-  rename(PC1=var1, PC2=var2, PC3=var3, PC4=var4) %>%
-  pivot_longer(2:5, names_to = "PC", values_to = "variance") %>%
-  ggplot()+
-  geom_line(aes(x=t, y=variance, col=est, group=est))+
-  facet_wrap(~PC)+
-  labs(title = "Time-varying variation of each PC", x="Time", y = "Variation",
-       col = "")
-
-```
-
-Things I see from the plots above:
-
-1. PC1 basically has no effect in the earlier track. It explains variation later during the day
-2. PC2 seems to work primary at night and a bit earlier time interval from PC1
-3. PC2 and PC3 seems to have similar shape? In fact, I think PC4 has a similar shape as well
-
-### Estimates of score
-
-I am also curious about how the individual score estimates change after debias
-
-```{r score_df}
-df_score_fpca <- data.frame(id = 1:Ntr, fpca_mod$scores) %>%
-  pivot_longer(2:5, names_to = "PC", values_to = "score") %>%
-  mutate(est = "FPCA")
-
-df_score_glmm <- data.frame(
-  id = 1:Ntr,
-  X1 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi1.")) %>% t(),
-  X2 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi2.")) %>% t(),
-  X3 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi3.")) %>% t(),
-  X4 = data.frame(t(debias_glmm$coefficients)) %>% select(starts_with("s.id..phi4.")) %>% t()
-  ) %>%
-  pivot_longer(2:5, names_to = "PC", values_to = "score") %>%
-  mutate(est = "Debias")
-
-df_score <- bind_rows(df_score_fpca, df_score_glmm) %>%
-  mutate(PC = gsub("X", "PC", PC)) 
-```
-
-```{r score_box}
-df_score %>%
-  ggplot(aes(x=est, y=score, col=est))+
-  geom_boxplot()+
-  geom_jitter(size = 0.2, alpha=0.5)+
-  facet_wrap(~PC, scales = "free_y")+
-  labs(title = "Score estimates of each PC", x = "", y="Score estimates",
-       col = "")
-
-```
-
-```{r score_hist}
-df_score %>% 
-  ggplot()+
-  geom_histogram(aes(x=score), bins = 100)+
-  facet_grid(rows = vars(PC), cols = vars(est), scales = "free")+
-  labs(title = "Distribution of score estimates", x = "Score estimates",
-       y= "")
-
-```
-
-From figures above, the score estimates on the binned grid (FPCA) of the 3rd PC is quite skewed negatively (and the 2nd PC slightly positively?)
-
-Below are summary statistics 
-
-```{r score_sum_stat}
-df_score %>%
-  pivot_wider(names_from = PC, values_from = score) %>%
-  tableby(est ~ PC1 + PC2 + PC3 + PC4, data = .,
-          control = tableby.control(total = F, 
-                                    test = F)) %>% 
-  summary() %>% 
-  kable(table.attr = "style = \"color: black;\"", escape =F) %>% 
-  kable_styling(full_width = F)
- 
-```
-
+1. What about estimation method of smooth parameter? It seems GCV doesn't treat model as mixed effects. REML may be too slow without the "discrete=T" option on the full dataset. 
+2. Is is possible to impose monotone constraint on smoothing parameter estimation? 
 
