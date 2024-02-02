@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-01-24" />
+<meta name="date" content="2024-02-02" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-01-24</h4>
+<h4 class="date">2024-02-02</h4>
 
 </div>
 
@@ -478,8 +478,8 @@ k = 1, 2, 3, 4 respectively.</li>
 <li>500 simulations were implemented</li>
 </ul>
 </div>
-<div id="figure" class="section level2" number="3.2">
-<h2><span class="header-section-number">3.2</span> Figure</h2>
+<div id="figures" class="section level2" number="3.2">
+<h2><span class="header-section-number">3.2</span> Figures</h2>
 <pre class="r"><code>load(here(&quot;Data/SimOutput_fGFPCA.RData&quot;))
 load(here(&quot;Data/SimOutput_GLMMadaptive.RData&quot;))
 load(here(&quot;Data/SimOutput_GFOSR_L1.RData&quot;))
@@ -492,10 +492,21 @@ t_vec_gfosr_l5 &lt;- t_vec_gfofr
 rm(pred_list_gfofr, t_vec_gfofr)
 
 rand_id &lt;- sample(501:600, size = 4)</code></pre>
-<pre class="r"><code># range(pred_list_all[[1]]$pred0.2, na.rm = T)
-fig_fgfpca &lt;- pred_list_all[[1]] %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %&gt;%
+<pre class="r"><code>bind_rows(
+  pred_list_all[[1]] %&gt;% filter(id %in% rand_id) %&gt;% 
+    mutate(method=&quot;fGFPCA&quot;),
+  pred_list_ref[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GLMMadaptive&quot;),
+  pred_list_gfosr_l1[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GFOSR (L=1)&quot;) %&gt;%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_list_gfosr_l5[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GFOSR (L=5)&quot;) %&gt;%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4)
+) %&gt;% mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
@@ -503,68 +514,15 @@ fig_fgfpca &lt;- pred_list_all[[1]] %&gt;%
   geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow = 1)+
-  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))
-
-fig_adglmm &lt;- pred_list_ref[[1]] %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow = 1)+
-  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;, 
-       x = &quot;Time&quot;, y=&quot;&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))
-
-fig_gfosr_l1 &lt;- pred_list_gfosr_l1[[1]] %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow = 1)+
-  labs(title = &quot;GFOSR (L=1)&quot;, col = &quot;Maximum observation time&quot;,
-       x=&quot;Time&quot;, y=&quot;&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))
-
-fig_gfosr_l5 &lt;- pred_list_gfosr_l5[[1]] %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, pred_w1, pred_w2, pred_w3, pred_w4), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow = 1)+
-  labs(title = &quot;GFOSR (L=5)&quot;, col = &quot;Maximum observation time&quot;,
-       x=&quot;Time&quot;, y=&quot;&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))</code></pre>
-<pre class="r"><code>ggarrange(fig_fgfpca, fig_adglmm, fig_gfosr_l1, fig_gfosr_l5,
-          ncol = 1, common.legend = T)</code></pre>
-<p><img src="manuscript_files/figure-html/fig_sim-1.png" width="768" /></p>
+  theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/fig_large_sim-1.png" width="768" /></p>
 </div>
-<div id="ise" class="section level2" number="3.3">
-<h2><span class="header-section-number">3.3</span> ISE</h2>
+<div id="ise-and-auc" class="section level2" number="3.3">
+<h2><span class="header-section-number">3.3</span> ISE and AUC</h2>
 <pre class="r"><code>## ISE container 
 ise_fgfpca &lt;- ise_adglmm &lt;- ise_gfosr_l1 &lt;- ise_gfosr_l5 &lt;- 
   array(NA, dim = c(length(window)-2, length(window)-2, M))
@@ -661,321 +619,6 @@ for(m in 1:M){
 
 mean_ise_gfosr_l5 &lt;- apply(ise_gfosr_l5, c(1, 2), mean)
 colnames(mean_ise_gfosr_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>rbind(mean_ise_fgfpca, mean_ise_adglmm, 
-           mean_ise_gfosr_l1, mean_ise_gfosr_l5) %&gt;%
-  as_tibble() %&gt;%
-  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
-                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
-         .before=1) %&gt;%
-  kable(digits = 3, booktabs=T,
-        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
-  kable_styling(full_width = F) %&gt;% 
-  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
-                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
-<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
-<thead>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Maximum observation time
-</div>
-</th>
-</tr>
-<tr>
-<th style="text-align:left;">
-Window
-</th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
-</tr>
-</thead>
-<tbody>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>fGFPCA</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-146.407
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-183.967
-</td>
-<td style="text-align:right;">
-74.977
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-218.265
-</td>
-<td style="text-align:right;">
-49.275
-</td>
-<td style="text-align:right;">
-15.776
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-108.918
-</td>
-<td style="text-align:right;">
-77.981
-</td>
-<td style="text-align:right;">
-17.747
-</td>
-<td style="text-align:right;">
-12.005
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GLMMadaptive</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-387.708
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-291.579
-</td>
-<td style="text-align:right;">
-269.799
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-315.778
-</td>
-<td style="text-align:right;">
-282.736
-</td>
-<td style="text-align:right;">
-278.242
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-563.011
-</td>
-<td style="text-align:right;">
-477.485
-</td>
-<td style="text-align:right;">
-597.746
-</td>
-<td style="text-align:right;">
-600.340
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=1)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-362.476
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-286.614
-</td>
-<td style="text-align:right;">
-262.552
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-385.701
-</td>
-<td style="text-align:right;">
-410.508
-</td>
-<td style="text-align:right;">
-389.305
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-328.482
-</td>
-<td style="text-align:right;">
-341.274
-</td>
-<td style="text-align:right;">
-354.211
-</td>
-<td style="text-align:right;">
-347.067
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=5)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-274.947
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-277.438
-</td>
-<td style="text-align:right;">
-220.209
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-322.338
-</td>
-<td style="text-align:right;">
-373.108
-</td>
-<td style="text-align:right;">
-325.017
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-290.982
-</td>
-<td style="text-align:right;">
-318.079
-</td>
-<td style="text-align:right;">
-350.850
-</td>
-<td style="text-align:right;">
-333.580
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div id="auc" class="section level2" number="3.4">
-<h2><span class="header-section-number">3.4</span> AUC</h2>
 <pre class="r"><code>## a function to calculate AUC
 get_auc &lt;- function(y, pred){
   if(sum(is.na(y))&gt;0 | sum(is.na(pred))&gt;0){
@@ -1066,26 +709,52 @@ colnames(mean_auc_gfosr_l1) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&
 
 mean_auc_gfosr_l5 &lt;- apply(auc_gfosr_l5, c(1, 2), mean)
 colnames(mean_auc_gfosr_l5) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>rbind(mean_auc_fgfpca, mean_auc_adglmm, 
-           mean_auc_gfosr_l1, mean_auc_gfosr_l5) %&gt;%
-  as_tibble() %&gt;%
-  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
-                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
-         .before=1) %&gt;%
+<pre class="r"><code>fgfpca1 &lt;- rbind(mean_ise_fgfpca ,mean_auc_fgfpca) %&gt;% as_tibble() %&gt;%
+  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 2), .before=1)
+gfosr_l5_1 &lt;- rbind(mean_ise_gfosr_l5 ,mean_auc_gfosr_l5) %&gt;% as_tibble()
+gfosr_l1_1 &lt;- rbind(mean_ise_gfosr_l1 ,mean_auc_gfosr_l1) %&gt;% as_tibble()
+adglmm1 &lt;- rbind(mean_ise_adglmm ,mean_auc_adglmm) %&gt;% as_tibble() 
+
+bind_cols(fgfpca1, gfosr_l5_1, gfosr_l1_1, adglmm1, .name_repair = &quot;minimal&quot;) %&gt;%
   kable(digits = 3, booktabs=T,
         table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
-                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
+  add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 4, &quot;GFOSR (L=5)&quot; = 4, 
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 16)) %&gt;%
+  group_rows(index = c(&quot;ISE&quot;= 4, &quot;AUC&quot; = 4))</code></pre>
 <table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="16">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Maximum observation time
+</div>
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+fGFPCA
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=5)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=1)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GLMMadaptive
 </div>
 </th>
 </tr>
@@ -1105,12 +774,241 @@ Window
 <th style="text-align:right;">
 0.8
 </th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
 </tr>
 </thead>
 <tbody>
 <tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>fGFPCA</strong>
+<td colspan="17" style="border-bottom: 1px solid;">
+<strong>ISE</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+146.407
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+274.947
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+362.476
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+387.708
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+183.967
+</td>
+<td style="text-align:right;">
+74.977
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+277.438
+</td>
+<td style="text-align:right;">
+220.209
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+286.614
+</td>
+<td style="text-align:right;">
+262.552
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+291.579
+</td>
+<td style="text-align:right;">
+269.799
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+218.265
+</td>
+<td style="text-align:right;">
+49.275
+</td>
+<td style="text-align:right;">
+15.776
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+322.338
+</td>
+<td style="text-align:right;">
+373.108
+</td>
+<td style="text-align:right;">
+325.017
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+385.701
+</td>
+<td style="text-align:right;">
+410.508
+</td>
+<td style="text-align:right;">
+389.305
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+315.778
+</td>
+<td style="text-align:right;">
+282.736
+</td>
+<td style="text-align:right;">
+278.242
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+108.918
+</td>
+<td style="text-align:right;">
+77.981
+</td>
+<td style="text-align:right;">
+17.747
+</td>
+<td style="text-align:right;">
+12.005
+</td>
+<td style="text-align:right;">
+290.982
+</td>
+<td style="text-align:right;">
+318.079
+</td>
+<td style="text-align:right;">
+350.850
+</td>
+<td style="text-align:right;">
+333.580
+</td>
+<td style="text-align:right;">
+328.482
+</td>
+<td style="text-align:right;">
+341.274
+</td>
+<td style="text-align:right;">
+354.211
+</td>
+<td style="text-align:right;">
+347.067
+</td>
+<td style="text-align:right;">
+563.011
+</td>
+<td style="text-align:right;">
+477.485
+</td>
+<td style="text-align:right;">
+597.746
+</td>
+<td style="text-align:right;">
+600.340
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="17" style="border-bottom: 1px solid;">
+<strong>AUC</strong>
 </td>
 </tr>
 <tr>
@@ -1119,6 +1017,33 @@ Window
 </td>
 <td style="text-align:right;">
 0.748
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.686
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.624
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.591
 </td>
 <td style="text-align:right;">
 </td>
@@ -1141,6 +1066,36 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
+<td style="text-align:right;">
+0.563
+</td>
+<td style="text-align:right;">
+0.630
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.543
+</td>
+<td style="text-align:right;">
+0.590
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.524
+</td>
+<td style="text-align:right;">
+0.596
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
 </tr>
 <tr>
 <td style="text-align:left;padding-left: 2em;" indentlevel="1">
@@ -1154,6 +1109,39 @@ Window
 </td>
 <td style="text-align:right;">
 0.803
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.669
+</td>
+<td style="text-align:right;">
+0.628
+</td>
+<td style="text-align:right;">
+0.676
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.604
+</td>
+<td style="text-align:right;">
+0.577
+</td>
+<td style="text-align:right;">
+0.615
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.669
+</td>
+<td style="text-align:right;">
+0.694
+</td>
+<td style="text-align:right;">
+0.687
 </td>
 <td style="text-align:right;">
 </td>
@@ -1174,60 +1162,29 @@ Window
 <td style="text-align:right;">
 0.784
 </td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GLMMadaptive</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
+<td style="text-align:right;">
+0.626
 </td>
 <td style="text-align:right;">
-0.591
+0.606
 </td>
 <td style="text-align:right;">
+0.552
 </td>
 <td style="text-align:right;">
+0.584
 </td>
 <td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
+0.588
 </td>
 <td style="text-align:right;">
-0.524
+0.564
 </td>
 <td style="text-align:right;">
-0.596
+0.537
 </td>
 <td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-0.669
-</td>
-<td style="text-align:right;">
-0.694
-</td>
-<td style="text-align:right;">
-0.687
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
+0.551
 </td>
 <td style="text-align:right;">
 0.514
@@ -1242,145 +1199,11 @@ Window
 0.564
 </td>
 </tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=1)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-0.624
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-0.543
-</td>
-<td style="text-align:right;">
-0.590
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-0.604
-</td>
-<td style="text-align:right;">
-0.577
-</td>
-<td style="text-align:right;">
-0.615
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-0.588
-</td>
-<td style="text-align:right;">
-0.564
-</td>
-<td style="text-align:right;">
-0.537
-</td>
-<td style="text-align:right;">
-0.551
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=5)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-0.686
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-0.563
-</td>
-<td style="text-align:right;">
-0.630
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-0.669
-</td>
-<td style="text-align:right;">
-0.628
-</td>
-<td style="text-align:right;">
-0.676
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-0.626
-</td>
-<td style="text-align:right;">
-0.606
-</td>
-<td style="text-align:right;">
-0.552
-</td>
-<td style="text-align:right;">
-0.584
-</td>
-</tr>
 </tbody>
 </table>
 </div>
-<div id="time-minutes" class="section level2" number="3.5">
-<h2><span class="header-section-number">3.5</span> Time (minutes)</h2>
+<div id="time-minutes" class="section level2" number="3.4">
+<h2><span class="header-section-number">3.4</span> Time (minutes)</h2>
 <p>I chose not to report fitting and prediction time separately because
 it is too difficult to tell them apart for the GFOSR models.</p>
 <pre class="r"><code>data.frame(
@@ -1464,11 +1287,19 @@ t_subset_gfosr_l5 &lt;- t_vec_gfofr_subset
 rm(pred_list_gfofr_subset, t_vec_gfofr_subset)
 
 rand_id &lt;- sample(101:200, size = 4)</code></pre>
-<div id="figure-1" class="section level2" number="4.1">
+<div id="figure" class="section level2" number="4.1">
 <h2><span class="header-section-number">4.1</span> Figure</h2>
-<pre class="r"><code>fig_fgfpca2 &lt;- pred_subset_fGFPCA[[1]] %&gt;%
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
+<pre class="r"><code>bind_rows(
+  pred_subset_fGFPCA[[1]] %&gt;% filter(id %in% rand_id) %&gt;% mutate(method=&quot;fGFPCA&quot;),
+  pred_subset_gfosr_l5[[1]] %&gt;% filter(id %in% rand_id) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;) %&gt;% 
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_subset_gfosr_l1[[1]] %&gt;% filter(id %in% rand_id) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;) %&gt;%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_subset_adglmm[[1]] %&gt;% filter(id %in% rand_id) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
@@ -1476,69 +1307,15 @@ rand_id &lt;- sample(101:200, size = 4)</code></pre>
   geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
   geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow = 1)+
-  labs(title = &quot;fGFPCA&quot;, col = &quot;Maximum observation time&quot;,
-       x = &quot;Time&quot;, y=&quot;&quot;)+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))
-
-fig_adglmm2 &lt;- pred_subset_adglmm[[1]] %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow = 1)+
-  labs(title = &quot;GLMMadaptive&quot;, col = &quot;Maximum observation time&quot;,
-       x = &quot;Time&quot;, y = &quot;&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))
-
-fig_gfosr_l1_2 &lt;- pred_subset_gfosr_l1[[1]] %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow=1)+
-  labs(title = &quot;GFOSR (L=1)&quot;, col = &quot;Maximum observation time&quot;,
-       x = &quot;Time&quot;, y = &quot;&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))
-
-fig_gfosr_l5_2 &lt;- pred_subset_gfosr_l5[[1]] %&gt;% 
-  filter(id %in% rand_id) %&gt;%
-  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), function(x){exp(x)/(1+exp(x))}) %&gt;%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred_w1, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w2, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w3, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred_w4, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  facet_wrap(~id, nrow=1)+
-  labs(title = &quot;GFOSR (L=5)&quot;, col = &quot;Maximum observation time&quot;,
-       x = &quot;Time&quot;, y = &quot;&quot;)+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(axis.text = element_text(size = 5), 
-        title = element_text(size = 8))</code></pre>
-<pre class="r"><code>ggarrange(fig_fgfpca2, fig_adglmm2, fig_gfosr_l1_2, fig_gfosr_l5_2,
-          ncol = 1, common.legend = T)</code></pre>
-<p><img src="manuscript_files/figure-html/fig_sim2-1.png" width="768" /></p>
+  theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/fig_small_sim-1.png" width="768" /></p>
 </div>
-<div id="ise-1" class="section level2" number="4.2">
-<h2><span class="header-section-number">4.2</span> ISE</h2>
+<div id="ise-and-auc-1" class="section level2" number="4.2">
+<h2><span class="header-section-number">4.2</span> ISE and AUC</h2>
 <pre class="r"><code>## ISE container 
 ise_fgfpca2 &lt;- ise_adglmm2 &lt;- ise_gfosr_l1_2 &lt;- ise_gfosr_l5_2 &lt;- 
   array(NA, dim = c(length(window)-2, length(window)-2, M))
@@ -1625,321 +1402,6 @@ colnames(mean_ise_gfosr_l1_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.
 mean_ise_gfosr_l5_2 &lt;- apply(ise_gfosr_l5_2, c(1, 2), mean, na.rm = T)
 
 colnames(mean_ise_gfosr_l5_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>rbind(mean_ise_fgfpca2, mean_ise_adglmm2, 
-           mean_ise_gfosr_l1_2, mean_ise_gfosr_l5_2) %&gt;%
-  as_tibble() %&gt;%
-  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
-                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
-         .before=1) %&gt;%
-  kable(digits = 3, booktabs=T,
-        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
-  kable_styling(full_width = F) %&gt;% 
-  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
-                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
-<table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
-<thead>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Maximum observation time
-</div>
-</th>
-</tr>
-<tr>
-<th style="text-align:left;">
-Window
-</th>
-<th style="text-align:right;">
-0.2
-</th>
-<th style="text-align:right;">
-0.4
-</th>
-<th style="text-align:right;">
-0.6
-</th>
-<th style="text-align:right;">
-0.8
-</th>
-</tr>
-</thead>
-<tbody>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>fGFPCA</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-150.641
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-188.065
-</td>
-<td style="text-align:right;">
-77.380
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-224.001
-</td>
-<td style="text-align:right;">
-51.533
-</td>
-<td style="text-align:right;">
-16.879
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-112.163
-</td>
-<td style="text-align:right;">
-81.368
-</td>
-<td style="text-align:right;">
-19.592
-</td>
-<td style="text-align:right;">
-13.399
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GLMMadaptive</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-374.836
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-268.390
-</td>
-<td style="text-align:right;">
-463.337
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-319.731
-</td>
-<td style="text-align:right;">
-287.001
-</td>
-<td style="text-align:right;">
-233.510
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-228.335
-</td>
-<td style="text-align:right;">
-469.769
-</td>
-<td style="text-align:right;">
-331.509
-</td>
-<td style="text-align:right;">
-131.993
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=1)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-367.282
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-290.781
-</td>
-<td style="text-align:right;">
-265.809
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-386.705
-</td>
-<td style="text-align:right;">
-408.427
-</td>
-<td style="text-align:right;">
-388.427
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-331.488
-</td>
-<td style="text-align:right;">
-342.935
-</td>
-<td style="text-align:right;">
-354.800
-</td>
-<td style="text-align:right;">
-347.627
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=5)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-286.853
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-286.628
-</td>
-<td style="text-align:right;">
-227.225
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-328.612
-</td>
-<td style="text-align:right;">
-374.572
-</td>
-<td style="text-align:right;">
-326.522
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-301.165
-</td>
-<td style="text-align:right;">
-324.817
-</td>
-<td style="text-align:right;">
-353.888
-</td>
-<td style="text-align:right;">
-335.139
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div id="auc-1" class="section level2" number="4.3">
-<h2><span class="header-section-number">4.3</span> AUC</h2>
 <pre class="r"><code>## auc container 
 auc_fgfpca2 &lt;- auc_adglmm2 &lt;- auc_gfosr_l1_2 &lt;- auc_gfosr_l5_2 &lt;- 
   array(NA, dim = c(length(window)-2, length(window)-2, M))</code></pre>
@@ -2017,26 +1479,52 @@ colnames(mean_auc_gfosr_l1_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.
 
 mean_auc_gfosr_l5_2 &lt;- apply(auc_gfosr_l5_2, c(1,2), mean)
 colnames(mean_auc_gfosr_l5_2) &lt;- c(&quot;0.2&quot;, &quot;0.4&quot;, &quot;0.6&quot;, &quot;0.8&quot;)</code></pre>
-<pre class="r"><code>rbind(mean_auc_fgfpca2, mean_auc_adglmm2, 
-           mean_auc_gfosr_l1_2, mean_auc_gfosr_l5_2) %&gt;%
-  as_tibble() %&gt;%
-  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
-                        &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 4),
-         .before=1) %&gt;%
+<pre class="r"><code>fgfpca2 &lt;- rbind(mean_ise_fgfpca2 ,mean_auc_fgfpca2) %&gt;% as_tibble() %&gt;%
+  mutate(Window = rep(c(&quot;(0.2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, &quot;(0.6, 0.8]&quot;, &quot;(0.8, 1.0]&quot;), 2), .before=1)
+gfosr_l5_2 &lt;- rbind(mean_ise_gfosr_l5_2 ,mean_auc_gfosr_l5_2) %&gt;% as_tibble()
+gfosr_l1_2 &lt;- rbind(mean_ise_gfosr_l1_2 ,mean_auc_gfosr_l1_2) %&gt;% as_tibble()
+adglmm2 &lt;- rbind(mean_ise_adglmm2 ,mean_auc_adglmm2) %&gt;% as_tibble() 
+
+bind_cols(fgfpca2, gfosr_l5_2, gfosr_l1_2, adglmm2, .name_repair = &quot;minimal&quot;) %&gt;%
   kable(digits = 3, booktabs=T,
         table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) %&gt;% 
-  group_rows(index = c(&quot;fGFPCA&quot; = 4, &quot;GLMMadaptive&quot; = 4,
-                     &quot;GFOSR (L=1)&quot; = 4, &quot;GFOSR (L=5)&quot; = 4)) %&gt;%
-  add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
+  add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 4, &quot;GFOSR (L=5)&quot; = 4, 
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 16)) %&gt;%
+  group_rows(index = c(&quot;ISE&quot;= 4, &quot;AUC&quot; = 4))</code></pre>
 <table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="16">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Maximum observation time
+</div>
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+fGFPCA
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=5)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=1)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GLMMadaptive
 </div>
 </th>
 </tr>
@@ -2056,12 +1544,241 @@ Window
 <th style="text-align:right;">
 0.8
 </th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
 </tr>
 </thead>
 <tbody>
 <tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>fGFPCA</strong>
+<td colspan="17" style="border-bottom: 1px solid;">
+<strong>ISE</strong>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.2, 0.4]
+</td>
+<td style="text-align:right;">
+150.641
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+286.853
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+367.282
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+374.836
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+188.065
+</td>
+<td style="text-align:right;">
+77.380
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+286.628
+</td>
+<td style="text-align:right;">
+227.225
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+290.781
+</td>
+<td style="text-align:right;">
+265.809
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+268.390
+</td>
+<td style="text-align:right;">
+463.337
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+224.001
+</td>
+<td style="text-align:right;">
+51.533
+</td>
+<td style="text-align:right;">
+16.879
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+328.612
+</td>
+<td style="text-align:right;">
+374.572
+</td>
+<td style="text-align:right;">
+326.522
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+386.705
+</td>
+<td style="text-align:right;">
+408.427
+</td>
+<td style="text-align:right;">
+388.427
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+319.731
+</td>
+<td style="text-align:right;">
+287.001
+</td>
+<td style="text-align:right;">
+233.510
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+(0.8, 1.0]
+</td>
+<td style="text-align:right;">
+112.163
+</td>
+<td style="text-align:right;">
+81.368
+</td>
+<td style="text-align:right;">
+19.592
+</td>
+<td style="text-align:right;">
+13.399
+</td>
+<td style="text-align:right;">
+301.165
+</td>
+<td style="text-align:right;">
+324.817
+</td>
+<td style="text-align:right;">
+353.888
+</td>
+<td style="text-align:right;">
+335.139
+</td>
+<td style="text-align:right;">
+331.488
+</td>
+<td style="text-align:right;">
+342.935
+</td>
+<td style="text-align:right;">
+354.800
+</td>
+<td style="text-align:right;">
+347.627
+</td>
+<td style="text-align:right;">
+228.335
+</td>
+<td style="text-align:right;">
+469.769
+</td>
+<td style="text-align:right;">
+331.509
+</td>
+<td style="text-align:right;">
+131.993
+</td>
+</tr>
+<tr grouplength="4">
+<td colspan="17" style="border-bottom: 1px solid;">
+<strong>AUC</strong>
 </td>
 </tr>
 <tr>
@@ -2070,6 +1787,33 @@ Window
 </td>
 <td style="text-align:right;">
 0.746
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.679
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.620
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.672
 </td>
 <td style="text-align:right;">
 </td>
@@ -2092,6 +1836,36 @@ Window
 </td>
 <td style="text-align:right;">
 </td>
+<td style="text-align:right;">
+0.549
+</td>
+<td style="text-align:right;">
+0.627
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.536
+</td>
+<td style="text-align:right;">
+0.590
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.622
+</td>
+<td style="text-align:right;">
+0.671
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
 </tr>
 <tr>
 <td style="text-align:left;padding-left: 2em;" indentlevel="1">
@@ -2105,6 +1879,39 @@ Window
 </td>
 <td style="text-align:right;">
 0.801
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.656
+</td>
+<td style="text-align:right;">
+0.617
+</td>
+<td style="text-align:right;">
+0.668
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.598
+</td>
+<td style="text-align:right;">
+0.574
+</td>
+<td style="text-align:right;">
+0.613
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.689
+</td>
+<td style="text-align:right;">
+0.698
+</td>
+<td style="text-align:right;">
+0.731
 </td>
 <td style="text-align:right;">
 </td>
@@ -2125,127 +1932,17 @@ Window
 <td style="text-align:right;">
 0.784
 </td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GLMMadaptive</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
+<td style="text-align:right;">
+0.611
 </td>
 <td style="text-align:right;">
-0.672
+0.588
 </td>
 <td style="text-align:right;">
+0.551
 </td>
 <td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-0.622
-</td>
-<td style="text-align:right;">
-0.671
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-0.689
-</td>
-<td style="text-align:right;">
-0.698
-</td>
-<td style="text-align:right;">
-0.731
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-0.681
-</td>
-<td style="text-align:right;">
-0.629
-</td>
-<td style="text-align:right;">
-0.679
-</td>
-<td style="text-align:right;">
-0.743
-</td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=1)</strong>
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
-</td>
-<td style="text-align:right;">
-0.620
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-0.536
-</td>
-<td style="text-align:right;">
-0.590
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-0.598
-</td>
-<td style="text-align:right;">
-0.574
-</td>
-<td style="text-align:right;">
-0.613
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
+0.578
 </td>
 <td style="text-align:right;">
 0.580
@@ -2259,72 +1956,17 @@ Window
 <td style="text-align:right;">
 0.551
 </td>
-</tr>
-<tr grouplength="4">
-<td colspan="5" style="border-bottom: 1px solid;">
-<strong>GFOSR (L=5)</strong>
+<td style="text-align:right;">
+0.681
 </td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.2, 0.4]
+<td style="text-align:right;">
+0.629
 </td>
 <td style="text-align:right;">
 0.679
 </td>
 <td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.4, 0.6]
-</td>
-<td style="text-align:right;">
-0.549
-</td>
-<td style="text-align:right;">
-0.627
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.6, 0.8]
-</td>
-<td style="text-align:right;">
-0.656
-</td>
-<td style="text-align:right;">
-0.617
-</td>
-<td style="text-align:right;">
-0.668
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;padding-left: 2em;" indentlevel="1">
-(0.8, 1.0]
-</td>
-<td style="text-align:right;">
-0.611
-</td>
-<td style="text-align:right;">
-0.588
-</td>
-<td style="text-align:right;">
-0.551
-</td>
-<td style="text-align:right;">
-0.578
+0.743
 </td>
 </tr>
 </tbody>
@@ -2412,8 +2054,7 @@ load(here(&quot;Data/ApplOutput.RData&quot;))</code></pre>
   theme(axis.text.y = element_blank())+
   scale_x_continuous(breaks = seq(0, 1440, by = 480),
                      labels = c(&quot;Midnight&quot;, &quot;8am&quot;, &quot;4pm&quot;, &quot;Midnight&quot;))</code></pre>
-<p><img src="manuscript_files/figure-html/nhance_example-1.png" width="672" /></p>
-<div id="auc-2" class="section level2" number="6.1">
+<div id="auc" class="section level2" number="6.1">
 <h2><span class="header-section-number">6.1</span> AUC</h2>
 <pre class="r"><code>window3 &lt;- c(0, 480, 960, 1440)
 
@@ -2443,89 +2084,8 @@ colnames(auc_mat_nhanes2) &lt;- c(&quot;8am&quot;, &quot;4pm&quot;)</code></pre>
   kable_styling(full_width = F) %&gt;% 
   add_header_above(c(&quot; &quot;=1, &quot;fGFPCA&quot; = 2, &quot;GLMMadaptive&quot; = 2)) %&gt;%
   add_header_above(c(&quot; &quot;= 1, &quot;Maximum observation time&quot; = 4))</code></pre>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>
-Area Under the ROC curve
-</caption>
-<thead>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Maximum observation time
 </div>
-</th>
-</tr>
-<tr>
-<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-fGFPCA
-</div>
-</th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
-<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-GLMMadaptive
-</div>
-</th>
-</tr>
-<tr>
-<th style="text-align:left;">
-Window
-</th>
-<th style="text-align:right;">
-8am
-</th>
-<th style="text-align:right;">
-4pm
-</th>
-<th style="text-align:right;">
-8am
-</th>
-<th style="text-align:right;">
-4pm
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left;">
-8am-4pm
-</td>
-<td style="text-align:right;">
-0.587
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-0.628
-</td>
-<td style="text-align:right;">
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-4am-midnight
-</td>
-<td style="text-align:right;">
-0.680
-</td>
-<td style="text-align:right;">
-0.766
-</td>
-<td style="text-align:right;">
-0.448
-</td>
-<td style="text-align:right;">
-0.613
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div id="figure-2" class="section level2" number="6.2">
+<div id="figure-1" class="section level2" number="6.2">
 <h2><span class="header-section-number">6.2</span> Figure</h2>
 <pre class="r"><code>rand_id3 &lt;- sample(unique(nhanes_pred_fgfpca$id), 4)
 
@@ -2556,7 +2116,6 @@ ggarrange(
                      labels = c(&quot;Midnight&quot;, &quot;8am&quot;, &quot;4pm&quot;, &quot;Midnight&quot;))+
   theme(axis.text = element_text(size = 5)),
   nrow = 1, common.legend = T)</code></pre>
-<p><img src="manuscript_files/figure-html/pred_nhanes-1.png" width="960" /></p>
 </div>
 </div>
 <div id="additional-figures" class="section level1" number="7">

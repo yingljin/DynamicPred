@@ -49,6 +49,13 @@ Data application
 - Also, report variantion explained by each PC
 - Ask Suni about the conclusion linking eigenvalues and smoothing parameters. 
 
+# 24/2/1
+
+1. Flip coordinate of tables (landscape) and figures. Let make each row the same subject, and compared across methods
+2. Run the data application with all four methods
+3. For the reversed eigenvalue problem: generate data using estimates from fGFPCA (eigenvalues, eigenfunctions, mean, etc). Can we reproduce the reverse eigenvalue problem? 
+
+
 
 
 
