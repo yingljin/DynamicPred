@@ -89,8 +89,8 @@ t2 <- Sys.time()
 t2-t1 
 
 data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1 = X1, PC2=X2, PC3=X3) %>%
-  pivot_longer(2:4, names_to = "PC") %>%
+  rename(PC1 = X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") %>%
   ggplot()+
   geom_line(aes(x=t, y=value, col = PC))+
   labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
@@ -115,12 +115,12 @@ for(k in 1:K){
 
 # plot
 df_pc1 <- data.frame(t=1:J,  df_phi) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3) %>%
-  pivot_longer(2:4, names_to = "PC") 
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
 
 df_pc2 <- data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1=X1, PC2=X2, PC3=X3) %>%
-  pivot_longer(2:4, names_to = "PC") 
+  rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
+  pivot_longer(2:5, names_to = "PC") 
 
 left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
   ggplot()+
@@ -135,52 +135,56 @@ train_df <- train_df %>%
   left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
 
-t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(sind, bs="cc")+
-                     s(id, by=phi1, bs="re")+
-                     s(id, by=phi2, bs="re")+
-                     s(id, by=phi3, bs="re")+
-                     s(id, by=phi4, bs="re"), 
-                   family = binomial, 
-                   data=train_df, 
-                   method = "fREML",
-                   discrete = TRUE)
-t2 <- Sys.time()
-t2-t1 # 21 hours
-save(debias_glmm, file = here("Data/Appl_debias_model.RData"))
+# don't run this part unless it's absolutely necessary!
+# It takes 20 hours!
+# t1 <- Sys.time()
+# debias_glmm <- bam(Y ~ s(sind, bs="cc")+
+#                      s(id, by=phi1, bs="re")+
+#                      s(id, by=phi2, bs="re")+
+#                      s(id, by=phi3, bs="re")+
+#                      s(id, by=phi4, bs="re"), 
+#                    family = binomial, 
+#                    data=train_df, 
+#                    method = "fREML",
+#                    discrete = TRUE)
+# t2 <- Sys.time()
+# t2-t1 # 21 hours
+# save(debias_glmm, file = here("Data/Appl_debias_model.RData"))
 
+
+# reload the debias GLMM model
+load(here("Data/Appl_debias_model.RData"))
 
 new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
 plot(t, new_mu)
+summary(new_mu)
 
-fpca_mod$evalues
-new_lambda <- 1/debias_glmm$sp # extract re-evaluated lambda
-# the same flip of 2nd and 3nd eigenvalues happened here as well
-fpca_mod$evalues[1:4]/new_lambda
+# fpca_mod$evalues
+new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
+# the 2nd and 3rd eigenvalues flipped! 
 
-## rescale
+## rescale using the number of bins
+head(df_phi)
 new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
 new_phi <- as.matrix(new_phi)
+head(new_phi)
 
 new_lambda <- new_lambda/n_bin
-t2 <- Sys.time()
-t2-t1
 
 
 # prediction
-t1 <- Sys.time()
-# per subject
 test_id
-window <- seq(0, J, by = 240)
+window <- seq(0, J, by = 360) 
 
-converge_state_m <- matrix(NA, nrow = length(test_id), 5)
+converge_state_m <- matrix(NA, nrow = length(test_id), 4)
 pred_list_m <- list()
 
+t1 <- Sys.time()
 for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
   
   # per max obs time
-  for(tmax in window[2:6]){
+  for(tmax in window[2:5]){
     df_it <- df_i %>% filter(t <= tmax)
     max_rid <- nrow(df_it)
     
@@ -217,111 +221,29 @@ pred_time[m] <- t2-t1
 mean(converge_state_m)
 
 # check results
-df_pred <- bind_rows(pred_list_m)
-df_pred$pred240[df_pred$sind<=240] <- NA
-df_pred$pred480[df_pred$sind<=480] <- NA
-df_pred$pred720[df_pred$sind<=720] <- NA
-df_pred$pred960[df_pred$sind<=960] <- NA
-df_pred$pred1200[df_pred$sind<=1200] <- NA
+head(pred_list_m[[1]])
+length(pred_list_m)
+pred_nhanes_fgfpca <- bind_rows(pred_list_m)
 
+# some clean up
+pred_nhanes_fgfpca$pred360[pred_nhanes_fgfpca$sind<=360] <- NA
+pred_nhanes_fgfpca$pred720[pred_nhanes_fgfpca$sind<=720] <- NA
+pred_nhanes_fgfpca$pred1080[pred_nhanes_fgfpca$sind<=1080] <- NA
+pred_nhanes_fgfpca <- pred_nhanes_fgfpca %>% select(-pred1440)
+head(pred_nhanes_fgfpca)
 
-df_pred %>% 
+pred_nhanes_fgfpca %>% 
   filter(id %in% sample(test_id, 4)) %>%
   mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
   ggplot()+
-  geom_line(aes(x=sind, y = pred240, col = "4am"), linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred480, col = "8am"),linetype = "dashed")+
+  geom_line(aes(x=sind, y = pred360, col = "6am"), linetype = "dashed")+
   geom_line(aes(x=sind, y = pred720, col = "12pm"),linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred960, col = "4pm"),linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred1200, col = "8pm"),linetype = "dashed")+
+  geom_line(aes(x=sind, y = pred1080, col = "6pm"),linetype = "dashed")+
   geom_point(aes(x=sind, y = Y, col = "Outcome"), size = 0.2)+
   facet_wrap(~id)+
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
 
-nhanes_pred_fgfpca <- df_pred
+##### save prediction #####
+save(pred_nhanes_fgfpca, 
+     file = here("Data/ApplOutput_fGFPCA.RData"))
 
-#### Reference method: GLMMadaptive ####
-
-# fit GLMMadaptvie model on the training set
-head(train_df)
-
-t1 <- Sys.time()
-adglmm_mod <- mixed_model(Y ~ t, random = ~ 1 | id, 
-                          data = train_df %>% mutate(t=t/J),
-                      family = binomial())
-t2 <- Sys.time()
-t_est_adglmm <- t2-t1 # model fitting took 20.82 mins
-summary(adglmm_mod)
-
-# prediction
-test_df <- test_df %>% rename(t=sind) %>%
-  mutate(t=t/J)
-
-window/J
-
-pred_list_m <- list(
-  predict(adglmm_mod, newdata = test_df %>% filter(t <= 240/J),
-          newdata2 =  test_df %>% filter(t>240/J), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(adglmm_mod, newdata = test_df %>% filter(t <= 480/J),
-          newdata2 =  test_df %>% filter(t>480/J), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(adglmm_mod, newdata = test_df %>% filter(t <= 720/J),
-          newdata2 =  test_df %>% filter(t>720/J), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(adglmm_mod, newdata = test_df %>% filter(t <= 960/J),
-          newdata2 =  test_df %>% filter(t>960/J), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2,
-  
-  predict(adglmm_mod, newdata = test_df %>% filter(t <= 1200/J),
-          newdata2 =  test_df %>% filter(t>1200/J), 
-          type = "subject_specific", type_pred = "link",
-          se.fit = FALSE, return_newdata = TRUE)$newdata2
-)
-
-# check results
-pred_list_m <- lapply(pred_list_m, function(x){x %>% select(id, t, pred)})
-lapply(pred_list_m, head)
-df_pred <- test_df %>% 
-  left_join(pred_list_m[[1]]) %>% 
-  rename(pred240 = pred) %>% 
-  left_join(pred_list_m[[2]]) %>% 
-  rename(pred480 = pred) %>% 
-  left_join(pred_list_m[[3]]) %>% 
-  rename(pred720 = pred) %>% 
-  left_join(pred_list_m[[4]]) %>% 
-  rename(pred960 = pred) %>% 
-  left_join(pred_list_m[[5]]) %>% 
-  rename(pred1200 = pred)
-
-head(df_pred)
-
-df_pred %>% filter(t>(480/J)) %>% head()
-
-df_pred %>% 
-  rename(sind=t) %>%
-  filter(id %in% sample(test_id, 4)) %>%
-  mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
-  ggplot()+
-  geom_line(aes(x=sind, y = pred240, col = "4am"), linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred480, col = "8am"),linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred720, col = "12pm"),linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred960, col = "4pm"),linetype = "dashed")+
-  geom_line(aes(x=sind, y = pred1200, col = "8pm"),linetype = "dashed")+
-  geom_point(aes(x=sind, y = Y, col = "Outcome"), size = 0.2)+
-  facet_wrap(~id)+
-  labs(x = "Time", y = "Estimated latent function (probablity scale)")
-
-nhanes_pred_adglmm <- df_pred
-
-
-
-save(nhanes_pred_fgfpca, nhanes_pred_adglmm,
-     file = here("Data/ApplOutput.RData"))

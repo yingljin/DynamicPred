@@ -7,18 +7,19 @@
 \contentsline {subsubsection}{FPCA}{3}{section*.8}%
 \contentsline {subsubsection}{Projection and Debias}{3}{section*.9}%
 \contentsline {subsection}{Out-of-sample prediction}{3}{section*.10}%
-\contentsline {section}{Larger-scale simulation}{3}{section*.11}%
-\contentsline {subsection}{Simulation set up}{3}{section*.12}%
-\contentsline {subsection}{Reference method}{4}{section*.13}%
-\contentsline {subsection}{Figure}{5}{section*.14}%
-\contentsline {subsection}{ISE}{5}{section*.15}%
-\contentsline {subsection}{AUC}{5}{section*.16}%
-\contentsline {section}{Small-scale simulation}{6}{section*.17}%
-\contentsline {subsection}{Figure}{6}{section*.18}%
-\contentsline {subsection}{ISE}{6}{section*.19}%
-\contentsline {subsection}{AUC}{6}{section*.20}%
-\contentsline {section}{NHANES data application}{8}{section*.21}%
-\contentsline {subsection}{AUC}{9}{section*.22}%
-\contentsline {subsection}{Figure}{9}{section*.23}%
-\contentsline {section}{Additional figures}{10}{section*.24}%
-\contentsline {subsection}{fGFPCA algorithm demonstration}{10}{section*.25}%
+\contentsline {section}{Reference method}{4}{section*.11}%
+\contentsline {subsection}{GLMMadaptive}{4}{section*.12}%
+\contentsline {subsection}{Generalized functional-on-scalar regression}{4}{section*.13}%
+\contentsline {section}{Larger-scale simulation}{5}{section*.14}%
+\contentsline {subsection}{Simulation set up}{5}{section*.15}%
+\contentsline {subsection}{Figures}{5}{section*.16}%
+\contentsline {subsection}{ISE and AUC}{7}{section*.17}%
+\contentsline {subsection}{Time (minutes)}{13}{section*.18}%
+\contentsline {section}{Small-scale simulation}{13}{section*.19}%
+\contentsline {subsection}{Figure}{13}{section*.20}%
+\contentsline {subsection}{ISE and AUC}{15}{section*.21}%
+\contentsline {section}{Time}{21}{section*.22}%
+\contentsline {section}{NHANES data application}{21}{section*.23}%
+\contentsline {subsection}{AUC}{22}{section*.24}%
+\contentsline {subsection}{Figure}{25}{section*.25}%
+\contentsline {section}{Additional figures}{26}{section*.26}%
