@@ -820,7 +820,6 @@ pred_appl_gfosr_l1 <- pred_appl_gfosr_l1 %>%
   rename(pred360=pred_w1, pred720=pred_w2, pred1080=pred_w3)
 pred_appl_gfosr_l5 <- pred_appl_gfosr_l5 %>%
   rename(pred360=pred_w1, pred720=pred_w2, pred1080=pred_w3)
-
 ```
 
 ```{r nhance_example, eval=FALSE}
@@ -909,7 +908,7 @@ bind_cols(Window = c("6am-12pm", "12pm-6pm", "6pm-12am"),
 ## Figure
 
 ```{r fig_appl, fig.height=8, fig.width=8}
-rand_id <- sample(unique(pred_nhanes_adglmm$id), 4)
+rand_id 
 cols <- cols[1:3]
 names(cols) <- c("6am", "12pm", "6pm")
 bind_rows(
@@ -937,6 +936,23 @@ bind_rows(
 
 
 # Additional figures
+
+```{r eval=FALSE}
+df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
+df_nhanes %>% 
+  select(SEQN, Z, sind) %>%
+  filter(SEQN %in% rand_id) %>%
+  filter(sind %in% 356:360) %>%
+  pivot_wider(names_from = sind, values_from = Z) %>% 
+  select(-SEQN) %>% distinct(.)
+
+
+pred_appl_gfosr_l5 %>% 
+  filter(id %in% rand_id) %>%
+  select(id, sind, pred360) %>%
+  pivot_wider(names_from = sind, values_from = pred360) %>% 
+  select(-id) %>% distinct(.)
+```
 
 <!-- ## fGFPCA algorithm demonstration -->
 

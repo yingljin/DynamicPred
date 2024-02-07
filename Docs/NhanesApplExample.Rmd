@@ -73,79 +73,64 @@ df$bin <- as.numeric(as.character(df$bin))
 
 # Step 2-4:  Local GLMM, fPCA, splines interpolation and GLMM reevaluation
 
-I'd like to investigate with different sample sizes.
-
 ```{r, cache=TRUE, results='hide'}
 # sample size 
-N_sub <- rep(500, 4)
-fpca_model_list <- list()
-interp_pc_est <- list()
-debias_model_list <- list()
-time_vec <- rep(NA, length(N_sub))
+Ntr <- 500
 
-pb <- txtProgressBar(min=0, max = length(N_sub), style = 3)
-for(i in seq_along(N_sub)){
-  
-  # training sample of a certain size
-  Ntr <- N_sub[i]
-  train_id <- sample(unique(df$id), size = Ntr) 
-  train_df <- df %>% filter(id %in% train_id)
-  
-  t1=Sys.time()
-  # local GLMM
-  train_bin_lst <- split(train_df, f = train_df$bin)
-  df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
-  df_est_latent <- bind_rows(df_est_latent) 
-  
-  # FPCA
-  uni_eta_hat <- df_est_latent %>% filter(bin==sind)
-  mat_est_unique <- matrix(uni_eta_hat$eta_hat, nrow=Ntr, ncol=n_bin, byrow = F) 
-  fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
-  fpca_model_list[[i]] <- fpca_mod
-  
-  # interpolation
-  p <- 3 # order of b splines 
-  knots <- 35 # number of knots (same from FPCA model)
-  knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
-  knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
-  
-  B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
-                  outer.ok = TRUE)$design  # evaluate B-splines on binned grid
-  Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
-                     outer.ok = TRUE)$design  # evaluate B-splines on original grid
-  
-  
-  df_phi <- matrix(NA, J, K) 
-  for(k in 1:K){
-    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-    df_phi[,k] <- Bnew %*% coef(lm_mod)
-  }# project binned eigenfunctions onto the original grid
-  interp_pc_est[[i]] <- df_phi
-  
-  # debias model
-  df_phi <- data.frame(sind = 1:J, df_phi)
-  colnames(df_phi) <- c("sind", paste0("phi", 1:K))
-  train_df <- train_df %>% 
-    left_join(df_phi, by = "sind")
-  train_df$id <- as.factor(train_df$id)
-  debias_glmm <- bam(Y ~ s(sind, bs="cr")+
-                     s(id, by=phi1, bs="re")+
-                     s(id, by=phi2, bs="re")+
-                     s(id, by=phi3, bs="re")+
-                     s(id, by=phi4, bs="re"), 
-                   family = binomial, 
-                   data=train_df, 
-                   method = "fREML",
-                   discrete = TRUE)
-  debias_model_list[[i]] <- debias_glmm
-  t2 <- Sys.time()
-  
-  time_vec[i] <- as.numeric(t2-t1, unit = "secs")
-  
-  setTxtProgressBar(pb, i)
-}
+# training sample of a certain size
+train_id <- sample(unique(df$id), size = Ntr) 
+train_df <- df %>% filter(id %in% train_id)
 
-close(pb)
+t1=Sys.time()
+# local GLMM
+train_bin_lst <- split(train_df, f = train_df$bin)
+df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+df_est_latent <- bind_rows(df_est_latent) 
+
+# FPCA
+uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+mat_est_unique <- matrix(uni_eta_hat$eta_hat, nrow=Ntr, ncol=n_bin, byrow = F) 
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
+
+# interpolation
+p <- 3 # order of b splines 
+knots <- 35 # number of knots (same from FPCA model)
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+
+B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                   outer.ok = TRUE)$design  # evaluate B-splines on original grid
+
+
+df_phi <- matrix(NA, J, K) 
+for(k in 1:K){
+  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+  df_phi[,k] <- Bnew %*% coef(lm_mod)
+}# project binned eigenfunctions onto the original grid
+
+
+# debias model
+df_phi <- data.frame(sind = 1:J, df_phi)
+colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+train_df <- train_df %>% 
+  left_join(df_phi, by = "sind")
+train_df$id <- as.factor(train_df$id)
+debias_glmm <- bam(Y ~ s(sind, bs="cr")+
+                   s(id, by=phi1, bs="re")+
+                   s(id, by=phi2, bs="re")+
+                   s(id, by=phi3, bs="re")+
+                   s(id, by=phi4, bs="re"), 
+                 family = binomial, 
+                 data=train_df, 
+                 method = "fREML",
+                 discrete = TRUE)
+debias_model_list[[i]] <- debias_glmm
+t2 <- Sys.time()
+
+time_vec[i] <- as.numeric(t2-t1, unit = "secs")
+  
 ```
 
 <!-- - Time spent on model fitting -->
@@ -205,3 +190,49 @@ Some other thoughts:
 1. What about estimation method of smooth parameter? It seems GCV doesn't treat model as mixed effects. REML may be too slow without the "discrete=T" option on the full dataset. 
 2. Is is possible to impose monotone constraint on smoothing parameter estimation? 
 
+
+```{r, class.source='fold-show'}
+load(here("Data/Appl_debias_model.RData"))
+summary(debias_glmm)
+
+# re-evaluated mean
+new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+plot(1:J, new_mu)
+
+# re-evaluated eigenvalues
+new_lambda <- 1/debias_glmm$sp[2:5]
+new_lambda <- new_lambda/n_bin
+
+# re-evaluated PC functions
+df_phi <- debias_glmm$model %>% select(sind, starts_with("phi")) %>% distinct(.) %>%
+  mutate_at(vars(starts_with("phi")), function(x){x*sqrt(n_bin)})
+df_phi %>% pivot_longer(2:5) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=value, col = name))
+  
+```
+
+```{r gen_data}
+# generate data with the estimates from thedebias step
+
+
+# generate score
+xi <- rmvnorm(Ntr, mean = rep(0, K), sigma = diag(new_lambda))
+bi <- xi %*% t(as.matrix(df_phi[, 2:5])) # random effect functions
+dim(bi)
+
+# latent gaussian function
+new_mu <- matrix(new_mu, nrow = 1)
+eta_i <- new_mu+bi
+dim(new_mu)
+  
+  this_df <- data.frame(id = factor(rep(1:N, each=J)),
+                        t = rep(t, N), 
+                        eta_i = as.vector(t(eta_i)),
+                        sind = rep(1:J, N))
+  
+  this_df$Y <- rbinom(N*J, size=1, prob=plogis(this_df$eta_i))
+  
+  sim_data[[m]] <- this_df
+]
+```
