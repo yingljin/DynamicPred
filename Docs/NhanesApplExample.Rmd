@@ -46,52 +46,112 @@ source(here("Code/OutsampBayes.R"))
 ```
 
 
-# Fit fGFPCA model
 
-```{r data_subset}
+```{r bin_data}
 # head(df)
 df <- df %>% rename(id=SEQN, Y=Z)
 N <- length(unique(df$id))
+Ntr <- 500
 J <- length(unique(df$sind))
-```
 
-# Step 1: Bin data
+load(here("Data/Appl_debias_model.RData"))
 
-- Bin every 10 observations
-
-```{r, message=FALSE}
-# bin data
+# parameters used in binning
 bin_w <- 10 # bin width
 n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
-
-df$bin <- cut(df$sind, breaks = brks, include.lowest = T, labels = mid)
-df$bin <- as.numeric(as.character(df$bin))
 ```
 
 
-# Step 2-4:  Local GLMM, fPCA, splines interpolation and GLMM reevaluation
+# Estimates
 
-```{r, cache=TRUE, results='hide'}
-# sample size 
-Ntr <- 500
+- Eigenvalues
 
-# training sample of a certain size
-train_id <- sample(unique(df$id), size = Ntr) 
-train_df <- df %>% filter(id %in% train_id)
+```{r evals}
+evals <- 1/debias_glmm$sp[2:5]/n_bin
+```
 
-t1=Sys.time()
+- PC functions
+
+```{r}
+df_phi <- debias_glmm$model %>% select(sind, starts_with("phi")) %>% distinct(.) %>%
+  mutate_at(vars(starts_with("phi")), function(x){x*sqrt(n_bin)}) 
+
+df_phi %>% pivot_longer(2:5) %>%
+  ggplot(aes(x=sind, y=value))+
+  geom_line()+
+  facet_wrap(~name)
+```
+
+- Mean function
+
+```{r}
+mu <- predict(debias_glmm, type = "terms")[1:J, 1]
+plot(1:J, mu, type = "l")
+```
+
+# Simulation using re-evaluated estimates
+
+```{r gen_data}
+# generate score
+xi <- rmvnorm(Ntr, mean = rep(0, K), sigma = diag(evals))
+xi %>% data.frame() %>% pivot_longer(1:4, names_to = "PC", values_to = "score") %>%
+  ggplot()+
+  geom_boxplot(aes(x=PC, y=score))+
+  geom_jitter(aes(x=PC, y=score), size = 0.5)
+
+# individual random effects
+bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
+
+# add in mean 
+eta <- apply(bi, 2, function(x){x+mu})
+gen_df <- data.frame(id = factor(rep(1:Ntr, each=J)),
+                     sind = rep(1:J, Ntr), 
+                     eta_i = as.vector(eta))
+
+# binary outcome
+gen_df$Y <- rbinom(Ntr*J, size=1, prob=plogis(gen_df$eta_i))
+
+gen_df %>% filter(id %in% 1:4) %>%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.5)+
+  geom_line(aes(x=sind, y=plogis(eta_i)), col = "red")+
+  facet_wrap(~id)+
+  labs(title = "Generated data")
+```
+
+# fGFPCA on generated data 
+
+```{r fGFPCA1}
+# bin 
+gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
+gen_df$bin <- as.numeric(as.character(gen_df$bin))
+
 # local GLMM
-train_bin_lst <- split(train_df, f = train_df$bin)
+train_bin_lst <- split(gen_df, f = gen_df$bin)
 df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
 df_est_latent <- bind_rows(df_est_latent) 
 
+df_est_latent %>% filter(id %in% 1:4) %>%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.5)+
+  geom_line(aes(x=sind, y=plogis(eta_i), col = "True"))+
+  geom_line(aes(x=sind, y=plogis(eta_hat), col = "Estimate"))+
+  facet_wrap(~id)+
+  labs(title = "Generated data")
+```
+
+
+```{r fGFPCA2}
 # FPCA
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
 mat_est_unique <- matrix(uni_eta_hat$eta_hat, nrow=Ntr, ncol=n_bin, byrow = F) 
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
+```
 
+
+```{r re_eval_PC}
 # interpolation
 p <- 3 # order of b splines 
 knots <- 35 # number of knots (same from FPCA model)
@@ -103,136 +163,77 @@ B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
 Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
                    outer.ok = TRUE)$design  # evaluate B-splines on original grid
 
-
-df_phi <- matrix(NA, J, K) 
+est_phi <- matrix(NA, J, K) 
 for(k in 1:K){
   lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-  df_phi[,k] <- Bnew %*% coef(lm_mod)
-}# project binned eigenfunctions onto the original grid
+  est_phi[,k] <- Bnew %*% coef(lm_mod)
+} 
+colnames(est_phi) <- paste0("phi", 1:K)
+```
 
 
+I would like to look at estimated PC functions:
+
+```{r}
+# PC functions after re-evaluation
+bind_rows(
+  data.frame(sind=1:J, est_phi*sqrt(n_bin), type = "re-evaluated"),
+  data.frame(df_phi, type = "True")
+) %>%
+  pivot_longer(2:5) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=value, col=type))+
+  facet_wrap(~name)
+```
+
+It looks like something went wrong in the estimation of PC3. The estimated line is either identical or off by a sign compared to the true PC functions. That said, PC2 seems a bit off too. 
+
+What about the estimated PC functions from FPCA without re-evaluation? 
+
+```{r}
+fpca_phi <- fpca_mod$efunctions*sqrt(n_bin)
+colnames(fpca_phi) <- paste0("phi", 1:K)
+bind_rows(
+  data.frame(df_phi, type = "True"),
+  data.frame(sind = mid, fpca_phi, type = "FPCA")
+) %>%
+  pivot_longer(2:5) %>%
+  ggplot()+
+  geom_point(aes(x=sind, y=value, col=type),size = 0.5)+
+  facet_wrap(~name)
+```
+
+Looks like FPCA did not capture the shape of PC2 and PC3. 
+
+
+Next I'd like to re-evaluate the eigenvalues
+
+```{r}
 # debias model
-df_phi <- data.frame(sind = 1:J, df_phi)
-colnames(df_phi) <- c("sind", paste0("phi", 1:K))
-train_df <- train_df %>% 
+gen_df <- gen_df %>% 
   left_join(df_phi, by = "sind")
-train_df$id <- as.factor(train_df$id)
-debias_glmm <- bam(Y ~ s(sind, bs="cr")+
+gen_df$id <- as.factor(gen_df$id)
+debias_glmm2 <- bam(Y ~ s(sind, bs="cr")+
                    s(id, by=phi1, bs="re")+
                    s(id, by=phi2, bs="re")+
                    s(id, by=phi3, bs="re")+
-                   s(id, by=phi4, bs="re"), 
-                 family = binomial, 
-                 data=train_df, 
+                   s(id, by=phi4, bs="re"),
+                 family = binomial,
+                 data=gen_df,
                  method = "fREML",
                  discrete = TRUE)
-debias_model_list[[i]] <- debias_glmm
-t2 <- Sys.time()
-
-time_vec[i] <- as.numeric(t2-t1, unit = "secs")
-  
 ```
 
-<!-- - Time spent on model fitting -->
-
-```{r, eval=FALSE}
-time_vec
-```
-
-<!-- - FPCA eigenvalues -->
-
-```{r, eval=FALSE}
-lapply(fpca_model_list, function(x){x$evalues})
-lapply(fpca_model_list, function(x){x$pve})
-```
-
-- Eigenvalues from debias models
-
-```{r}
-lapply(debias_model_list, function(x){1/x$sp[2:5]})
-```
-
-- PC functions
-
-```{r}
-pc_plot_list <- list()
-
-for(i in  1:length(N_sub)){
-  
-  df_phi1 <- data.frame(t=mid, fpca_model_list[[i]]$efunctions)
-  df_phi2 <- data.frame(t = 1:J, interp_pc_est[[i]])
-  
-  this_plot <- left_join(df_phi2, df_phi1, by = "t") %>%
-    ggplot()+
-    geom_point(aes(x=t, y=X1.y, col = "PC1"), na.rm = T, size = 0.5)+
-    geom_point(aes(x=t, y=X2.y, col = "PC2"), na.rm = T, size = 0.5)+
-    geom_point(aes(x=t, y=X3.y, col = "PC3"), na.rm = T, size = 0.5)+
-    geom_point(aes(x=t, y=X4.y, col = "PC4"), na.rm = T, size = 0.5)+
-    geom_line(aes(x=t, y=X1.x, col = "PC1"))+
-    geom_line(aes(x=t, y=X2.x, col = "PC2"))+
-    geom_line(aes(x=t, y=X3.x, col = "PC3"))+
-    geom_line(aes(x=t, y=X4.x, col = "PC4"))+
-    labs(x="time", y = "", title = paste0("Iter", i))
-  
-  pc_plot_list[[i]] <- this_plot
-  
-}
-
-ggarrange(plotlist = pc_plot_list, common.legend = T)
-```
-
-
-The "reverse eigenvalue problem" does not always happen. When training sample size is small (like maybe 200), the problem happened less. So this is definately a numeric problem. But a very small sample also would induce sigularity issues.
-
-
-Some other thoughts:
-
-1. What about estimation method of smooth parameter? It seems GCV doesn't treat model as mixed effects. REML may be too slow without the "discrete=T" option on the full dataset. 
-2. Is is possible to impose monotone constraint on smoothing parameter estimation? 
-
+Eigenvalues before and after re-evaluation
 
 ```{r, class.source='fold-show'}
-load(here("Data/Appl_debias_model.RData"))
-summary(debias_glmm)
+# fpca
+fpca_mod$evalues/n_bin
 
-# re-evaluated mean
-new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
-plot(1:J, new_mu)
-
-# re-evaluated eigenvalues
-new_lambda <- 1/debias_glmm$sp[2:5]
-new_lambda <- new_lambda/n_bin
-
-# re-evaluated PC functions
-df_phi <- debias_glmm$model %>% select(sind, starts_with("phi")) %>% distinct(.) %>%
-  mutate_at(vars(starts_with("phi")), function(x){x*sqrt(n_bin)})
-df_phi %>% pivot_longer(2:5) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y=value, col = name))
-  
+# re-evaluated
+1/debias_glmm2$sp[2:5]
 ```
 
-```{r gen_data}
-# generate data with the estimates from thedebias step
+It looks like the flip happened again. 
 
-
-# generate score
-xi <- rmvnorm(Ntr, mean = rep(0, K), sigma = diag(new_lambda))
-bi <- xi %*% t(as.matrix(df_phi[, 2:5])) # random effect functions
-dim(bi)
-
-# latent gaussian function
-new_mu <- matrix(new_mu, nrow = 1)
-eta_i <- new_mu+bi
-dim(new_mu)
-  
-  this_df <- data.frame(id = factor(rep(1:N, each=J)),
-                        t = rep(t, N), 
-                        eta_i = as.vector(t(eta_i)),
-                        sind = rep(1:J, N))
-  
-  this_df$Y <- rbinom(N*J, size=1, prob=plogis(this_df$eta_i))
-  
-  sim_data[[m]] <- this_df
-]
-```
+At this point, I think we could say the reversed eigenvalue problem is an artifact of the dataset it self. For some reason, FPCA was not able to estimated PC2 and PC3 very well, and the GLMM model later on impose more penalty on the second random term.  
