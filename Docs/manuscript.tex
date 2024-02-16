@@ -122,7 +122,7 @@
 
 \title{Manuscript progress report}
 \author{Ying Jin}
-\date{2024-02-06}
+\date{2024-02-16}
 
 \begin{document}
 \maketitle
@@ -422,11 +422,11 @@ where:
          \AttributeTok{levels =} \FunctionTok{c}\NormalTok{(}\StringTok{"fGFPCA"}\NormalTok{, }\StringTok{"GFOSR (L=5)"}\NormalTok{, }\StringTok{"GFOSR (L=1)"}\NormalTok{,}\StringTok{"GLMMadaptive"}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%}
   \FunctionTok{ggplot}\NormalTok{()}\SpecialCharTok{+}
   \FunctionTok{geom\_point}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{Y), }\AttributeTok{size =} \FloatTok{0.2}\NormalTok{)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{eta\_i, }\AttributeTok{col =} \StringTok{"True"}\NormalTok{))}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.2}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.2"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.4}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.4"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.6}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.6"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.8}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.8"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{eta\_i, }\AttributeTok{col =} \StringTok{"True"}\NormalTok{), }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.2}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.2"}\NormalTok{), }\AttributeTok{na.rm=}\NormalTok{T, }\AttributeTok{linewidth =} \FloatTok{1.0}\NormalTok{)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.4}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.4"}\NormalTok{), }\AttributeTok{na.rm=}\NormalTok{T, }\AttributeTok{linewidth =} \FloatTok{1.0}\NormalTok{)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.6}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.6"}\NormalTok{), }\AttributeTok{na.rm=}\NormalTok{T, }\AttributeTok{linewidth =} \FloatTok{1.0}\NormalTok{)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.8}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.8"}\NormalTok{), }\AttributeTok{na.rm=}\NormalTok{T, }\AttributeTok{linewidth =} \FloatTok{1.0}\NormalTok{)}\SpecialCharTok{+}
   \FunctionTok{facet\_grid}\NormalTok{(}\AttributeTok{rows =} \FunctionTok{vars}\NormalTok{(id), }\AttributeTok{cols =} \FunctionTok{vars}\NormalTok{(method))}\SpecialCharTok{+}
   \FunctionTok{labs}\NormalTok{(}\AttributeTok{col =} \StringTok{"Maximum observation time"}\NormalTok{, }\AttributeTok{x =} \StringTok{"Time"}\NormalTok{, }\AttributeTok{y=}\StringTok{""}\NormalTok{)}\SpecialCharTok{+}
   \FunctionTok{scale\_x\_continuous}\NormalTok{(}\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{1}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.2}\NormalTok{))}\SpecialCharTok{+}
@@ -810,11 +810,11 @@ prediction is on the original grid.
          \AttributeTok{levels =} \FunctionTok{c}\NormalTok{(}\StringTok{"fGFPCA"}\NormalTok{, }\StringTok{"GFOSR (L=5)"}\NormalTok{, }\StringTok{"GFOSR (L=1)"}\NormalTok{,}\StringTok{"GLMMadaptive"}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%}
   \FunctionTok{ggplot}\NormalTok{()}\SpecialCharTok{+}
   \FunctionTok{geom\_point}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{Y), }\AttributeTok{size =} \FloatTok{0.2}\NormalTok{)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{eta\_i, }\AttributeTok{col =} \StringTok{"True"}\NormalTok{))}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.2}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.2"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.4}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.4"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.6}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.6"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.8}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.8"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{eta\_i, }\AttributeTok{col =} \StringTok{"True"}\NormalTok{), }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.2}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.2"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.4}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.4"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.6}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.6"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{t, }\AttributeTok{y=}\NormalTok{pred0}\FloatTok{.8}\NormalTok{, }\AttributeTok{col =} \StringTok{"0.8"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
   \FunctionTok{facet\_grid}\NormalTok{(}\AttributeTok{rows =} \FunctionTok{vars}\NormalTok{(id), }\AttributeTok{cols =} \FunctionTok{vars}\NormalTok{(method))}\SpecialCharTok{+}
   \FunctionTok{labs}\NormalTok{(}\AttributeTok{col =} \StringTok{"Maximum observation time"}\NormalTok{, }\AttributeTok{x =} \StringTok{"Time"}\NormalTok{, }\AttributeTok{y=}\StringTok{""}\NormalTok{)}\SpecialCharTok{+}
   \FunctionTok{scale\_x\_continuous}\NormalTok{(}\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{1}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.2}\NormalTok{))}\SpecialCharTok{+}
@@ -1257,23 +1257,28 @@ Window & 6am & 12pm & 6pm & 6am & 12pm & 6pm & 6am & 12pm & 6pm & 6am & 12pm & 6
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{rand\_id }\OtherTok{\textless{}{-}} \FunctionTok{sample}\NormalTok{(}\FunctionTok{unique}\NormalTok{(pred\_nhanes\_adglmm}\SpecialCharTok{$}\NormalTok{id), }\DecValTok{4}\NormalTok{)}
-\NormalTok{cols }\OtherTok{\textless{}{-}}\NormalTok{ cols[}\DecValTok{1}\SpecialCharTok{:}\DecValTok{3}\NormalTok{]}
+\CommentTok{\# redefine color scale}
+\NormalTok{cols }\OtherTok{\textless{}{-}}\NormalTok{ cols[}\DecValTok{1}\SpecialCharTok{:}\DecValTok{3}\NormalTok{] }
 \FunctionTok{names}\NormalTok{(cols) }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}\StringTok{"6am"}\NormalTok{, }\StringTok{"12pm"}\NormalTok{, }\StringTok{"6pm"}\NormalTok{)}
+
+\CommentTok{\# selct four subjects}
+\NormalTok{plot\_id }\OtherTok{\textless{}{-}} \FunctionTok{sort}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\DecValTok{68959}\NormalTok{, }\DecValTok{68624}\NormalTok{, }\DecValTok{64198}\NormalTok{, }\DecValTok{80517}\NormalTok{))}
+
+\CommentTok{\# figure}
 \FunctionTok{bind\_rows}\NormalTok{(}
-\NormalTok{  pred\_nhanes\_fgfpca }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ rand\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method=}\StringTok{"fGFPCA"}\NormalTok{),}
-\NormalTok{  pred\_appl\_gfosr\_l5 }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ rand\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method =} \StringTok{"GFOSR (L=5)"}\NormalTok{),}
-\NormalTok{  pred\_appl\_gfosr\_l1 }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ rand\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method =} \StringTok{"GFOSR (L=1)"}\NormalTok{),}
-\NormalTok{  pred\_nhanes\_adglmm }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ rand\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method =} \StringTok{"GLMMadaptive"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+\NormalTok{  pred\_nhanes\_fgfpca }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ plot\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method=}\StringTok{"fGFPCA"}\NormalTok{),}
+\NormalTok{  pred\_appl\_gfosr\_l5 }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ plot\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method =} \StringTok{"GFOSR (L=5)"}\NormalTok{),}
+\NormalTok{  pred\_appl\_gfosr\_l1 }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ plot\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method =} \StringTok{"GFOSR (L=1)"}\NormalTok{),}
+\NormalTok{  pred\_nhanes\_adglmm }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ plot\_id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method =} \StringTok{"GLMMadaptive"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
   \FunctionTok{mutate\_at}\NormalTok{(}\FunctionTok{vars}\NormalTok{(pred360, pred720, pred1080), }
                 \AttributeTok{.funs =} \ControlFlowTok{function}\NormalTok{(x)\{}\FunctionTok{exp}\NormalTok{(x)}\SpecialCharTok{/}\NormalTok{(}\DecValTok{1}\SpecialCharTok{+}\FunctionTok{exp}\NormalTok{(x))\}) }\SpecialCharTok{\%\textgreater{}\%}
   \FunctionTok{mutate}\NormalTok{(}\AttributeTok{method=}\FunctionTok{factor}\NormalTok{(method, }
          \AttributeTok{levels =} \FunctionTok{c}\NormalTok{(}\StringTok{"fGFPCA"}\NormalTok{, }\StringTok{"GFOSR (L=5)"}\NormalTok{, }\StringTok{"GFOSR (L=1)"}\NormalTok{,}\StringTok{"GLMMadaptive"}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%}
   \FunctionTok{ggplot}\NormalTok{()}\SpecialCharTok{+}
   \FunctionTok{geom\_point}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{Y), }\AttributeTok{size =} \FloatTok{0.2}\NormalTok{)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred360, }\AttributeTok{col =} \StringTok{"6am"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred720, }\AttributeTok{col =} \StringTok{"12pm"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred1080, }\AttributeTok{col =} \StringTok{"6pm"}\NormalTok{), }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred360, }\AttributeTok{col =} \StringTok{"6am"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred720, }\AttributeTok{col =} \StringTok{"12pm"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred1080, }\AttributeTok{col =} \StringTok{"6pm"}\NormalTok{), }\AttributeTok{linewidth=}\DecValTok{1}\NormalTok{, }\AttributeTok{na.rm=}\NormalTok{T)}\SpecialCharTok{+}
   \FunctionTok{facet\_grid}\NormalTok{(}\AttributeTok{rows =} \FunctionTok{vars}\NormalTok{(id), }\AttributeTok{cols =} \FunctionTok{vars}\NormalTok{(method))}\SpecialCharTok{+}
   \FunctionTok{labs}\NormalTok{(}\AttributeTok{col =} \StringTok{"Maximum observation time"}\NormalTok{, }\AttributeTok{x =} \StringTok{"Time"}\NormalTok{, }\AttributeTok{y=}\StringTok{""}\NormalTok{)}\SpecialCharTok{+}
   \FunctionTok{scale\_x\_continuous}\NormalTok{(}\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{1440}\NormalTok{, }\AttributeTok{by =} \DecValTok{360}\NormalTok{),}
@@ -1285,7 +1290,86 @@ Window & 6am & 12pm & 6pm & 6am & 12pm & 6pm & 6am & 12pm & 6pm & 6am & 12pm & 6
 
 \includegraphics{manuscript_files/figure-latex/fig_appl-1.pdf}
 
+The fGFPCA prediction conditional on observation up to 6am looks
+identical across subjects. This is not due to coding issue. In fact, if
+we look at individual tracks, out of 3506 subjects there are 1473 unique
+predicted tracks. There is a high change the selected four subjects all
+have the same predicted tracks.
+
+PS number of unique predicted tracks is: - 3456 when conditional on 12
+pm - 3488 when conditional on 6pm
+
+I think this is closedly determined by the variety of observed outcome
+across individuals. When conditioning on 6am, there are 1475 unique
+observed tracks; and 3465 and 3488 respectively when obesrved up to 12pm
+and 6pm. As we see, these numbers are very close to the number of unique
+prediction tracks in fGFPCA.
+
+I'd note that the four randomly selected subjects from the last report
+happen to have exactly the same observations from 0-6am. That is why
+they also have identical prediction after 6am. Therefore, in this report
+I arbitrarily assigned subjects to be displayed: 62161, .
+
+In addition: - For GFOSR (L5), number of unique predicted tracks are 31,
+32, 32 - For GFOSR (L1), number of unique predicted tracks are 2, 2, 2 -
+For GLMMadaptive, number of unique predicted tracks are 294, 712, 1533.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{length}\NormalTok{(}\FunctionTok{unique}\NormalTok{(pred\_nhanes\_adglmm}\SpecialCharTok{$}\NormalTok{id))}
+\NormalTok{pred\_nhanes\_fgfpca }\SpecialCharTok{\%\textgreater{}\%}
+  \CommentTok{\# filter(id \%in\% rand\_id) \%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(id, sind, Y) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(sind }\SpecialCharTok{\textless{}=}  \DecValTok{360}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_wider}\NormalTok{(}\AttributeTok{names\_from =}\NormalTok{ sind, }\AttributeTok{values\_from =}\NormalTok{ Y, }\AttributeTok{names\_prefix =} \StringTok{"sind"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{distinct}\NormalTok{(., }\FunctionTok{pick}\NormalTok{(}\FunctionTok{starts\_with}\NormalTok{(}\StringTok{"sind"}\NormalTok{)), }\AttributeTok{.keep\_all =}\NormalTok{ T) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(id) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{t}\NormalTok{() }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{sample}\NormalTok{(., }\AttributeTok{size =} \DecValTok{4}\NormalTok{)}
+
+
+  \CommentTok{\# ggplot(aes(x=sind, y=pred360, col = as.factor(id), group = as.factor(id)))+}
+  \CommentTok{\# geom\_line()}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{pred\_nhanes\_fgfpca }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(id, sind, pred360) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(sind}\SpecialCharTok{\textgreater{}}\DecValTok{360}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ggplot}\NormalTok{()}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred360, }\AttributeTok{col =} \FunctionTok{as.factor}\NormalTok{(id)), }\AttributeTok{show.legend =}\NormalTok{ F)}
+
+\NormalTok{pred\_nhanes\_fgfpca }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(id, sind, pred720) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(sind}\SpecialCharTok{\textgreater{}}\DecValTok{720}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ggplot}\NormalTok{()}\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{sind, }\AttributeTok{y=}\NormalTok{pred720, }\AttributeTok{col =} \FunctionTok{as.factor}\NormalTok{(id)), }\AttributeTok{show.legend =}\NormalTok{ F)}
+\end{Highlighting}
+\end{Shaded}
+
 \hypertarget{additional-figures}{%
 \section{Additional figures}\label{additional-figures}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{df\_nhanes }\OtherTok{\textless{}{-}} \FunctionTok{read\_rds}\NormalTok{(}\FunctionTok{here}\NormalTok{(}\StringTok{"Data/nhanes\_bi.rds"}\NormalTok{))}
+\NormalTok{df\_nhanes }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{select}\NormalTok{(SEQN, Z, sind) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(SEQN }\SpecialCharTok{\%in\%}\NormalTok{ rand\_id) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(sind }\SpecialCharTok{\%in\%} \DecValTok{356}\SpecialCharTok{:}\DecValTok{360}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_wider}\NormalTok{(}\AttributeTok{names\_from =}\NormalTok{ sind, }\AttributeTok{values\_from =}\NormalTok{ Z) }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{select}\NormalTok{(}\SpecialCharTok{{-}}\NormalTok{SEQN) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{distinct}\NormalTok{(.)}
+
+
+\NormalTok{pred\_appl\_gfosr\_l5 }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{filter}\NormalTok{(id }\SpecialCharTok{\%in\%}\NormalTok{ rand\_id) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(id, sind, pred360) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_wider}\NormalTok{(}\AttributeTok{names\_from =}\NormalTok{ sind, }\AttributeTok{values\_from =}\NormalTok{ pred360) }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{select}\NormalTok{(}\SpecialCharTok{{-}}\NormalTok{id) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{distinct}\NormalTok{(.)}
+\end{Highlighting}
+\end{Shaded}
+
 
 \end{document}

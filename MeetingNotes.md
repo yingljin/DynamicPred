@@ -55,7 +55,11 @@ Data application
 2. Run the data application with all four methods
 3. For the reversed eigenvalue problem: generate data using estimates from fGFPCA (eigenvalues, eigenfunctions, mean, etc). Can we reproduce the reverse eigenvalue problem? 
 
-
+# 24/2/15
+1. Add citation about preprocessing of binary indicator
+2. Change figure line thickness and color, condense space
+3. Figure 3: yellow line for fGFPCA looks strange. Double check
+4. Write an appendix explaining the reverse eigenvalu problem
 
 
 

@@ -3,10 +3,6 @@ title: "Manuscript progress report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
-    keep_tex: yes
   html_document:
     self_contained: no
     number_sections: yes
@@ -15,6 +11,10 @@ output:
     toc_depth: 3
     toc_float: yes
     font: 12pt
+    keep_tex: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
     keep_tex: yes
 ---
 
@@ -38,13 +38,16 @@ library(mvtnorm)
 library(mgcv)
 library(splines)
 library(boot)
+library(RColorBrewer)
 
 # plot settings
 theme_set(theme_minimal())
-cols <- c("0.2"= "#FDCC8A", "0.4"="#FC8D59", "0.6"="#E34A33", "0.8"="#B30000", "True"="#000000")
-# brewer.pal(5, "OrRd")
+cols <- c(brewer.pal(4, "Set2"), "#000000") # define a color palette 
+names(cols) <- c("0.2", "0.4", "0.6", "0.8", "True")
+# display.brewer.all()
+# display.brewer.pal(4, "Set2")
+# brewer.pal(5, "Set2")
 
-# define a color palette 
 ## prediction window 
 window <- seq(0, 1, by = 0.2)
 M <- 500
@@ -227,11 +230,11 @@ bind_rows(
          levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm=T, linewidth = 1.0)+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = "Maximum observation time", x = "Time", y="")+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
@@ -551,11 +554,11 @@ bind_rows(
          levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linewidth=1, na.rm=T)+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = "Maximum observation time", x = "Time", y="")+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
@@ -908,23 +911,28 @@ bind_cols(Window = c("6am-12pm", "12pm-6pm", "6pm-12am"),
 ## Figure
 
 ```{r fig_appl, fig.height=8, fig.width=8}
-rand_id 
-cols <- cols[1:3]
+# redefine color scale
+cols <- cols[1:3] 
 names(cols) <- c("6am", "12pm", "6pm")
+
+# selct four subjects
+plot_id <- sort(c(68959, 68624, 64198, 80517))
+
+# figure
 bind_rows(
-  pred_nhanes_fgfpca %>% filter(id %in% rand_id) %>% mutate(method="fGFPCA"),
-  pred_appl_gfosr_l5 %>% filter(id %in% rand_id) %>% mutate(method = "GFOSR (L=5)"),
-  pred_appl_gfosr_l1 %>% filter(id %in% rand_id) %>% mutate(method = "GFOSR (L=1)"),
-  pred_nhanes_adglmm %>% filter(id %in% rand_id) %>% mutate(method = "GLMMadaptive")) %>%
+  pred_nhanes_fgfpca %>% filter(id %in% plot_id) %>% mutate(method="fGFPCA"),
+  pred_appl_gfosr_l5 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=5)"),
+  pred_appl_gfosr_l1 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=1)"),
+  pred_nhanes_adglmm %>% filter(id %in% plot_id) %>% mutate(method = "GLMMadaptive")) %>%
   mutate_at(vars(pred360, pred720, pred1080), 
                 .funs = function(x){exp(x)/(1+exp(x))}) %>%
   mutate(method=factor(method, 
          levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=pred360, col = "6am"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred720, col = "12pm"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred1080, col = "6pm"), linetype="dashed", na.rm=T)+
+  geom_line(aes(x=sind, y=pred360, col = "6am"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred720, col = "12pm"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred1080, col = "6pm"), linewidth=1, na.rm=T)+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = "Maximum observation time", x = "Time", y="")+
   scale_x_continuous(breaks = seq(0, 1440, by = 360),
@@ -933,7 +941,54 @@ bind_rows(
   scale_color_manual(values = cols)
 ```
 
+The fGFPCA prediction conditional on observation up to 6am looks identical across subjects. This is not due to coding issue. In fact, if we look at individual tracks, out of 3506 subjects there are 1473 unique predicted tracks. There is a high change the selected four subjects all have the same predicted tracks. 
 
+PS number of unique predicted tracks is:
+- 3456 when conditional on 12 pm
+- 3488 when conditional on 6pm
+
+I think this is closedly determined by the variety of observed outcome across individuals. When conditioning on 6am, there are 1475 unique observed tracks; and 3465 and 3488 respectively when obesrved up to 12pm and 6pm. As we see, these numbers are very close to the number of unique prediction tracks in fGFPCA.
+
+I'd note that the four randomly selected subjects from the last report happen to have exactly the same observations from 0-6am. That is why they also have identical prediction after 6am. Therefore, in this report I arbitrarily assigned subjects to be displayed: 62161, . 
+
+In addition: 
+- For GFOSR (L5), number of unique predicted tracks are 31, 32, 32
+- For GFOSR (L1), number of unique predicted tracks are 2, 2, 2
+- For GLMMadaptive, number of unique predicted tracks are 294, 712, 1533. 
+
+```{r, eval=FALSE}
+length(unique(pred_nhanes_adglmm$id))
+pred_nhanes_fgfpca %>%
+  # filter(id %in% rand_id) %>%
+  select(id, sind, Y) %>%
+  filter(sind <=  360) %>%
+  pivot_wider(names_from = sind, values_from = Y, names_prefix = "sind") %>%
+  distinct(., pick(starts_with("sind")), .keep_all = T) %>%
+  select(id) %>%
+  t() %>%
+  sample(., size = 4)
+
+
+  # ggplot(aes(x=sind, y=pred360, col = as.factor(id), group = as.factor(id)))+
+  # geom_line()
+```
+
+
+```{r, eval=FALSE}
+pred_nhanes_fgfpca %>%
+  select(id, sind, pred360) %>%
+  filter(sind>360) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=pred360, col = as.factor(id)), show.legend = F)
+
+pred_nhanes_fgfpca %>%
+  select(id, sind, pred720) %>%
+  filter(sind>720) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=pred720, col = as.factor(id)), show.legend = F)
+
+
+```
 
 # Additional figures
 

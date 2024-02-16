@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-02-06" />
+<meta name="date" content="2024-02-16" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-02-06</h4>
+<h4 class="date">2024-02-16</h4>
 
 </div>
 
@@ -509,11 +509,11 @@ rand_id &lt;- sample(501:600, size = 4)</code></pre>
          levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), linetype = &quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), na.rm=T, linewidth = 1.0)+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
@@ -722,7 +722,8 @@ bind_cols(fgfpca1, gfosr_l5_1, gfosr_l1_1, adglmm1, .name_repair = &quot;minimal
   add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 4, &quot;GFOSR (L=5)&quot; = 4, 
                      &quot;GFOSR (L=1)&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
   add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 16)) %&gt;%
-  group_rows(index = c(&quot;ISE&quot;= 4, &quot;AUC&quot; = 4))</code></pre>
+  group_rows(index = c(&quot;ISE&quot;= 4, &quot;AUC&quot; = 4)) %&gt;%
+  landscape()</code></pre>
 <table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
@@ -1302,11 +1303,11 @@ rand_id &lt;- sample(101:200, size = 4)</code></pre>
          levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
-  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), linetype = &quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linewidth=1, na.rm=T)+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
@@ -1492,7 +1493,8 @@ bind_cols(fgfpca2, gfosr_l5_2, gfosr_l1_2, adglmm2, .name_repair = &quot;minimal
   add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 4, &quot;GFOSR (L=5)&quot; = 4, 
                      &quot;GFOSR (L=1)&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
   add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 16)) %&gt;%
-  group_rows(index = c(&quot;ISE&quot;= 4, &quot;AUC&quot; = 4))</code></pre>
+  group_rows(index = c(&quot;ISE&quot;= 4, &quot;AUC&quot; = 4)) %&gt;%
+  landscape()</code></pre>
 <table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
@@ -2116,7 +2118,8 @@ colnames(auc_appl_fgfpca) &lt;- colnames(auc_appl_gfosr_l5) &lt;- colnames(auc_a
   kable_styling(full_width = F) %&gt;% 
   add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 3, &quot;GFOSR (L=5)&quot; = 3, 
                      &quot;GFOSR (L=1)&quot; = 3, &quot;GLMMadaptive&quot; = 3)) %&gt;%
-  add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 12))</code></pre>
+  add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 12)) %&gt;%
+  landscape()</code></pre>
 <table style="color:black; width: auto !important; margin-left: auto; margin-right: auto;" class="table">
 <thead>
 <tr>
@@ -2311,23 +2314,28 @@ Window
 </div>
 <div id="figure-1" class="section level2" number="6.2">
 <h2><span class="header-section-number">6.2</span> Figure</h2>
-<pre class="r"><code>rand_id &lt;- sample(unique(pred_nhanes_adglmm$id), 4)
-cols &lt;- cols[1:3]
+<pre class="r"><code># redefine color scale
+cols &lt;- cols[1:3] 
 names(cols) &lt;- c(&quot;6am&quot;, &quot;12pm&quot;, &quot;6pm&quot;)
+
+# selct four subjects
+plot_id &lt;- sort(c(68959, 68624, 64198, 80517))
+
+# figure
 bind_rows(
-  pred_nhanes_fgfpca %&gt;% filter(id %in% rand_id) %&gt;% mutate(method=&quot;fGFPCA&quot;),
-  pred_appl_gfosr_l5 %&gt;% filter(id %in% rand_id) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;),
-  pred_appl_gfosr_l1 %&gt;% filter(id %in% rand_id) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;),
-  pred_nhanes_adglmm %&gt;% filter(id %in% rand_id) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
+  pred_nhanes_fgfpca %&gt;% filter(id %in% plot_id) %&gt;% mutate(method=&quot;fGFPCA&quot;),
+  pred_appl_gfosr_l5 %&gt;% filter(id %in% plot_id) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;),
+  pred_appl_gfosr_l1 %&gt;% filter(id %in% plot_id) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;),
+  pred_nhanes_adglmm %&gt;% filter(id %in% plot_id) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
   mutate_at(vars(pred360, pred720, pred1080), 
                 .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
   mutate(method=factor(method, 
          levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=pred360, col = &quot;6am&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=sind, y=pred720, col = &quot;12pm&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
-  geom_line(aes(x=sind, y=pred1080, col = &quot;6pm&quot;), linetype=&quot;dashed&quot;, na.rm=T)+
+  geom_line(aes(x=sind, y=pred360, col = &quot;6am&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred720, col = &quot;12pm&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred1080, col = &quot;6pm&quot;), linewidth=1, na.rm=T)+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1440, by = 360),
@@ -2335,10 +2343,69 @@ bind_rows(
   theme(legend.position = &quot;bottom&quot;, axis.text.x = element_text(size = 7))+
   scale_color_manual(values = cols)</code></pre>
 <p><img src="manuscript_files/figure-html/fig_appl-1.png" width="768" /></p>
+<p>The fGFPCA prediction conditional on observation up to 6am looks
+identical across subjects. This is not due to coding issue. In fact, if
+we look at individual tracks, out of 3506 subjects there are 1473 unique
+predicted tracks. There is a high change the selected four subjects all
+have the same predicted tracks.</p>
+<p>PS number of unique predicted tracks is: - 3456 when conditional on
+12 pm - 3488 when conditional on 6pm</p>
+<p>I think this is closedly determined by the variety of observed
+outcome across individuals. When conditioning on 6am, there are 1475
+unique observed tracks; and 3465 and 3488 respectively when obesrved up
+to 12pm and 6pm. As we see, these numbers are very close to the number
+of unique prediction tracks in fGFPCA.</p>
+<p>I’d note that the four randomly selected subjects from the last
+report happen to have exactly the same observations from 0-6am. That is
+why they also have identical prediction after 6am. Therefore, in this
+report I arbitrarily assigned subjects to be displayed: 62161, .</p>
+<p>In addition: - For GFOSR (L5), number of unique predicted tracks are
+31, 32, 32 - For GFOSR (L1), number of unique predicted tracks are 2, 2,
+2 - For GLMMadaptive, number of unique predicted tracks are 294, 712,
+1533.</p>
+<pre class="r"><code>length(unique(pred_nhanes_adglmm$id))
+pred_nhanes_fgfpca %&gt;%
+  # filter(id %in% rand_id) %&gt;%
+  select(id, sind, Y) %&gt;%
+  filter(sind &lt;=  360) %&gt;%
+  pivot_wider(names_from = sind, values_from = Y, names_prefix = &quot;sind&quot;) %&gt;%
+  distinct(., pick(starts_with(&quot;sind&quot;)), .keep_all = T) %&gt;%
+  select(id) %&gt;%
+  t() %&gt;%
+  sample(., size = 4)
+
+
+  # ggplot(aes(x=sind, y=pred360, col = as.factor(id), group = as.factor(id)))+
+  # geom_line()</code></pre>
+<pre class="r"><code>pred_nhanes_fgfpca %&gt;%
+  select(id, sind, pred360) %&gt;%
+  filter(sind&gt;360) %&gt;%
+  ggplot()+
+  geom_line(aes(x=sind, y=pred360, col = as.factor(id)), show.legend = F)
+
+pred_nhanes_fgfpca %&gt;%
+  select(id, sind, pred720) %&gt;%
+  filter(sind&gt;720) %&gt;%
+  ggplot()+
+  geom_line(aes(x=sind, y=pred720, col = as.factor(id)), show.legend = F)</code></pre>
 </div>
 </div>
 <div id="additional-figures" class="section level1" number="7">
 <h1><span class="header-section-number">7</span> Additional figures</h1>
+<pre class="r"><code>df_nhanes &lt;- read_rds(here(&quot;Data/nhanes_bi.rds&quot;))
+df_nhanes %&gt;% 
+  select(SEQN, Z, sind) %&gt;%
+  filter(SEQN %in% rand_id) %&gt;%
+  filter(sind %in% 356:360) %&gt;%
+  pivot_wider(names_from = sind, values_from = Z) %&gt;% 
+  select(-SEQN) %&gt;% distinct(.)
+
+
+pred_appl_gfosr_l5 %&gt;% 
+  filter(id %in% rand_id) %&gt;%
+  select(id, sind, pred360) %&gt;%
+  pivot_wider(names_from = sind, values_from = pred360) %&gt;% 
+  select(-id) %&gt;% distinct(.)</code></pre>
 <!-- ## fGFPCA algorithm demonstration -->
 <!-- ```{r binning, eval=FALSE} -->
 <!-- df_nhanes %>% select(SEQN, Z, sind) %>%  -->

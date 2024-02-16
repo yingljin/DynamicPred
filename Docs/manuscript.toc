@@ -22,4 +22,4 @@
 \contentsline {section}{NHANES data application}{21}{section*.23}%
 \contentsline {subsection}{AUC}{22}{section*.24}%
 \contentsline {subsection}{Figure}{25}{section*.25}%
-\contentsline {section}{Additional figures}{26}{section*.26}%
+\contentsline {section}{Additional figures}{27}{section*.26}%
