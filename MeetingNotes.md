@@ -59,7 +59,7 @@ Data application
 1. Add citation about preprocessing of binary indicator
 2. Change figure line thickness and color, condense space
 3. Figure 3: yellow line for fGFPCA looks strange. Double check
-4. Write an appendix explaining the reverse eigenvalu problem
+4. Write an appendix explaining the reverse eigenvalues problem
 
 
 

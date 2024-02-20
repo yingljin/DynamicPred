@@ -175,15 +175,24 @@ colnames(est_phi) <- paste0("phi", 1:K)
 I would like to look at estimated PC functions:
 
 ```{r}
+theme_set(theme_minimal())
+cols <- c(brewer.pal(4, "Set2"), "#000000") # define a color palette 
+names(cols) <- c("0.2", "0.4", "0.6", "0.8", "True")
+
 # PC functions after re-evaluation
 bind_rows(
-  data.frame(sind=1:J, est_phi*sqrt(n_bin), type = "re-evaluated"),
-  data.frame(df_phi, type = "True")
+  data.frame(sind=1:J, est_phi*sqrt(n_bin), type = "Simulation"),
+  data.frame(df_phi, type = "Generation")
 ) %>%
+  rename("PC1" = phi1, "PC2" = phi2, "PC3" = phi3, "PC4" = phi4) %>%
   pivot_longer(2:5) %>%
   ggplot()+
-  geom_line(aes(x=sind, y=value, col=type))+
-  facet_wrap(~name)
+  geom_line(aes(x=sind, y=value, col=type), linewidth=1)+
+  facet_wrap(~name)+
+  scale_color_brewer(palette = "Set2")+
+   scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
+  labs(x = "Time", y="", color = "")
 ```
 
 It looks like something went wrong in the estimation of PC3. The estimated line is either identical or off by a sign compared to the true PC functions. That said, PC2 seems a bit off too. 
