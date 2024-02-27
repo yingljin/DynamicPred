@@ -61,6 +61,11 @@ Data application
 3. Figure 3: yellow line for fGFPCA looks strange. Double check
 4. Write an appendix explaining the reverse eigenvalues problem
 
+# 24/2/22
+1. NHANES example: get distribution of scores, population average probablity curve
+2. Reverse eigenvalue problem:
+- get the probability plot of mu(t)+2*\lambda_2*phi(t) for 2nd and 2rd PCs. Bascially, we wanna see how this probability affect the observed outcome.
+
 
 
 
