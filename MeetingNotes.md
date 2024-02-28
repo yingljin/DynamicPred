@@ -62,7 +62,7 @@ Data application
 4. Write an appendix explaining the reverse eigenvalues problem
 
 # 24/2/22
-1. NHANES example: get distribution of scores, population average probablity curve
+1. NHANES example: get distribution of scores, population average probability curve
 2. Reverse eigenvalue problem:
 - get the probability plot of mu(t)+2*\lambda_2*phi(t) for 2nd and 2rd PCs. Bascially, we wanna see how this probability affect the observed outcome.
 

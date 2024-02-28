@@ -269,7 +269,8 @@ debias_glmm2 <- bam(Y ~ s(sind, bs="cr")+
                  family = binomial,
                  data=gen_df,
                  method = "fREML",
-                 discrete = TRUE)
+                 discrete = TRUE,
+                 use.chol = TRUE)
 ```
 
 - Eigenvalues before and after re-evaluation
@@ -284,32 +285,6 @@ fpca_mod$evalues/n_bin
 
 It looks like the flip happened again. 
 
-
-
-```{r, eval=FALSE}
-new_df <- gen_df %>% filter(id == 1)
-est_phi <- predict(debias_glmm2, newdata = new_df, type = "terms")[, 2:5] %>% 
-  data.frame()
-est_phi %>%
-  mutate(sind=1:J) %>%
-  pivot_longer(1:4) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y= value))+
-  facet_wrap(~name)
-```
-
-```{r eval=FALSE}
-coef1 <- coef(debias_glmm2)[c("s(id):phi1.1", "s(id):phi2.1", "s(id):phi3.1", "s(id):phi4.1")]
-coef1 <- matrix(coef1, nrow = J, ncol = 4, byrow = T)
-(as.matrix(df_phi[, 2:5]) * coef1) %>% data.frame() %>%
-  mutate(sind=1:J) %>%
-  pivot_longer(1:4) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y= value))+
-  facet_wrap(~name)
-  
-```
-
 At this point, I think we could say the reversed eigenvalue problem is an artifact of the dataset it self. It looks like FPCA captures the shape of eigenvalues very well, but for some reason, mgcv::bam thinks it is necessary to penalize the second eigenfunctions more than the third function. Why is that? Could it be that PC2 is more wiggly? 
 
 
@@ -321,3 +296,53 @@ evals
 # estimation
 1/debias_glmm2$sp[2:5]
 ```
+
+# Other random explorations
+
+- what if I fit the bam model in a subset of data (e.g. bin midpoints) ?
+
+```{r}
+try_glmm <- bam(Y ~ s(sind, bs="cr")+
+                   s(id, by=phi1, bs="re")+
+                   s(id, by=phi2, bs="re")+
+                   s(id, by=phi3, bs="re")+
+                   s(id, by=phi4, bs="re"),
+                 family = binomial,
+                 data=gen_df %>% filter(sind==bin),
+                 method = "fREML",
+                 discrete = TRUE,
+                 use.chol = TRUE)
+
+1/try_glmm$sp[2:5]
+
+```
+
+
+- What about sub-intervals of time (e.g. every three hours? )
+
+```{r}
+evals_by_hour <- gen_df %>% 
+  mutate(hour = cut(sind, breaks = seq(0, J, by = 180), labels = 1:8)) %>%
+  group_by(hour) %>%
+  # filter(hour %in% 1:3) %>%
+  group_map(~{
+    try_glmm <- bam(Y ~ s(sind, bs="cr")+
+                   s(id, by=phi1, bs="re")+
+                   s(id, by=phi2, bs="re")+
+                   s(id, by=phi3, bs="re")+
+                   s(id, by=phi4, bs="re"),
+                 family = binomial,
+                 data=.x,
+                 method = "fREML",
+                 discrete = TRUE)
+    1/try_glmm$sp[2:5]
+  })
+
+bind_rows(evals_by_hour) %>%
+  mutate(hour = seq(3, 24, by = 3)) %>% 
+  pivot_longer(1:4) %>% 
+  ggplot(aes(x=hour, y=value, group=name, col=name))+
+  geom_point()+
+  labs(x="Hour", y= "Evals")
+```
+
