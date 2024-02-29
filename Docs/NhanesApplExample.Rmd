@@ -95,26 +95,38 @@ plot(1:J, plogis(mu), type = "l", main = "Population mean on the probablity scal
 
 - Deviation from each PC from the population mean
 
-Below are figures for $\hat{f}_0(t)+2\sqrt{\hat{\lambda}}_k\phi_l(k)$, but on the probablity scale
+Below are figures for $\hat{f}_0(t) \pm 2\sqrt{\hat{\lambda}}_k\phi_l(k)$, but on the probablity scale
 
 ```{r}
-df_pc_dev <- df_phi %>%
-  mutate(mu = mu) %>%
-  mutate(phi1_dev = mu + 2*sqrt(evals[1])*phi1,
-         phi2_dev = mu + 2*sqrt(evals[2])*phi2,
-         phi3_dev = mu + 2*sqrt(evals[3])*phi3,
-         phi4_dev = mu + 2*sqrt(evals[4])*phi4)
+df_pc_dev <- bind_rows(
+  data.frame(sind = 1:J, mu=mu, pc = "PC1",
+             high = mu + 2*sqrt(evals[1])*df_phi$phi1,
+             low = mu - 2*sqrt(evals[1])*df_phi$phi1),
+  data.frame(sind = 1:J, mu=mu, pc = "PC2",
+             high = mu + 2*sqrt(evals[2])*df_phi$phi2,
+             low = mu - 2*sqrt(evals[2])*df_phi$phi2),
+  data.frame(sind = 1:J, mu=mu, pc = "PC3",
+             high = mu + 2*sqrt(evals[3])*df_phi$phi3,
+             low = mu - 2*sqrt(evals[3])*df_phi$phi3),
+  data.frame(sind = 1:J, mu=mu, pc = "PC4",
+             high = mu + 2*sqrt(evals[4])*df_phi$phi4,
+             low = mu - 2*sqrt(evals[4])*df_phi$phi4)
+)
 
+```
+
+
+```{r}
 df_pc_dev %>%
-  pivot_longer(7:10) %>%
-  mutate(value = plogis(value), mu = plogis(mu)) %>%
   ggplot()+
-  geom_line(aes(x=sind, y=value))+
-  geom_line(aes(x=sind, y=mu), col = "red")+
-  facet_wrap(~name) 
+  geom_ribbon(aes(x=sind, y=mu, ymin=low, ymax=high, alpha = 0.2))+
+  geom_line(aes(x=sind, y=mu))+
+  facet_wrap(~pc) 
 ```
 
 It looks like subjects with high loadings on PC2 would be more active than population average during afternoon/night, and less active in the morning. PC3, on the other hand, seems to indicate more active at night and early morning and less active in midday. They both reflect more active at night time. 
+
+There are a lot of flips between upper and lower bound in PC 2-4. This is certainly possible since the value of eigenfunctions can be either positive or negative. But is this an abnormal observation? 
 
 
 - Individual score

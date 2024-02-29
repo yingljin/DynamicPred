@@ -66,6 +66,14 @@ Data application
 2. Reverse eigenvalue problem:
 - get the probability plot of mu(t)+2*\lambda_2*phi(t) for 2nd and 2rd PCs. Bascially, we wanna see how this probability affect the observed outcome.
 
+# 24/2/29
+1. Individual scores: calculated the mean
+2. Do iterative simulation and summarize the eigenfunctions and eigenvalues, see when they'd flip
+3. A few experienments:
+- Put a lower bound on population mean, so that the nighttime observations are about half active and inactive. Use the same PC, simulate data, do the fGFPCA, see if eigenvalues still flip
+- Upsample with replacement (e.g. 5N), do fGFPCA and see if PC2 and PC3 flip and if the PC stablize
+- Maybe try more than 4 eigenfunctions? 
+
 
 
 
