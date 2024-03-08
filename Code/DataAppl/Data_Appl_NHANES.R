@@ -57,6 +57,11 @@ mid <- (brks+bin_w/2)[1:n_bin] # mid points
 train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
 train_df$bin <- as.numeric(as.character(train_df$bin))
 
+## checks
+head(train_df)
+table(train_df$bin)
+
+
 # Step 2:  Local GLMM
 train_bin_lst <- split(train_df, f = train_df$bin)
 
@@ -90,16 +95,19 @@ t1 <- Sys.time()
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
 t2 <- Sys.time()
 t2-t1 
-save(fpca_mod, file = here("Data/Appl_fpca_model.RData"))
 
-
-data.frame(t = mid, fpca_mod$efunctions) %>%
-  rename(PC1 = X1, PC2=X2, PC3=X3, PC4=X4) %>%
-  pivot_longer(2:5, names_to = "PC") %>%
+## checks
+fpca_mod$evalues
+data.frame(sind = mid, 
+           fpca_mod$efunctions) %>%
+  pivot_longer(2:5) %>%
   ggplot()+
-  geom_line(aes(x=t, y=value, col = PC))+
-  facet_wrap(~PC)+
-  labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
+  geom_line(aes(x=sind, y=value))+
+  facet_wrap(~name)
+
+plot(mid, fpca_mod$mu, type = "l")
+
+save(fpca_mod, file = here("Data/Appl_fpca_model.RData"))
 
 # Re-evaluation
 ## grid extension
@@ -146,17 +154,19 @@ df_phi <- df_phi %>% mutate(
   phi4 = sqrt(n_bin)*phi4
 )
 train_df <- train_df %>% 
-  select(!starts_with("phi")) %>%
+  # select(!starts_with("phi")) %>%
   left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
 
 
-
+head(df_phi)
 
 # don't run this part unless it's absolutely necessary!
 # It takes 20 hours!
+head(train_df)
+
 t1 <- Sys.time()
-debias_glmm <- bam(Y ~ s(sind)+
+debias_glmm <- bam(Y ~ s(sind, bs = "bs")+
                      s(id, by=phi1, bs="re")+
                      s(id, by=phi2, bs="re")+
                      s(id, by=phi3, bs="re")+
@@ -175,6 +185,7 @@ load(here("Data/Appl_debias_model.RData"))
 
 new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
 plot(t, new_mu)
+lines(mid, fpca_mod$mu, col = "Red")
 summary(new_mu)
 
 # fpca_mod$evalues
