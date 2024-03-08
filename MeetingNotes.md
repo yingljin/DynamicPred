@@ -74,6 +74,8 @@ Data application
 - Upsample with replacement (e.g. 5N), do fGFPCA and see if PC2 and PC3 flip and if the PC stablize
 - Maybe try more than 4 eigenfunctions? 
 
+Assumptions for the reversed eigenvalue problem: only a few observations in a bin, sparse data, small variability, especially the nighttime. Therefore eigenfunctions who stress variability during nighttime (PC2 and PC3) because instable (got suppressed). 
+
 
 
 

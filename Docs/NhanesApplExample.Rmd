@@ -1,5 +1,5 @@
 ---
-title: "Problem of Step 4 (debias) of fGFPCA on NHANES data"
+title: "Reverse eigenvalue problem"
 author: "Ying Jin"
 output: 
   html_document:
@@ -15,7 +15,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-set.seed(227)
+set.seed(1114)
 
 library(here)
 library(tidyverse)
@@ -35,174 +35,68 @@ theme_set(theme_minimal())
 ```
 
 
-```{r}
+```{r load_data}
 # load data
 df <- read_rds(here("Data/nhanes_bi.rds"))
+df <- df %>% rename(id=SEQN, Y=Z)
 
-# code
+N <- length(unique(df$id))
+J <- length(unique(df$sind))
+K <- 4 # number of eigenfunctions to use
+```
+
+
+```{r load_code}
 source(here("Code/GLMM-FPCA.R")) 
-# use pred_latent function to estimate latent function 
-K <- 4
 source(here("Code/OutsampBayes.R"))
 ```
 
 
+It seems that the reversed eigenvalue problem has to do with 1) the choice of spline basis and 2) sample size. 
 
-```{r bin_data}
-# head(df)
-df <- df %>% rename(id=SEQN, Y=Z)
-N <- length(unique(df$id))
-Ntr <- 500
-J <- length(unique(df$sind))
+# Spline basis
 
-load(here("Data/Appl_debias_model.RData"))
+I'll take a subset of 500 subject and try different spline basis. 
 
-# parameters used in binning
+```{r data_split}
+# or for sanity checks, use a subset of 1000 subjects
+Ntry <- 500
+train_id <- sample(unique(df$id), size = Ntry)
+train_df <- df %>% filter(id %in% train_id)
+```
+
+
+```{r set_up}
+# basis to try
+bs_vec <- c("cr", "cs", "tp", "bs", "ps")
+evals <- matrix(NA, length(bs_vec), K)
+```
+
+
+```{r fGFPCA}
+# Step 1: Bin every 10 observations
 bin_w <- 10 # bin width
 n_bin <- J/bin_w # number of bins
 brks <- seq(0, J, by = bin_w) # cutoff points
 mid <- (brks+bin_w/2)[1:n_bin] # mid points
-```
 
+train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
+train_df$bin <- as.numeric(as.character(train_df$bin))
 
-# Estimates
-
-- Eigenvalues
-
-```{r evals}
-evals <- 1/debias_glmm$sp[2:5]/n_bin
-```
-
-- PC functions
-
-```{r}
-df_phi <- debias_glmm$model %>% select(sind, starts_with("phi")) %>% distinct(.) %>%
-  mutate_at(vars(starts_with("phi")), function(x){x*sqrt(n_bin)}) 
-
-df_phi %>% pivot_longer(2:5) %>%
-  ggplot(aes(x=sind, y=value))+
-  geom_line()+
-  facet_wrap(~name)
-```
-
-- Mean function
-
-```{r}
-mu <- predict(debias_glmm, type = "terms")[1:J, 1]
-# plot(1:J, mu, type = "l", main = "Population mean")
-plot(1:J, plogis(mu), type = "l", main = "Population mean on the probablity scale")
-```
-
-- Deviation from each PC from the population mean
-
-Below are figures for $\hat{f}_0(t) \pm 2\sqrt{\hat{\lambda}}_k\phi_l(k)$, but on the probablity scale
-
-```{r}
-df_pc_dev <- bind_rows(
-  data.frame(sind = 1:J, mu=mu, pc = "PC1",
-             high = mu + 2*sqrt(evals[1])*df_phi$phi1,
-             low = mu - 2*sqrt(evals[1])*df_phi$phi1),
-  data.frame(sind = 1:J, mu=mu, pc = "PC2",
-             high = mu + 2*sqrt(evals[2])*df_phi$phi2,
-             low = mu - 2*sqrt(evals[2])*df_phi$phi2),
-  data.frame(sind = 1:J, mu=mu, pc = "PC3",
-             high = mu + 2*sqrt(evals[3])*df_phi$phi3,
-             low = mu - 2*sqrt(evals[3])*df_phi$phi3),
-  data.frame(sind = 1:J, mu=mu, pc = "PC4",
-             high = mu + 2*sqrt(evals[4])*df_phi$phi4,
-             low = mu - 2*sqrt(evals[4])*df_phi$phi4)
-)
-
-```
-
-
-```{r}
-df_pc_dev %>%
-  ggplot()+
-  geom_ribbon(aes(x=sind, y=mu, ymin=low, ymax=high, alpha = 0.2))+
-  geom_line(aes(x=sind, y=mu))+
-  facet_wrap(~pc) 
-```
-
-It looks like subjects with high loadings on PC2 would be more active than population average during afternoon/night, and less active in the morning. PC3, on the other hand, seems to indicate more active at night and early morning and less active in midday. They both reflect more active at night time. 
-
-There are a lot of flips between upper and lower bound in PC 2-4. This is certainly possible since the value of eigenfunctions can be either positive or negative. But is this an abnormal observation? 
-
-
-- Individual score
-
-```{r}
-data.frame(matrix(debias_glmm$coefficients[-c(1:9)], ncol = 4)) %>%
-  pivot_longer(1:4) %>%
-  ggplot(aes(x=name, y=value))+
-  geom_boxplot()+
-  geom_jitter(size = 0.2, alpha = 0.2)
-```
-
-Compared to the other three PCs, the distribution of $\hat{\xi}_{i3}$ seems to be shifted lower (positively skewed?). 
-
-# Simulation using re-evaluated estimates
-
-```{r gen_data}
-# generate score
-xi <- rmvnorm(Ntr, mean = rep(0, K), sigma = diag(evals))
-# xi %>% data.frame() %>% pivot_longer(1:4, names_to = "PC", values_to = "score") %>%
-#   ggplot()+
-#   geom_boxplot(aes(x=PC, y=score))+
-#   geom_jitter(aes(x=PC, y=score), size = 0.5)
-
-# individual random effects
-bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
-
-# add in mean 
-eta <- apply(bi, 2, function(x){x+mu})
-gen_df <- data.frame(id = factor(rep(1:Ntr, each=J)),
-                     sind = rep(1:J, Ntr), 
-                     eta_i = as.vector(eta))
-
-# binary outcome
-gen_df$Y <- rbinom(Ntr*J, size=1, prob=plogis(gen_df$eta_i))
-
-gen_df %>% filter(id %in% 1:4) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.5)+
-  geom_line(aes(x=sind, y=plogis(eta_i)), col = "red")+
-  facet_wrap(~id)+
-  labs(title = "Generated data")
-```
-
-# fGFPCA on generated data 
-
-```{r fGFPCA1}
-# bin 
-gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
-gen_df$bin <- as.numeric(as.character(gen_df$bin))
-
-# local GLMM
-train_bin_lst <- split(gen_df, f = gen_df$bin)
+# Step 2:  Local GLMM
+train_bin_lst <- split(train_df, f = train_df$bin)
 df_est_latent <- lapply(train_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
 df_est_latent <- bind_rows(df_est_latent) 
 
-df_est_latent %>% filter(id %in% 1:4) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.5)+
-  geom_line(aes(x=sind, y=plogis(eta_i), col = "True"))+
-  geom_line(aes(x=sind, y=plogis(eta_hat), col = "Estimate"))+
-  facet_wrap(~id)+
-  labs(title = "Generated data")
-```
-
-
-```{r fGFPCA2}
 # FPCA
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
-mat_est_unique <- matrix(uni_eta_hat$eta_hat, nrow=Ntr, ncol=n_bin, byrow = F) 
-fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K)
-```
+mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                         nrow=length(train_id), 
+                         ncol=n_bin, byrow = F) 
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
 
-
-```{r re_eval_PC}
-# interpolation
+# Re-evaluation
+## grid extension
 p <- 3 # order of b splines 
 knots <- 35 # number of knots (same from FPCA model)
 knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
@@ -213,67 +107,248 @@ B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
 Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
                    outer.ok = TRUE)$design  # evaluate B-splines on original grid
 
+df_phi <- matrix(NA, J, K) 
+for(k in 1:K){
+  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+  df_phi[,k] <- Bnew %*% coef(lm_mod)
+}# project binned eigenfunctions onto the original grid
+
+## debias
+## let's try scale the eigenfunctions before re-evaluation
+df_phi <- data.frame(sind = 1:J, df_phi)
+colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+# df_phi <- df_phi %>% mutate(
+#   phi1 = sqrt(n_bin)*phi1,
+#   phi2 = sqrt(n_bin)*phi2,
+#   phi3 = sqrt(n_bin)*phi3,
+#   phi4 = sqrt(n_bin)*phi4
+# )
+train_df <- train_df %>% 
+  left_join(df_phi, by = "sind")
+train_df$id <- as.factor(train_df$id)
+
+```
+
+
+```{r try_splines, results='hide'}
+pb <- txtProgressBar(min=0, max=length(bs_vec), style = 3)
+
+t1 <- Sys.time()
+for(i in seq_along(bs_vec)){
+  
+this_glmm <- bam(Y ~ s(sind, bs = bs_vec[i])+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"),
+                   family = binomial,
+                   data=train_df,
+                   method = "fREML",
+                   discrete = TRUE)
+evals[i, ] <- 1/this_glmm$sp[2:5]/n_bin
+setTxtProgressBar(pb, i)
+
+}
+
+close(pb)
+t2 <- Sys.time()
+# t2-t1 # about 5 minutes
+```
+
+
+
+```{r}
+data.frame(bs_vec, evals)
+```
+
+It seems the flip happened for both cubic spline basis sets, but not the other ones. Also, when sample size gets larger, the flip happens almost certainly for all spline basis. 
+
+When I increase the number of PC from 4 to 5, the second and third eigenvalues still flipped almost all the time.
+
+```{r, eval=FALSE}
+bind_rows(
+data.frame(sind=1:J, mu = predict(this_glmm, type="terms")[1:J, 1]) %>% mutate(type = "BAM"),
+data.frame(sind=mid, mu = fpca_mod$mu) %>% mutate(type = "FPCA")
+) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=mu, col=type))+
+  labs(title="Population mean estimate")
+
+```
+
+
+# Simulation using estimates from NHANES data
+
+## Estimates use for simualtion
+
+For now I will use estimates from the model fit on the whole NHANES dataset, even though the spline basis is not proper (bs = "cc"). 
+
+```{r load_est}
+load(here("Data/Appl_debias_model.RData"))
+
+# eigenvalues
+true_evals <- 1/debias_glmm$sp[2:5]/n_bin
+
+# mean 
+true_mu <- predict(debias_glmm, type = "terms")[, 1]
+true_mu <- matrix(true_mu, nrow = J)[, 1]
+# plot(1:J, true_mu)
+
+# eigenfunctions
+df_phi <- debias_glmm$model %>% select(sind, starts_with("phi")) %>% distinct(.) %>% 
+  mutate_at(vars(starts_with("phi")), function(x){x*sqrt(n_bin)})
+```
+
+Below are some visualizations of these estimates
+
+```{r plot_pc_func}
+df_phi %>%
+  pivot_longer(starts_with("phi")) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=value))+
+  facet_wrap(~name)+
+  labs(title = "Eigenfunctions")
+```
+
+
+```{r plot_pc_dev_from_mean}
+df_pc_dev <- bind_rows(
+  data.frame(sind = 1:J, mu=true_mu, pc = "PC1",
+             high = true_mu + 2*sqrt(true_evals[1])*df_phi$phi1,
+             low = true_mu - 2*sqrt(true_evals[1])*df_phi$phi1),
+  data.frame(sind = 1:J, mu=true_mu, pc = "PC2",
+             high = true_mu + 2*sqrt(true_evals[2])*df_phi$phi2,
+             low = true_mu - 2*sqrt(true_evals[2])*df_phi$phi2),
+  data.frame(sind = 1:J, mu=true_mu, pc = "PC3",
+             high = true_mu + 2*sqrt(true_evals[3])*df_phi$phi3,
+             low = true_mu - 2*sqrt(true_evals[3])*df_phi$phi3),
+  data.frame(sind = 1:J, mu=true_mu, pc = "PC4",
+             high = true_mu + 2*sqrt(true_evals[4])*df_phi$phi4,
+             low = true_mu - 2*sqrt(true_evals[4])*df_phi$phi4)
+)
+
+# plot
+df_pc_dev %>%
+  ggplot()+
+  geom_ribbon(aes(x=sind, y=mu, ymin=low, ymax=high, alpha = 0.2))+
+  geom_line(aes(x=sind, y=mu))+
+  facet_wrap(~pc)+
+  labs(title = "Deviation of each PC from population mean")
+```
+
+```{r plot_score}
+data.frame(matrix(debias_glmm$coefficients[-c(1:9)], ncol = 4)) %>%
+  pivot_longer(1:4) %>%
+  ggplot(aes(x=name, y=value))+
+  geom_boxplot()+
+  geom_jitter(size = 0.2, alpha = 0.2)+
+  stat_summary(fun=mean, geom="point", color="red")+
+  labs(title = "Individual scores")
+```
+
+## Data generation
+
+```{r gen_data_unbound}
+# interpolate FPCA mean
+# interp_mu_fpca <- approx(mid, fpca_mod$mu, xout=1:J, rule=2)
+# true_mu <- interp_mu_fpca$y
+
+# increase sample size?
+Ntry <- 500
+# generate score
+xi <- rmvnorm(Ntry, mean = rep(0, K), sigma = diag(true_evals))
+
+# individual random effects
+bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
+
+# add in unbounded mean
+eta <- apply(bi, 2, function(x){x+true_mu})
+gen_df <- data.frame(id = factor(rep(1:Ntry, each=J)),
+                     sind = rep(1:J, Ntry),
+                     eta_i = as.vector(eta))
+
+# binary outcome
+gen_df$Y <- rbinom(Ntry*J, size=1, prob=plogis(gen_df$eta_i))
+```
+
+
+```{r plot_data}
+# comparing generated data to the actual data
+bind_rows(
+    gen_df %>% 
+      group_by(sind) %>% 
+      summarize(active = mean(Y)) %>%
+      mutate(type="Simulation"),
+      
+    df %>% 
+      group_by(sind) %>% 
+      summarize(active = mean(Y)) %>%
+      mutate(type="NHANES")
+) %>%
+  ggplot()+
+      geom_line(aes(x=sind, y=active, col = type))+
+      labs(title="Proportion of active subjects by minute")
+    
+```
+
+This is the first discrepancy I have found - It looks like the simulated data is more active and more variable than the real data. Doesn't that mean the algorithm overestimates the population activity and variability? Since the mean estimates will surely change in Step 4 (debias), would the overestimation be caused by that? 
+
+## fGFPCA
+
+```{r exp_gen_data}
+# bin data
+# using the same bin length 
+gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
+gen_df$bin <- as.numeric(as.character(gen_df$bin))
+
+# Step 2:  Local GLMM
+gen_bin_lst <- split(gen_df, f = gen_df$bin)
+df_est_latent <- lapply(gen_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+df_est_latent <- bind_rows(df_est_latent)
+## Figure
+# df_est_latent %>% filter(id %in% 1:4) %>%
+#   ggplot()+
+#   geom_point(aes(x=sind, y=Y), size = 0.5)+
+#   geom_line(aes(x=sind, y=plogis(eta_i), col = "true"))+
+#   geom_line(aes(x=sind, y=plogis(eta_hat), col = "estimate"))+
+#   facet_wrap(~id)
+
+# FPCA
+uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                        nrow=Ntry, 
+                        ncol=n_bin, byrow = F) 
+# dim(mat_est_unique)
+fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
+```
+
+
+
+```{r}
+# Re-evaluation
 est_phi <- matrix(NA, J, K) 
+p <- 3 # order of b splines 
+knots <- 35 # number of knots (same from FPCA model)
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+
+B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                   outer.ok = TRUE)$design
 for(k in 1:K){
   lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
   est_phi[,k] <- Bnew %*% coef(lm_mod)
-} 
-colnames(est_phi) <- paste0("phi", 1:K)
-```
+}# project binned eigenfunctions onto the original grid
 
-
-I would like to look at estimated PC functions:
-
-```{r}
-theme_set(theme_minimal())
-cols <- c(brewer.pal(4, "Set2"), "#000000") # define a color palette 
-names(cols) <- c("0.2", "0.4", "0.6", "0.8", "True")
-
-# PC functions after re-evaluation
-bind_rows(
-  data.frame(sind=1:J, est_phi*sqrt(n_bin), type = "Simulation"),
-  data.frame(df_phi, type = "Generation")
-) %>%
-  rename("PC1" = phi1, "PC2" = phi2, "PC3" = phi3, "PC4" = phi4) %>%
-  pivot_longer(2:5) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y=value, col=type), linewidth=1)+
-  facet_wrap(~name)+
-  scale_color_brewer(palette = "Set2")+
-   scale_x_continuous(breaks = seq(0, 1440, by = 360),
-                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
-  labs(x = "Time", y="", color = "")
-```
-
-It looks like something went wrong in the estimation of PC3. The estimated line is either identical or off by a sign compared to the true PC functions. That said, PC2 seems a bit off too. 
-
-What about the estimated PC functions from FPCA without re-evaluation? 
-
-```{r}
-fpca_phi <- fpca_mod$efunctions*sqrt(n_bin)
-colnames(fpca_phi) <- paste0("phi", 1:K)
-bind_rows(
-  data.frame(df_phi, type = "True"),
-  data.frame(sind = mid, fpca_phi, type = "FPCA")
-) %>%
-  pivot_longer(2:5) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=value, col=type),size = 0.5)+
-  facet_wrap(~name)
-```
-
-
-Next I'd like to re-evaluate the eigenvalues.
-
-PS from the mgcv [user manual](https://cran.r-project.org/web/packages/mgcv/mgcv.pdf): *Note that discrete=TRUEmay result in re-ordering of variables in tensor product smooths for improved efficiency, and sp must be
-supplied in re-ordered order*. Does this also apply to random effects? Does it have anything to do with the reversed eigenvalue functions? (I don't believe this is the case though, based on the experiments. Basciall I fit the model on a subset of 100 subjects setting discrete = F, and the smoothing parameters still flipped). 
-
-```{r}
-# debias model
-gen_df <- gen_df %>% 
-  left_join(df_phi, by = "sind")
+## debias
+est_phi <- data.frame(sind = 1:J, est_phi)
+colnames(est_phi) <- c("sind", paste0("phi", 1:K))
+gen_df <- gen_df %>% left_join(est_phi, by = "sind")
 gen_df$id <- as.factor(gen_df$id)
-debias_glmm2 <- bam(Y ~ s(sind, bs="cr")+
+### model fit with B-splines basis
+t1 <- Sys.time()
+this_glmm <- bam(Y ~ s(sind, bs = "cr")+
                    s(id, by=phi1, bs="re")+
                    s(id, by=phi2, bs="re")+
                    s(id, by=phi3, bs="re")+
@@ -281,80 +356,194 @@ debias_glmm2 <- bam(Y ~ s(sind, bs="cr")+
                  family = binomial,
                  data=gen_df,
                  method = "fREML",
-                 discrete = TRUE,
-                 use.chol = TRUE)
+                 discrete = TRUE)
+t2 <- Sys.time()
 ```
 
-- Eigenvalues before and after re-evaluation
+Below I compared the estimated eigenvalues from simulated data to the true eigenvalues. As we see, the reverse did not happen on the simulated data. 
 
-```{r, class.source='fold-show'}
-# fpca
-fpca_mod$evalues/n_bin
+```{r new_evals, class.source='fold-show'}
+# estimated eigenvalues
+1/this_glmm$sp[2:5]/n_bin  
 
-# re-evaluated
-1/debias_glmm2$sp[2:5]
+# true eigenvalues
+true_evals
+```
+Below is the comparision between true and esimtated eigenfunctions. 
+
+```{r new_PC}
+bind_rows(df_phi %>% mutate(type = "True"),
+          est_phi %>% mutate(type = "Estimate",
+                             phi1 = phi1*sqrt(n_bin),
+                             phi2 = phi2*sqrt(n_bin),
+                             phi3 = phi3*sqrt(n_bin),
+                             phi4 = phi4*sqrt(n_bin))) %>%
+  pivot_longer(2:5) %>%
+  ggplot()+
+  geom_line(aes(x=sind, y=value, col = type))+
+  facet_wrap(~name)
 ```
 
-It looks like the flip happened again. 
-
-At this point, I think we could say the reversed eigenvalue problem is an artifact of the dataset it self. It looks like FPCA captures the shape of eigenvalues very well, but for some reason, mgcv::bam thinks it is necessary to penalize the second eigenfunctions more than the third function. Why is that? Could it be that PC2 is more wiggly? 
+And below is the comparision between true mean, mean estimated from FPCA, and re-evaluated mean from the BAM model in Step 4. The re-evaluation seem to drive the mean function closer to the truth. But in that case, why would generated data much more active compared to the NHANES data? 
 
 
-If we compare the eigenvalues used for data generation to the ones estimated by bam, we can see bam actually does a good job. But the order of eigenfunctions flipped, and that is because FPCA re-ordered the eigenfunctions based on eigenvalues. 
+```{r compare_mean}
+bind_rows(
+  data.frame(sind=1:J, mu=true_mu) %>% mutate(type = "True"),
+  data.frame(sind=1:J, mu=predict(this_glmm, type = "terms")[1:J, 1]) %>% mutate(type = "BAM"),
+  data.frame(sind=mid, mu=fpca_mod$mu) %>% mutate(type="FPCA")
+) %>%
+  ggplot()+
+      geom_line(aes(x=sind, y=mu, col = type))+
+      labs(title="Mean estimates")
 
-```{r, class.source='fold-show'}
-# generation
-evals
-# estimation
-1/debias_glmm2$sp[2:5]
+
 ```
 
-# Other random explorations
+# Simulation with the FPCA mean
 
-- what if I fit the bam model in a subset of data (e.g. bin midpoints) ?
+I would like to experiments if I could simulated data whose activity level and variation is closer to NHANES, using the interpolated FPCA mean and un-evaluated eigenvalues. 
+
+```{r load_fpca_mu}
+# load FPCA model from NHANES
+load(here("Data/Appl_fpca_model.RData"))
+
+# compare means on NHANES data from FPCA and debias model
+bind_rows(
+  data.frame(sind=1:J, mu = true_mu, type = "BAM"),
+  data.frame(sind=mid, mu = fpca_mod$mu, type = "FPCA")
+) %>% 
+  ggplot()+
+  geom_line(aes(x=sind, y=mu, col = type))+
+  labs(title = "Mean estimates on the NHANES dataset")
+
+
+```
+
+## Data generation
+
+```{r gen_data_fpca_mu}
+# interpolate FPCA mean
+interp_mu_fpca <- approx(mid, fpca_mod$mu, xout=1:J, rule=2)
+true_mu <- interp_mu_fpca$y
+
+# FPCA eigenvalues
+true_evals <- fpca_mod$evalues/n_bin
+
+# maybe increase sample size?
+# Ntry <- 1000
+
+# generate score
+xi <- rmvnorm(Ntry, mean = rep(0, K), sigma = diag(true_evals))
+
+# individual random effects
+bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
+
+# add in un-evaluated mean
+eta <- apply(bi, 2, function(x){x+true_mu})
+gen_df <- data.frame(id = factor(rep(1:Ntry, each=J)),
+                     sind = rep(1:J, Ntry),
+                     eta_i = as.vector(eta))
+
+# binary outcome
+gen_df$Y <- rbinom(Ntry*J, size=1, prob=plogis(gen_df$eta_i))
+```
+
+
+```{r plot_data_fpca_mu}
+# comparing generated data to the actual data
+bind_rows(
+    gen_df %>% 
+      group_by(sind) %>% 
+      summarize(active = mean(Y)) %>%
+      mutate(type="Simulation"),
+      
+    df %>% 
+      group_by(sind) %>% 
+      summarize(active = mean(Y)) %>%
+      mutate(type="NHANES")
+) %>%
+  ggplot()+
+      geom_line(aes(x=sind, y=active, col = type))+
+      labs(title="Proportion of active subjects by minute")
+    
+```
+
+Looks like by using the FPCA mean, I was able to lower the activity level of generated data down to the level of NHANES data. 
+
+## fGFPCA
+
+```{r fgfpca_fpca_mean}
+# bin data
+# using the same bin length 
+gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
+gen_df$bin <- as.numeric(as.character(gen_df$bin))
+
+# Step 2:  Local GLMM
+gen_bin_lst <- split(gen_df, f = gen_df$bin)
+df_est_latent <- lapply(gen_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+df_est_latent <- bind_rows(df_est_latent)
+## Figure
+# df_est_latent %>% filter(id %in% 1:4) %>%
+#   ggplot()+
+#   geom_point(aes(x=sind, y=Y), size = 0.5)+
+#   geom_line(aes(x=sind, y=plogis(eta_i), col = "true"))+
+#   geom_line(aes(x=sind, y=plogis(eta_hat), col = "estimate"))+
+#   facet_wrap(~id)
+
+# FPCA
+uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                        nrow=Ntry, 
+                        ncol=n_bin, byrow = F) 
+# dim(mat_est_unique)
+fpca_mod_sim <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
+```
+
+
 
 ```{r}
-try_glmm <- bam(Y ~ s(sind, bs="cr")+
+# Re-evaluation
+est_phi <- matrix(NA, J, K) 
+p <- 3 # order of b splines 
+knots <- 35 # number of knots (same from FPCA model)
+knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+
+B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+
+Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                   outer.ok = TRUE)$design
+for(k in 1:K){
+  lm_mod <- lm(fpca_mod_sim$efunctions[,k] ~ B-1)
+  est_phi[,k] <- Bnew %*% coef(lm_mod)
+}# project binned eigenfunctions onto the original grid
+
+## debias
+est_phi <- data.frame(sind = 1:J, est_phi)
+colnames(est_phi) <- c("sind", paste0("phi", 1:K))
+gen_df <- gen_df %>% left_join(est_phi, by = "sind")
+gen_df$id <- as.factor(gen_df$id)
+### model fit with B-splines basis
+t1 <- Sys.time()
+this_glmm <- bam(Y ~ s(sind, bs = "cr")+
                    s(id, by=phi1, bs="re")+
                    s(id, by=phi2, bs="re")+
                    s(id, by=phi3, bs="re")+
                    s(id, by=phi4, bs="re"),
                  family = binomial,
-                 data=gen_df %>% filter(sind==bin),
-                 method = "fREML",
-                 discrete = TRUE,
-                 use.chol = TRUE)
-
-1/try_glmm$sp[2:5]
-
-```
-
-
-- What about sub-intervals of time (e.g. every three hours? )
-
-```{r}
-evals_by_hour <- gen_df %>% 
-  mutate(hour = cut(sind, breaks = seq(0, J, by = 180), labels = 1:8)) %>%
-  group_by(hour) %>%
-  # filter(hour %in% 1:3) %>%
-  group_map(~{
-    try_glmm <- bam(Y ~ s(sind, bs="cr")+
-                   s(id, by=phi1, bs="re")+
-                   s(id, by=phi2, bs="re")+
-                   s(id, by=phi3, bs="re")+
-                   s(id, by=phi4, bs="re"),
-                 family = binomial,
-                 data=.x,
+                 data=gen_df,
                  method = "fREML",
                  discrete = TRUE)
-    1/try_glmm$sp[2:5]
-  })
-
-bind_rows(evals_by_hour) %>%
-  mutate(hour = seq(3, 24, by = 3)) %>% 
-  pivot_longer(1:4) %>% 
-  ggplot(aes(x=hour, y=value, group=name, col=name))+
-  geom_point()+
-  labs(x="Hour", y= "Evals")
+t2 <- Sys.time()
 ```
 
+
+Estimated eigenvalues
+
+```{r}
+1/this_glmm$sp[2:5]/sqrt(n_bin)
+```
+
+Using the FPCA estimates, I was able to lower the activity but not variation. I was also not able to recreate the reversed eigenvalue problem. Also, singularity issue happened in the binnin step when using the FPCA estimates to generate data. 

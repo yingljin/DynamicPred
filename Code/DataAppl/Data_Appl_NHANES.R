@@ -40,6 +40,10 @@ test_id <- setdiff(unique(df$id), train_id)
 train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
 
+# or for sanity checks, use a subset of 1000 subjects
+Ntry <- 1000
+train_id <- sample(unique(df$id), size = Ntry)
+train_df <- df %>% filter(id %in% train_id)
 
 ##### fGFPCA #####
 
@@ -76,7 +80,6 @@ df_est_latent %>%
 
 
 # FPCA
-
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
                          nrow=length(train_id), 
@@ -87,12 +90,15 @@ t1 <- Sys.time()
 fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
 t2 <- Sys.time()
 t2-t1 
+save(fpca_mod, file = here("Data/Appl_fpca_model.RData"))
+
 
 data.frame(t = mid, fpca_mod$efunctions) %>%
   rename(PC1 = X1, PC2=X2, PC3=X3, PC4=X4) %>%
   pivot_longer(2:5, names_to = "PC") %>%
   ggplot()+
   geom_line(aes(x=t, y=value, col = PC))+
+  facet_wrap(~PC)+
   labs(x="Time", y="", title = "Eigenfunctions from FPCA on the binned grid")
 
 # Re-evaluation
@@ -113,7 +119,7 @@ for(k in 1:K){
   df_phi[,k] <- Bnew %*% coef(lm_mod)
 }# project binned eigenfunctions onto the original grid
 
-# plot
+# plot to compare eigenfunctions before and after re-evaluation
 df_pc1 <- data.frame(t=1:J,  df_phi) %>%
   rename(PC1=X1, PC2=X2, PC3=X3, PC4=X4) %>%
   pivot_longer(2:5, names_to = "PC") 
@@ -126,29 +132,41 @@ left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
   ggplot()+
   geom_line(aes(x=t, y=value.x, col = PC), linewidth = 0.2)+
   geom_point(aes(x=t, y=value.y, col = PC), na.rm = T, alpha = 0.5, size = 0.5)+
+  facet_wrap(~PC)+
   labs(x="Time", y="", title = "Re-evaluate eigenfunctions on the original grid")
 
 ## debias
+## let's try scale the eigenfunctions before re-evaluation
 df_phi <- data.frame(sind = 1:J, df_phi)
 colnames(df_phi) <- c("sind", paste0("phi", 1:K))
+df_phi <- df_phi %>% mutate(
+  phi1 = sqrt(n_bin)*phi1,
+  phi2 = sqrt(n_bin)*phi2,
+  phi3 = sqrt(n_bin)*phi3,
+  phi4 = sqrt(n_bin)*phi4
+)
 train_df <- train_df %>% 
+  select(!starts_with("phi")) %>%
   left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
 
+
+
+
 # don't run this part unless it's absolutely necessary!
 # It takes 20 hours!
-# t1 <- Sys.time()
-# debias_glmm <- bam(Y ~ s(sind, bs="cc")+
-#                      s(id, by=phi1, bs="re")+
-#                      s(id, by=phi2, bs="re")+
-#                      s(id, by=phi3, bs="re")+
-#                      s(id, by=phi4, bs="re"), 
-#                    family = binomial, 
-#                    data=train_df, 
-#                    method = "fREML",
-#                    discrete = TRUE)
-# t2 <- Sys.time()
-# t2-t1 # 21 hours
+t1 <- Sys.time()
+debias_glmm <- bam(Y ~ s(sind)+
+                     s(id, by=phi1, bs="re")+
+                     s(id, by=phi2, bs="re")+
+                     s(id, by=phi3, bs="re")+
+                     s(id, by=phi4, bs="re"),
+                   family = binomial,
+                   data=train_df,
+                   method = "fREML",
+                   discrete = TRUE)
+t2 <- Sys.time()
+t2-t1 # 21 hours
 # save(debias_glmm, file = here("Data/Appl_debias_model.RData"))
 
 
@@ -161,6 +179,7 @@ summary(new_mu)
 
 # fpca_mod$evalues
 new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
+new_lambda/sum(new_lambda)
 # the 2nd and 3rd eigenvalues flipped! 
 
 ## rescale using the number of bins
