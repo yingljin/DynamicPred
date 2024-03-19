@@ -41,9 +41,15 @@ train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
 
 # or for sanity checks, use a subset of 1000 subjects
-Ntry <- 1000
+Ntry <- 1500
 train_id <- sample(unique(df$id), size = Ntry)
 train_df <- df %>% filter(id %in% train_id)
+
+## truncate to 8am-6pm (480-1080)?
+train_df <- train_df %>% filter(sind > 480 & sind <= 1080) %>%
+  mutate(sind=sind-480)
+head(train_df)
+J <- max(train_df$sind)
 
 ##### fGFPCA #####
 
@@ -56,6 +62,8 @@ mid <- (brks+bin_w/2)[1:n_bin] # mid points
 
 train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
 train_df$bin <- as.numeric(as.character(train_df$bin))
+
+
 
 ## checks
 head(train_df)

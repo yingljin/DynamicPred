@@ -127,7 +127,7 @@ for(m in 1:M){
                      family = binomial, data=train_df, 
                      method = "fREML",
                      discrete = TRUE)
-  new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+  new_mu <- predict(debias_glmm, type = "terms")[1:J, 1]+coef(debias_glmm)[1] # extract re-evaluated mean
   new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
   # rescale
   new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
@@ -214,7 +214,7 @@ mean(sapply(converge_state_list, mean)) # all dataset converged
 rand_id <- sample(test_id, 4)
 
 # prediction results
-pred_list_all[[476]] %>% 
+pred_list_all[[4]] %>% 
   filter(id %in% rand_id) %>% 
   mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
@@ -271,7 +271,7 @@ for(m in 1:M){
 }
 
 mean_ise <- apply(ise_mat, c(1, 2), mean)
-mean_ise <- data.frame(mean_ies) %>% 
+mean_ise <- data.frame(mean_ise) %>% 
   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
          .before = 1)
 colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")

@@ -70,6 +70,8 @@ pred_list_all <- list()
 converge_state_list <- list()
 fit_time <- pred_time <- rep(NA, M)
 
+M <- 10
+
 
 #### fGFPCA
 
@@ -117,7 +119,7 @@ for(m in 1:M){
                      family = binomial, data=df_train_m, 
                      method = "fREML",
                      discrete = TRUE)
-  new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+  new_mu <- predict(debias_glmm, type = "terms")[1:J, 1]+coef(debias_glmm)[1] # extract re-evaluated mean
   new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
   # rescale
   new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
@@ -203,63 +205,29 @@ save(fit_time_subset_fGFPCA, pred_time_subset_fGFPCA, pred_subset_fGFPCA,
 
 
 #### ISE ####
-window <- seq(0, 1, by = 0.2)
-
-# ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-ise_mat <- df_pred %>%
-  mutate(err1 = (pred0.2-eta_i)^2,
-         err2 = (pred0.4-eta_i)^2,
-         err3 = (pred0.6-eta_i)^2,
-         err4 = (pred0.8-eta_i)^2) %>% 
-  select(id, t, starts_with("err")) %>% 
-  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-  group_by(window, id) %>% 
-  summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-  group_by(window) %>% 
-  summarize_at(vars(err1, err2, err3, err4), mean) %>%
-  filter(window != "[0,0.2]") %>% 
-  select(starts_with("err"))
-# ise_mat[, ,m] <- as.matrix(ise_tb)
+ise_fgfpca2 <- array(NA, dim = c(length(window)-2, length(window)-2, 10))
 
 
-# dims: prediction window, max obs time, simulation iter
-mean_ise <- apply(ise_mat, c(1, 2), mean)
-mean_ise <- data.frame(mean_ise) %>% 
-  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-         .before = 1)
-colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
-mean_ise
-
-
-#### Calculate AUC ####
-
-## auc container 
-# auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-
-## a function to calculate AUC
-get_auc <- function(y, pred){
-  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
-    auc <- NA
-  }
-  else{
-    this_perf <- performance(prediction(pred, y), measure = "auc")
-    auc <- this_perf@y.values[[1]]
-  }
-  return(auc)
+for(m in 1:length(pred_subset_fGFPCA)){
+  this_df <- pred_subset_fGFPCA[[m]]
+  ise_tb_m <- this_df %>%
+    mutate(err1 = (pred0.2-eta_i)^2,
+           err2 = (pred0.4-eta_i)^2,
+           err3 = (pred0.6-eta_i)^2,
+           err4 = (pred0.8-eta_i)^2) %>%
+    select(id, t, starts_with("err")) %>% 
+    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    group_by(window, id) %>% 
+    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
+    group_by(window) %>% 
+    summarize_at(vars(err1, err2, err3, err4), mean) %>%
+    filter(window != "[0,0.2]") %>% 
+    select(starts_with("err")) %>% as.matrix()
+  ise_fgfpca2[,,m] <- ise_tb_m
 }
 
+mean_ise_fgfpca2 <- apply(ise_fgfpca2, c(1, 2), mean)
 
-## calcualte AUC
-auc_tb <- df_pred %>% 
-  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.2),
-            auc2 = get_auc(Y, pred0.4),
-            auc3 = get_auc(Y, pred0.6),
-            auc4 = get_auc(Y, pred0.8)) %>%
-  filter(window != "[0,0.2]") %>% 
-  select(starts_with("auc"))
-
+colnames(mean_ise_fgfpca2) <- c("0.2", "0.4", "0.6", "0.8")
 
 
