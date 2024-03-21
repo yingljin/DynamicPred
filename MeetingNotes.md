@@ -76,6 +76,13 @@ Data application
 
 Assumptions for the reversed eigenvalue problem: only a few observations in a bin, sparse data, small variability, especially the nighttime. Therefore eigenfunctions who stress variability during nighttime (PC2 and PC3) because instable (got suppressed). 
 
+# 24/3/21
+1. Repeat the simulation 
+- add a constant to the mean function so the probablity is > 0.2
+2. Report FPCA eigenvalues as well
+
+
+
 
 
 
