@@ -73,7 +73,7 @@ J <- max(train_df$sind)
 
 
 
-```{r fGFPCA}
+```{r}
 # Step 1: Bin every 10 observations
 bin_w <- 10 # bin width
 n_bin <- J/bin_w # number of bins
@@ -208,8 +208,7 @@ true_evals <- 1/debias_glmm$sp[2:5]/n_bin
 # mean 
 # because of the parametrization of mgcv
 # we need to add the constant intercept back
-true_mu <- predict(debias_glmm, type = "terms")[, 1]+coef(debias_glmm)[1]
-true_mu <- matrix(true_mu, nrow = J)[, 1]
+true_mu <- predict(debias_glmm, type = "terms")[1:J, 1]+coef(debias_glmm)[1]
 # plot(1:J, true_mu)
 
 # eigenfunctions
@@ -264,110 +263,121 @@ data.frame(matrix(debias_glmm$coefficients[-c(1:9)], ncol = 4)) %>%
   labs(title = "Individual scores")
 ```
 
-## Data generation
+## Simulation
 
-```{r gen_data_unbound}
-# interpolate FPCA mean
-# interp_mu_fpca <- approx(mid, fpca_mod$mu, xout=1:J, rule=2)
-# true_mu <- interp_mu_fpca$y
+Let's repeat the simulation a few times:
 
-# increase sample size?
-Ntry <- 500
-# generate score
-xi <- rmvnorm(Ntry, mean = rep(0, K), sigma = diag(true_evals))
+- With different sample sizes
+- With a lower-bounded mean
 
-# individual random effects
-bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
+### Sample size
 
-# add in unbounded mean
-eta <- apply(bi, 2, function(x){x+true_mu})
-gen_df <- data.frame(id = factor(rep(1:Ntry, each=J)),
-                     sind = rep(1:J, Ntry),
-                     eta_i = as.vector(eta))
+```{r gen_data_N}
+# increase sample size
+Ntry_vec <- c(500, 1000, 1500, 2000)
+data_list <- list()
 
-# binary outcome
-gen_df$Y <- rbinom(Ntry*J, size=1, prob=plogis(gen_df$eta_i))
+for(n in seq_along(Ntry_vec)){
+  
+  Ntry <- Ntry_vec[n]
+  
+  # generate score
+  xi <- rmvnorm(Ntry, mean = rep(0, K), sigma = diag(true_evals))
+  
+  # individual random effects
+  bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
+  
+  # add in unbounded mean
+  eta <- apply(bi, 2, function(x){x+true_mu})
+  gen_df <- data.frame(id = factor(rep(1:Ntry, each=J)),
+                       sind = rep(1:J, Ntry),
+                       eta_i = as.vector(eta))
+  
+  # binary outcome
+  gen_df$Y <- rbinom(Ntry*J, size=1, prob=plogis(gen_df$eta_i))
+  
+  data_list[[n]] <- gen_df
+
+}
 ```
 
 
-```{r plot_data}
-# comparing generated data to the actual data
-bind_rows(
-    gen_df %>% 
-      group_by(sind) %>% 
-      summarize(active = mean(Y)) %>%
-      mutate(type="Simulation"),
-      
-    df %>% 
-      group_by(sind) %>% 
-      summarize(active = mean(Y)) %>%
-      mutate(type="NHANES")
-) %>%
+```{r plot_data, message=FALSE}
+data_list %>% bind_rows(.id = "size") %>%
+  mutate(size = factor(size, levels = 1:length(Ntry_vec), labels = Ntry_vec)) %>% 
+  group_by(size, sind) %>% 
+  summarize(active = mean(Y)) %>%
+  left_join(df %>% group_by(sind) %>% summarize(true_active = mean(Y)),
+            by = "sind") %>%
   ggplot()+
-      geom_line(aes(x=sind, y=active, col = type))+
-      labs(title="Proportion of active subjects by minute")
+  geom_line(aes(x=sind, y=active, col = size), alpha = 0.5)+
+  geom_smooth(aes(x=sind, y=active, col = size), linewidth = 0.5)+
+  geom_line(aes(x=sind, y=true_active), col = "black", 
+            linewidth=0.5)+
+  labs(title="Proportion of active subjects by minute")
     
 ```
 
 After adding the intercept back, the generated data is still slightly more active and variable than the true data. Is it enough to make a difference? 
 
-## fGFPCA
 
-```{r exp_gen_data}
-# bin data
-# using the same bin length 
-gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
-gen_df$bin <- as.numeric(as.character(gen_df$bin))
-
-# Step 2:  Local GLMM
-gen_bin_lst <- split(gen_df, f = gen_df$bin)
-df_est_latent <- lapply(gen_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
-df_est_latent <- bind_rows(df_est_latent)
-## Figure
-df_est_latent %>% filter(id %in% 1:4) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.5)+
-  geom_line(aes(x=sind, y=plogis(eta_i), col = "true"))+
-  geom_line(aes(x=sind, y=plogis(eta_hat), col = "estimate"))+
-  facet_wrap(~id)
-
-# FPCA
-uni_eta_hat <- df_est_latent %>% filter(bin==sind)
-mat_est_unique <- matrix(uni_eta_hat$eta_hat,
-                        nrow=Ntry, 
-                        ncol=n_bin, byrow = F) 
-# dim(mat_est_unique)
-fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
+```{r}
+# containers
+time_vec <- rep(NA, length(Ntry_vec))
+fpca_evals <- matrix(NA, nrow = length(Ntry_vec), ncol = K)
+bam_evals <- matrix(NA, nrow = length(Ntry_vec), ncol = K)
 ```
 
 
+```{r fGFPCA}
+for(n in seq_along(Ntry_vec)){
+  
+  
+  Ntry <- Ntry_vec[n]
+  gen_df <- data_list[[n]]
 
-```{r}
-# Re-evaluation
-est_phi <- matrix(NA, J, K) 
-p <- 3 # order of b splines 
-knots <- 35 # number of knots (same from FPCA model)
-knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
-knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+  # bin data
+  # using the same bin length 
+  gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
+  gen_df$bin <- as.numeric(as.character(gen_df$bin))
+  
+  # Step 2:  Local GLMM
+  gen_bin_lst <- split(gen_df, f = gen_df$bin)
+  df_est_latent <- lapply(gen_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+  df_est_latent <- bind_rows(df_est_latent)
 
-B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
-                outer.ok = TRUE)$design  # evaluate B-splines on binned grid
-Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
-                   outer.ok = TRUE)$design
-for(k in 1:K){
-  lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
-  est_phi[,k] <- Bnew %*% coef(lm_mod)
-}# project binned eigenfunctions onto the original grid
+  # FPCA
+  uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+  mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                          nrow=Ntry, 
+                          ncol=n_bin, byrow = F) 
+  fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
 
-## debias
-est_phi <- data.frame(sind = 1:J, est_phi)
-colnames(est_phi) <- c("sind", paste0("phi", 1:K))
-gen_df <- gen_df %>% left_join(est_phi, by = "sind")
-gen_df$id <- as.factor(gen_df$id)
+  # Re-evaluation
+  est_phi <- matrix(NA, J, K) 
+  p <- 3 # order of b splines 
+  knots <- 35 # number of knots (same from FPCA model)
+  knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+  knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+  
+  B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                  outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+  Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                     outer.ok = TRUE)$design
+  for(k in 1:K){
+    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+    est_phi[,k] <- Bnew %*% coef(lm_mod)
+  }# project binned eigenfunctions onto the original grid
 
-### model fit with B-splines basis
-t1 <- Sys.time()
-this_glmm <- bam(Y ~ s(sind, bs = "cr")+
+  ## debias
+  est_phi <- data.frame(sind = 1:J, est_phi)
+  colnames(est_phi) <- c("sind", paste0("phi", 1:K))
+  gen_df <- gen_df %>% left_join(est_phi, by = "sind")
+  gen_df$id <- as.factor(gen_df$id)
+  
+  ### model fit with B-splines basis
+  t1 <- Sys.time()
+  this_glmm <- bam(Y ~ s(sind, bs = "cr")+
                    s(id, by=phi1, bs="re")+
                    s(id, by=phi2, bs="re")+
                    s(id, by=phi3, bs="re")+
@@ -376,43 +386,206 @@ this_glmm <- bam(Y ~ s(sind, bs = "cr")+
                  data=gen_df,
                  method = "fREML",
                  discrete = TRUE)
-t2 <- Sys.time()
+  t2 <- Sys.time()
+  
+  time_vec[n] <- t2-t1
+  fpca_evals[n, ] <- fpca_mod$evalues
+  bam_evals[n, ] <- 1/this_glmm$sp[2:5]/n_bin 
+
+}
 ```
 
-Below I compared the estimated eigenvalues from simulated data to the true eigenvalues. As we see, the reverse did not happen on the simulated data. 
 
-```{r new_evals, class.source='fold-show'}
-# estimated eigenvalues
-1/this_glmm$sp[2:5]/n_bin  
+- eigenvalues from FPCA
 
+```{r}
+# time_vec
+data.frame(size = Ntry_vec, fpca_evals)
+```
+
+- eigenvalues from BAM
+
+```{r}
+data.frame(size = Ntry_vec, bam_evals)
+```
+
+- true eigenvalues used to generate data
+
+```{r}
 # true eigenvalues
 true_evals
 ```
-Below is the comparision between true and esimtated eigenfunctions. 
 
-```{r new_PC}
-bind_rows(df_phi %>% mutate(type = "True"),
-          est_phi %>% mutate(type = "Estimate",
-                             phi1 = phi1*sqrt(n_bin),
-                             phi2 = phi2*sqrt(n_bin),
-                             phi3 = phi3*sqrt(n_bin),
-                             phi4 = phi4*sqrt(n_bin))) %>%
-  pivot_longer(2:5) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y=value, col = type))+
-  facet_wrap(~name)
+
+<!-- Below is the comparision between true and esimtated eigenfunctions.  -->
+
+<!-- ```{r new_PC} -->
+<!-- bind_rows(df_phi %>% mutate(type = "True"), -->
+<!--           est_phi %>% mutate(type = "Estimate", -->
+<!--                              phi1 = phi1*sqrt(n_bin), -->
+<!--                              phi2 = phi2*sqrt(n_bin), -->
+<!--                              phi3 = phi3*sqrt(n_bin), -->
+<!--                              phi4 = phi4*sqrt(n_bin))) %>% -->
+<!--   pivot_longer(2:5) %>% -->
+<!--   ggplot()+ -->
+<!--   geom_line(aes(x=sind, y=value, col = type))+ -->
+<!--   facet_wrap(~name) -->
+<!-- ``` -->
+
+<!-- And below is the comparision between true mean, mean estimated from FPCA, and re-evaluated mean from the BAM model in Step 4. The re-evaluation seem to drive the mean function closer to the truth. But in that case, why would generated data much more active compared to the NHANES data?  -->
+
+
+<!-- ```{r compare_mean} -->
+<!-- bind_rows( -->
+<!--   data.frame(sind=1:J, mu=true_mu) %>% mutate(type = "True"), -->
+<!--   data.frame(sind=1:J, mu=predict(this_glmm, type = "terms")[1:J, 1]+coef(this_glmm)[1]) %>% mutate(type = "BAM"), -->
+<!--   data.frame(sind=mid, mu=fpca_mod$mu) %>% mutate(type="FPCA") -->
+<!-- ) %>% -->
+<!--   ggplot()+ -->
+<!--       geom_line(aes(x=sind, y=mu, col = type))+ -->
+<!--       labs(title="Mean estimates") -->
+<!-- ``` -->
+
+
+## Bounded mean
+
+- Here, we put a lower bound to the mean function, so that the probablity of active status is greater than 0.2
+
+```{r}
+bd_mean <- ifelse(plogis(true_mu)>=0.2, true_mu, logit(0.2))
+plot(1:J, plogis(true_mu), type = "l", col = "black", 
+     main = "Population mean on the probablity scale",
+     xlab = "sind", ylab = "")
+lines(1:J, plogis(bd_mean), col = "red")
+
+```
+```{r gen_data_bd_mean}
+# increase sample size
+data_list_bdmean <- list()
+
+for(n in seq_along(Ntry_vec)){
+  
+  Ntry <- Ntry_vec[n]
+  
+  # generate score
+  xi <- rmvnorm(Ntry, mean = rep(0, K), sigma = diag(true_evals))
+  
+  # individual random effects
+  bi <- as.matrix(df_phi[, 2:5]) %*% t(xi)
+  
+  # add in unbounded mean
+  eta <- apply(bi, 2, function(x){x+bd_mean})
+  gen_df <- data.frame(id = factor(rep(1:Ntry, each=J)),
+                       sind = rep(1:J, Ntry),
+                       eta_i = as.vector(eta))
+  
+  # binary outcome
+  gen_df$Y <- rbinom(Ntry*J, size=1, prob=plogis(gen_df$eta_i))
+  
+  data_list_bdmean[[n]] <- gen_df
+
+}
 ```
 
-And below is the comparision between true mean, mean estimated from FPCA, and re-evaluated mean from the BAM model in Step 4. The re-evaluation seem to drive the mean function closer to the truth. But in that case, why would generated data much more active compared to the NHANES data? 
-
-
-```{r compare_mean}
-bind_rows(
-  data.frame(sind=1:J, mu=true_mu) %>% mutate(type = "True"),
-  data.frame(sind=1:J, mu=predict(this_glmm, type = "terms")[1:J, 1]+coef(this_glmm)[1]) %>% mutate(type = "BAM"),
-  data.frame(sind=mid, mu=fpca_mod$mu) %>% mutate(type="FPCA")
-) %>%
+```{r plot_data_bdmean, message=FALSE}
+data_list_bdmean %>% bind_rows(.id = "size") %>%
+  mutate(size = factor(size, levels = 1:length(Ntry_vec), labels = Ntry_vec)) %>% 
+  group_by(size, sind) %>% 
+  summarize(active = mean(Y)) %>%
+  left_join(df %>% group_by(sind) %>% summarize(true_active = mean(Y)),
+            by = "sind") %>%
   ggplot()+
-      geom_line(aes(x=sind, y=mu, col = type))+
-      labs(title="Mean estimates")
+  geom_line(aes(x=sind, y=active, col = size), alpha = 0.5)+
+  geom_smooth(aes(x=sind, y=active, col = size), linewidth = 0.5)+
+  geom_line(aes(x=sind, y=true_active), col = "black", 
+            linewidth=0.5)+
+  labs(title="Proportion of active subjects by minute")
+    
+```
+
+```{r}
+# containers
+fpca_evals_bdmean <- matrix(NA, nrow = length(Ntry_vec), ncol = K)
+bam_evals_bdmean <- matrix(NA, nrow = length(Ntry_vec), ncol = K)
+```
+
+
+```{r fGFPCA_bdmean}
+for(n in seq_along(Ntry_vec)){
+  
+  
+  Ntry <- Ntry_vec[n]
+  gen_df <- data_list_bdmean[[n]]
+
+  # bin data
+  # using the same bin length 
+  gen_df$bin <- cut(gen_df$sind, breaks = brks, include.lowest = T, labels = mid)
+  gen_df$bin <- as.numeric(as.character(gen_df$bin))
+  
+  # Step 2:  Local GLMM
+  gen_bin_lst <- split(gen_df, f = gen_df$bin)
+  df_est_latent <- lapply(gen_bin_lst, function(x){pred_latent(x, n_node = 0)}) 
+  df_est_latent <- bind_rows(df_est_latent)
+
+  # FPCA
+  uni_eta_hat <- df_est_latent %>% filter(bin==sind)
+  mat_est_unique <- matrix(uni_eta_hat$eta_hat,
+                          nrow=Ntry, 
+                          ncol=n_bin, byrow = F) 
+  fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
+
+  # Re-evaluation
+  est_phi <- matrix(NA, J, K) 
+  p <- 3 # order of b splines 
+  knots <- 35 # number of knots (same from FPCA model)
+  knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
+  knots_values <- knots_values * (max(mid) - min(mid)) + min(mid)
+  
+  B <- spline.des(knots = knots_values, x = mid, ord = p + 1,
+                  outer.ok = TRUE)$design  # evaluate B-splines on binned grid
+  Bnew <- spline.des(knots = knots_values, x = 1:J, ord = p + 1,
+                     outer.ok = TRUE)$design
+  for(k in 1:K){
+    lm_mod <- lm(fpca_mod$efunctions[,k] ~ B-1)
+    est_phi[,k] <- Bnew %*% coef(lm_mod)
+  }# project binned eigenfunctions onto the original grid
+
+  ## debias
+  est_phi <- data.frame(sind = 1:J, est_phi)
+  colnames(est_phi) <- c("sind", paste0("phi", 1:K))
+  gen_df <- gen_df %>% left_join(est_phi, by = "sind")
+  gen_df$id <- as.factor(gen_df$id)
+  
+  ### model fit with B-splines basis
+  t1 <- Sys.time()
+  this_glmm <- bam(Y ~ s(sind, bs = "cr")+
+                   s(id, by=phi1, bs="re")+
+                   s(id, by=phi2, bs="re")+
+                   s(id, by=phi3, bs="re")+
+                   s(id, by=phi4, bs="re"),
+                 family = binomial,
+                 data=gen_df,
+                 method = "fREML",
+                 discrete = TRUE)
+  t2 <- Sys.time()
+  
+  # time_vec[n] <- t2-t1
+  fpca_evals_bdmean[n, ] <- fpca_mod$evalues
+  bam_evals_bdmean[n, ] <- 1/this_glmm$sp[2:5]/n_bin 
+
+}
+```
+
+
+- eigenvalues from FPCA
+
+```{r}
+# time_vec
+data.frame(size = Ntry_vec, fpca_evals_bdmean)
+```
+
+- eigenvalues from BAM
+
+```{r}
+data.frame(size = Ntry_vec, bam_evals_bdmean)
 ```
