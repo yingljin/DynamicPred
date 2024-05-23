@@ -17,6 +17,7 @@ library(gridExtra)
 library(kableExtra)
 library(LaplacesDemon)
 library(splines)
+library(mvtnorm)
 
 #### load data ####
 df <- read_rds(here("Data/nhanes_bi.rds"))
@@ -41,15 +42,15 @@ train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
 
 # or for sanity checks, use a subset of 1000 subjects
-Ntry <- 1500
-train_id <- sample(unique(df$id), size = Ntry)
-train_df <- df %>% filter(id %in% train_id)
+# Ntry <- 1500
+# train_id <- sample(unique(df$id), size = Ntry)
+# train_df <- df %>% filter(id %in% train_id)
 
 ## truncate to 8am-6pm (480-1080)?
-train_df <- train_df %>% filter(sind > 480 & sind <= 1080) %>%
-  mutate(sind=sind-480)
-head(train_df)
-J <- max(train_df$sind)
+# train_df <- train_df %>% filter(sind > 480 & sind <= 1080) %>%
+#   mutate(sind=sind-480)
+# head(train_df)
+# J <- max(train_df$sind)
 
 ##### fGFPCA #####
 
@@ -191,7 +192,7 @@ t2-t1 # 21 hours
 # reload the debias GLMM model
 load(here("Data/Appl_debias_model.RData"))
 
-new_mu <- predict(debias_glmm, type = "terms")[1:J, 1] # extract re-evaluated mean
+new_mu <- predict(debias_glmm, type = "terms")[1:J, 1]+coef(debias_glmm)[1]# extract re-evaluated mean
 plot(t, new_mu)
 lines(mid, fpca_mod$mu, col = "Red")
 summary(new_mu)
@@ -202,7 +203,7 @@ new_lambda/sum(new_lambda)
 # the 2nd and 3rd eigenvalues flipped! 
 
 ## rescale using the number of bins
-head(df_phi)
+head(df_phi) 
 new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
 new_phi <- as.matrix(new_phi)
 head(new_phi)

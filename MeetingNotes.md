@@ -81,6 +81,8 @@ Assumptions for the reversed eigenvalue problem: only a few observations in a bi
 - add a constant to the mean function so the probablity is > 0.2
 2. Report FPCA eigenvalues as well
 
+# 24/3/26
+1. Wrap the code in a package
 
 
 
