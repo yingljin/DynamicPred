@@ -41,19 +41,8 @@ test_id <- setdiff(unique(df$id), train_id)
 train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
 
-# or for sanity checks, use a subset of 1000 subjects
-# Ntry <- 1500
-# train_id <- sample(unique(df$id), size = Ntry)
-# train_df <- df %>% filter(id %in% train_id)
-
-## truncate to 8am-6pm (480-1080)?
-# train_df <- train_df %>% filter(sind > 480 & sind <= 1080) %>%
-#   mutate(sind=sind-480)
-# head(train_df)
-# J <- max(train_df$sind)
 
 ##### fGFPCA #####
-
 
 # Step 1: Bin every 10 observations
 bin_w <- 10 # bin width
@@ -153,27 +142,18 @@ left_join(df_pc1, df_pc2, by = c("t", "PC")) %>%
   labs(x="Time", y="", title = "Re-evaluate eigenfunctions on the original grid")
 
 ## debias
-## let's try scale the eigenfunctions before re-evaluation
 df_phi <- data.frame(sind = 1:J, df_phi)
 colnames(df_phi) <- c("sind", paste0("phi", 1:K))
-df_phi <- df_phi %>% mutate(
-  phi1 = sqrt(n_bin)*phi1,
-  phi2 = sqrt(n_bin)*phi2,
-  phi3 = sqrt(n_bin)*phi3,
-  phi4 = sqrt(n_bin)*phi4
-)
 train_df <- train_df %>% 
-  # select(!starts_with("phi")) %>%
+  select(!starts_with("phi")) %>%
   left_join(df_phi, by = "sind")
 train_df$id <- as.factor(train_df$id)
 
-
+head(train_df)
 head(df_phi)
 
 # don't run this part unless it's absolutely necessary!
 # It takes 20 hours!
-head(train_df)
-
 t1 <- Sys.time()
 debias_glmm <- bam(Y ~ s(sind, bs = "bs")+
                      s(id, by=phi1, bs="re")+
@@ -212,7 +192,8 @@ new_lambda <- new_lambda/n_bin
 
 
 # prediction
-test_id
+# test_id <- test_id[1:500]
+
 window <- seq(0, J, by = 360) 
 
 converge_state_m <- matrix(NA, nrow = length(test_id), 4)
@@ -252,8 +233,8 @@ for(i in seq_along(test_id)){
   pred_list_m[[i]] <- df_i
 }
 t2 <- Sys.time()
-t_pred <- t2-t1 # About 3.5 minutes
-pred_time[m] <- t2-t1
+t2-t1 
+
 
 
 # numeric problems
@@ -281,6 +262,30 @@ pred_nhanes_fgfpca %>%
   geom_point(aes(x=sind, y = Y, col = "Outcome"), size = 0.2)+
   facet_wrap(~id)+
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
+
+# check AUC
+
+## a function to calculate AUC
+get_auc <- function(y, pred){
+  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
+    auc <- NA
+  }
+  else{
+    this_perf <- performance(prediction(pred, y), measure = "auc")
+    auc <- this_perf@y.values[[1]]
+  }
+  return(auc)
+}
+
+auc_appl_fgfpca <- pred_nhanes_fgfpca %>% 
+  mutate(window = cut(sind, breaks = window, include.lowest = T)) %>% 
+  select(Y, starts_with("pred"), window) %>%
+  group_by(window) %>% 
+  summarise(auc1 = get_auc(Y, pred360),
+            auc2 = get_auc(Y, pred720),
+            auc3 = get_auc(Y, pred1080)) %>%
+  filter(window != "[0,360]") %>% 
+  select(starts_with("auc"))
 
 ##### save prediction #####
 save(pred_nhanes_fgfpca, 
