@@ -66,7 +66,7 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-# M <- 10
+M <- 10
 M
 pred_list_all <- list()
 converge_state_list <- list()
@@ -211,11 +211,11 @@ length(pred_list_all)
 mean(sapply(converge_state_list, mean)) # all dataset converged
 
 # visualize test samples
-rand_id <- sample(test_id, 4)
+rand_id <- sample(test_id, 2)
 
 # prediction results
 pred_list_all[[4]] %>% 
-  filter(id %in% rand_id) %>% 
+  filter(id %in% sample(test_id, 2)) %>% 
   mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+

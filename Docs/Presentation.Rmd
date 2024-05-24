@@ -1,5 +1,5 @@
 ---
-title: "Manuscript progress report"
+title: "Presentation report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
 output:
@@ -54,6 +54,8 @@ M <- 500
 
 ```
 
+
+This documents mostly produces and saves some figures and tables used for presentation. 
 
 # Method
 

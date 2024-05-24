@@ -70,8 +70,8 @@ pred_list_all <- list()
 converge_state_list <- list()
 fit_time <- pred_time <- rep(NA, M)
 
-M <- 10
-
+# M <- 10
+M
 
 #### fGFPCA
 
@@ -190,8 +190,9 @@ close(pb)
 
 
 # results
-mean(fit_time)/60 # in minutes
+mean(fit_time, na.rm = T)/60 # in minutes
 class(fit_time)
+mean(pred_time, na.rm=T)
 sum(lapply(converge_state_list, mean)!=1) # all datasets converged
 pred_list_all[[1]] %>%
   filter(t > 0.4) %>%
@@ -205,6 +206,7 @@ save(fit_time_subset_fGFPCA, pred_time_subset_fGFPCA, pred_subset_fGFPCA,
 
 
 #### ISE ####
+window <- seq(0, 1, by = 0.2)
 ise_fgfpca2 <- array(NA, dim = c(length(window)-2, length(window)-2, 10))
 
 
@@ -214,9 +216,9 @@ for(m in 1:length(pred_subset_fGFPCA)){
     mutate(err1 = (pred0.2-eta_i)^2,
            err2 = (pred0.4-eta_i)^2,
            err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>%
+           err4 = (pred0.8-eta_i)^2) %>% 
     select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
+    mutate(window = cut(t, breaks = seq(0, 1, by=0.2), include.lowest = T)) %>% 
     group_by(window, id) %>% 
     summarise_at(vars(err1, err2, err3, err4), sum) %>% 
     group_by(window) %>% 
