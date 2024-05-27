@@ -66,7 +66,7 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-M <- 10
+# M <- 10
 M
 pred_list_all <- list()
 converge_state_list <- list()
@@ -201,10 +201,11 @@ close(pb)
 
 #### Check output ####
 
-mean(fit_time) # average time for model fitting: 26 secs
-mean(pred_time) # average time for prediction: 133 secs 
+mean(fit_time) # average time for model fitting: 44 secs
+mean(pred_time) # average time for prediction: 1.8 min 
 
 pred_list_all %>% lapply(dim)
+
 length(pred_list_all)
 
 # convergence status
@@ -215,7 +216,7 @@ rand_id <- sample(test_id, 2)
 
 # prediction results
 pred_list_all[[4]] %>% 
-  filter(id %in% sample(test_id, 2)) %>% 
+  filter(id %in% sample(test_id, 4)) %>% 
   mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), function(x){exp(x)/(1+exp(x))}) %>%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.2)+
@@ -237,7 +238,7 @@ save(pred_list_all, fit_time, pred_time, converge_state_list,
 #### Calculate ISE ####
 
 # load simulation results
-load(here("Data/SimOutput_fGFPCA.RData"))
+# load(here("Data/SimOutput_fGFPCA.RData"))
 
 dim(pred_list_all[[1]])
 

@@ -189,10 +189,11 @@ for(m in 1:M){
 close(pb)
 
 
+# simulation is finished
 # results
-mean(fit_time, na.rm = T)/60 # in minutes
+mean(fit_time, na.rm = T)/60 # 0.06 minutes
 class(fit_time)
-mean(pred_time, na.rm=T)
+mean(pred_time, na.rm=T) # 2.36 minutes
 sum(lapply(converge_state_list, mean)!=1) # all datasets converged
 pred_list_all[[1]] %>%
   filter(t > 0.4) %>%
@@ -207,7 +208,7 @@ save(fit_time_subset_fGFPCA, pred_time_subset_fGFPCA, pred_subset_fGFPCA,
 
 #### ISE ####
 window <- seq(0, 1, by = 0.2)
-ise_fgfpca2 <- array(NA, dim = c(length(window)-2, length(window)-2, 10))
+ise_fgfpca2 <- array(NA, dim = c(length(window)-2, length(window)-2, M))
 
 
 for(m in 1:length(pred_subset_fGFPCA)){
