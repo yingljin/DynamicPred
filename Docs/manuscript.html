@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-05-27" />
+<meta name="date" content="2024-05-28" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-05-27</h4>
+<h4 class="date">2024-05-28</h4>
 
 </div>
 
@@ -519,7 +519,35 @@ rand_id &lt;- sample(501:600, size = 4)</code></pre>
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
   theme(legend.position = &quot;bottom&quot;)+
   scale_color_manual(values = cols)</code></pre>
-<p><img src="manuscript_files/figure-html/fig_large_sim-1.png" width="768" /></p>
+<p><img src="manuscript_files/figure-html/fig_large_sim_paper-1.png" width="768" /></p>
+<pre class="r"><code>bind_rows(
+  pred_list_all[[1]] %&gt;% filter(id==580) %&gt;% 
+    mutate(method=&quot;fGFPCA&quot;),
+  pred_list_ref[[1]] %&gt;% filter(id==580) %&gt;%
+    mutate(method = &quot;GLMMadaptive&quot;),
+  pred_list_gfosr_l1[[1]] %&gt;% filter(id==580) %&gt;%
+    mutate(method = &quot;GFOSR (L=1)&quot;) %&gt;%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_list_gfosr_l5[[1]] %&gt;% filter(id==580) %&gt;%
+    mutate(method = &quot;GFOSR (L=5)&quot;) %&gt;%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4)
+) %&gt;% mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), linetype = &quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), na.rm=T, linewidth = 1.0)+
+  facet_grid(cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;t&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols, guide=&quot;none&quot;)</code></pre>
+<p><img src="manuscript_files/figure-html/fig_large_sim_pre-1.png" width="768" /></p>
 </div>
 <div id="ise-and-auc" class="section level2" number="3.3">
 <h2><span class="header-section-number">3.3</span> ISE and AUC</h2>
@@ -1203,65 +1231,6 @@ Window
 </tbody>
 </table>
 </div>
-<div id="time-minutes" class="section level2" number="3.4">
-<h2><span class="header-section-number">3.4</span> Time (minutes)</h2>
-<p>I chose not to report fitting and prediction time separately because
-it is too difficult to tell them apart for the GFOSR models.</p>
-<pre class="r"><code>data.frame(
-  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;, &quot;GFOSR (L=1)&quot;, &quot;GFOSR (L=5)&quot;),
-  &quot;Time&quot; = c(mean(fit_time/60+pred_time),
-             mean(fit_time_ref+pred_time_ref/60),
-             mean(t_vec_gfosr_l1/60), 
-             mean(t_vec_gfosr_l5/60))) %&gt;%
-  kable(digits = 3, booktabs = T, table.attr = &quot;style = \&quot;color:black;\&quot;&quot;) %&gt;%
-  kable_styling(full_width = F) </code></pre>
-<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-<thead>
-<tr>
-<th style="text-align:left;">
-Method
-</th>
-<th style="text-align:right;">
-Time
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left;">
-fGFPCA
-</td>
-<td style="text-align:right;">
-2.584
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GLMMadaptive
-</td>
-<td style="text-align:right;">
-2.304
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GFOSR (L=1)
-</td>
-<td style="text-align:right;">
-0.025
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GFOSR (L=5)
-</td>
-<td style="text-align:right;">
-0.144
-</td>
-</tr>
-</tbody>
-</table>
-</div>
 </div>
 <div id="small-scale-simulation" class="section level1" number="4">
 <h1><span class="header-section-number">4</span> Small-scale
@@ -1313,7 +1282,37 @@ rand_id &lt;- sample(101:200, size = 4)</code></pre>
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
   theme(legend.position = &quot;bottom&quot;)+
   scale_color_manual(values = cols)</code></pre>
-<p><img src="manuscript_files/figure-html/fig_small_sim-1.png" width="768" /></p>
+<p><img src="manuscript_files/figure-html/fig_small_sim_paper-1.png" width="768" /></p>
+<pre class="r"><code>sep_plot &lt;- bind_rows(
+  pred_subset_fGFPCA[[1]] %&gt;% filter(id==189) %&gt;% mutate(method=&quot;fGFPCA&quot;),
+  pred_subset_gfosr_l5[[1]] %&gt;% filter(id==189) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;) %&gt;% 
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_subset_gfosr_l1[[1]] %&gt;% filter(id==189) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;) %&gt;%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_subset_adglmm[[1]] %&gt;% filter(id==189) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), linetype = &quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), linewidth=1, na.rm=T)+
+  facet_grid(cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;t&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))</code></pre>
+<pre class="r"><code>sep_plot+scale_color_manual(values = cols, guide=&quot;none&quot;)+
+  #theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols, guide = &quot;none&quot;)</code></pre>
+<pre><code>## Scale for colour is already present.
+## Adding another scale for colour, which will replace the existing scale.</code></pre>
+<p><img src="manuscript_files/figure-html/fig_small_sim_pre-1.png" width="768" /></p>
+<pre class="r"><code>as_ggplot(ggpubr::get_legend(sep_plot+theme(legend.position = &quot;bottom&quot;)+
+                               scale_color_manual(values = cols)))</code></pre>
+<p><img src="manuscript_files/figure-html/legend-1.png" width="768" /></p>
 </div>
 <div id="ise-and-auc-1" class="section level2" number="4.2">
 <h2><span class="header-section-number">4.2</span> ISE and AUC</h2>
@@ -1979,53 +1978,69 @@ model. No numeric issue for fGFPCA.</p>
 </div>
 <div id="time" class="section level1" number="5">
 <h1><span class="header-section-number">5</span> Time</h1>
-<pre class="r"><code>data.frame(
-  &quot;Method&quot; = c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;, &quot;GFOSR (L=1)&quot;, &quot;GFOSR (L=5)&quot;),
-  &quot;Time&quot; = c(mean(fit_time_subset_fGFPCA/60+pred_time_subset_fGFPCA),
+<p>Average time per iteration in minutes</p>
+<pre class="r"><code>time_tb &lt;- data.frame(sim1 = c(mean(fit_time/60+pred_time),
+             mean(fit_time_ref+pred_time_ref/60),
+             mean(t_vec_gfosr_l1/60), 
+             mean(t_vec_gfosr_l5/60)),
+           sim2 = c(mean(fit_time_subset_fGFPCA/60+pred_time_subset_fGFPCA),
              mean(fit_time_subset_adglmm+pred_time_subset_adglmm/60),
              mean(t_subset_gfosr_l1/60), 
-             mean(t_subset_gfosr_l5/60))) %&gt;%
+             mean(t_subset_gfosr_l5/60))) %&gt;% t()
+colnames(time_tb) &lt;- c(&quot;fGFPCA&quot;, &quot;GLMMadaptive&quot;, &quot;GFOSR (L=1)&quot;, &quot;GFOSR (L=5)&quot;)
+rownames(time_tb) &lt;- c(&quot;Simulation 1&quot;, &quot;Simulation 2&quot;)</code></pre>
+<pre class="r"><code>time_tb %&gt;% 
   kable(digits = 3, booktabs = T, table.attr = &quot;style = \&quot;color:black;\&quot;&quot;) %&gt;%
   kable_styling(full_width = F) </code></pre>
 <table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
 <th style="text-align:left;">
-Method
 </th>
 <th style="text-align:right;">
-Time
+fGFPCA
+</th>
+<th style="text-align:right;">
+GLMMadaptive
+</th>
+<th style="text-align:right;">
+GFOSR (L=1)
+</th>
+<th style="text-align:right;">
+GFOSR (L=5)
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align:left;">
-fGFPCA
+Simulation 1
+</td>
+<td style="text-align:right;">
+2.584
+</td>
+<td style="text-align:right;">
+2.304
+</td>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.144
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Simulation 2
 </td>
 <td style="text-align:right;">
 2.415
 </td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GLMMadaptive
-</td>
 <td style="text-align:right;">
 5.479
 </td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GFOSR (L=1)
-</td>
 <td style="text-align:right;">
 0.010
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GFOSR (L=5)
 </td>
 <td style="text-align:right;">
 0.054
@@ -2342,7 +2357,32 @@ bind_rows(
                      labels = c(&quot;0am&quot;, &quot;6am&quot;, &quot;12pm&quot;, &quot;6pm&quot;, &quot;12am&quot;))+
   theme(legend.position = &quot;bottom&quot;, axis.text.x = element_text(size = 7))+
   scale_color_manual(values = cols)</code></pre>
-<p><img src="manuscript_files/figure-html/fig_appl-1.png" width="768" /></p>
+<p><img src="manuscript_files/figure-html/fig_appl_paper-1.png" width="768" /></p>
+<pre class="r"><code># selct four subjects
+plot_id &lt;- sort(c(64198, 80517))
+
+# figure
+bind_rows(
+  pred_nhanes_fgfpca %&gt;% filter(id %in% plot_id) %&gt;% mutate(method=&quot;fGFPCA&quot;),
+  pred_appl_gfosr_l5 %&gt;% filter(id %in% plot_id) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;),
+  pred_appl_gfosr_l1 %&gt;% filter(id %in% plot_id) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;),
+  pred_nhanes_adglmm %&gt;% filter(id %in% plot_id) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
+  mutate_at(vars(pred360, pred720, pred1080), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.2)+
+  geom_line(aes(x=sind, y=pred360, col = &quot;6am&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred720, col = &quot;12pm&quot;), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred1080, col = &quot;6pm&quot;), linewidth=1, na.rm=T)+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c(&quot;0am&quot;, &quot;6am&quot;, &quot;12pm&quot;, &quot;6pm&quot;, &quot;12am&quot;))+
+  theme(legend.position = &quot;bottom&quot;, axis.text.x = element_text(size = 7))+
+  scale_color_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/fig_appl_pre-1.png" width="768" /></p>
 <p>The fGFPCA prediction conditional on observation up to 6am looks
 identical across subjects. This is not due to coding issue. In fact, if
 we look at individual tracks, out of 3506 subjects there are 1473 unique

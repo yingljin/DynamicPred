@@ -3,6 +3,10 @@ title: "Manuscript progress report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+    keep_tex: yes
   html_document:
     self_contained: no
     number_sections: yes
@@ -11,10 +15,6 @@ output:
     toc_depth: 3
     toc_float: yes
     font: 12pt
-    keep_tex: yes
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
     keep_tex: yes
 ---
 
@@ -212,7 +212,7 @@ rand_id <- sample(501:600, size = 4)
 ```
 
 
-```{r fig_large_sim, fig.height=8, fig.width=8}
+```{r fig_large_sim_paper, fig.height=8, fig.width=8}
 bind_rows(
   pred_list_all[[1]] %>% filter(id %in% rand_id) %>% 
     mutate(method="fGFPCA"),
@@ -241,8 +241,6 @@ bind_rows(
   theme(legend.position = "bottom")+
   scale_color_manual(values = cols)
 ```
-
-
 
 ## ISE and AUC
 
@@ -496,20 +494,6 @@ bind_cols(fgfpca1, gfosr_l5_1, gfosr_l1_1, adglmm1, .name_repair = "minimal") %>
 ```
 
 
-## Time (minutes)
-
-I chose not to report fitting and prediction time separately because it is too difficult to tell them apart for the GFOSR models. 
-
-```{r}
-data.frame(
-  "Method" = c("fGFPCA", "GLMMadaptive", "GFOSR (L=1)", "GFOSR (L=5)"),
-  "Time" = c(mean(fit_time/60+pred_time),
-             mean(fit_time_ref+pred_time_ref/60),
-             mean(t_vec_gfosr_l1/60), 
-             mean(t_vec_gfosr_l5/60))) %>%
-  kable(digits = 3, booktabs = T, table.attr = "style = \"color:black;\"") %>%
-  kable_styling(full_width = F) 
-```
 
 
 # Small-scale simulation
@@ -540,7 +524,7 @@ rand_id <- sample(101:200, size = 4)
 
 ## Figure
 
-```{r fig_small_sim, fig.height=8, fig.width=8}
+```{r fig_small_sim_paper, fig.height=8, fig.width=8}
 bind_rows(
   pred_subset_fGFPCA[[1]] %>% filter(id %in% rand_id) %>% mutate(method="fGFPCA"),
   pred_subset_gfosr_l5[[1]] %>% filter(id %in% rand_id) %>% mutate(method = "GFOSR (L=5)") %>% 
@@ -564,6 +548,43 @@ bind_rows(
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
   theme(legend.position = "bottom")+
   scale_color_manual(values = cols)
+```
+
+```{r}
+sep_plot <- bind_rows(
+  pred_subset_fGFPCA[[1]] %>% filter(id==189) %>% mutate(method="fGFPCA"),
+  pred_subset_gfosr_l5[[1]] %>% filter(id==189) %>% mutate(method = "GFOSR (L=5)") %>% 
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_subset_gfosr_l1[[1]] %>% filter(id==189) %>% mutate(method = "GFOSR (L=1)") %>%
+    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
+  pred_subset_adglmm[[1]] %>% filter(id==189) %>% mutate(method = "GLMMadaptive")) %>%
+  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %>%
+  mutate(method=factor(method, 
+         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linewidth=1, na.rm=T)+
+  facet_grid(cols = vars(method))+
+  labs(col = "Maximum observation time", x = "t", y="")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
+```
+
+
+```{r, fig_small_sim_pre, fig.height=2, fig.width=8}
+sep_plot+scale_color_manual(values = cols, guide="none")+
+  #theme(legend.position = "bottom")+
+  scale_color_manual(values = cols, guide = "none")
+```
+
+
+```{r, legend, fig.height=0.2, fig.width=8}
+as_ggplot(ggpubr::get_legend(sep_plot+theme(legend.position = "bottom")+
+                               scale_color_manual(values = cols)))
 ```
 
 ## ISE and AUC
@@ -792,17 +813,26 @@ Among 500 hundred iterations, `r sum(num_probs)` did not converge for the GLMMad
 
 # Time
 
+Average time per iteration in minutes
+
 ```{r}
-data.frame(
-  "Method" = c("fGFPCA", "GLMMadaptive", "GFOSR (L=1)", "GFOSR (L=5)"),
-  "Time" = c(mean(fit_time_subset_fGFPCA/60+pred_time_subset_fGFPCA),
+time_tb <- data.frame(sim1 = c(mean(fit_time/60+pred_time),
+             mean(fit_time_ref+pred_time_ref/60),
+             mean(t_vec_gfosr_l1/60), 
+             mean(t_vec_gfosr_l5/60)),
+           sim2 = c(mean(fit_time_subset_fGFPCA/60+pred_time_subset_fGFPCA),
              mean(fit_time_subset_adglmm+pred_time_subset_adglmm/60),
              mean(t_subset_gfosr_l1/60), 
-             mean(t_subset_gfosr_l5/60))) %>%
+             mean(t_subset_gfosr_l5/60))) %>% t()
+colnames(time_tb) <- c("fGFPCA", "GLMMadaptive", "GFOSR (L=1)", "GFOSR (L=5)")
+rownames(time_tb) <- c("Simulation 1", "Simulation 2")
+```
+
+```{r time_tb}
+time_tb %>% 
   kable(digits = 3, booktabs = T, table.attr = "style = \"color:black;\"") %>%
   kable_styling(full_width = F) 
 ```
-
 
 
 
@@ -910,13 +940,40 @@ bind_cols(Window = c("6am-12pm", "12pm-6pm", "6pm-12am"),
 
 ## Figure
 
-```{r fig_appl, fig.height=8, fig.width=8}
+```{r fig_appl_paper, fig.height=8, fig.width=8}
 # redefine color scale
 cols <- cols[1:3] 
 names(cols) <- c("6am", "12pm", "6pm")
 
 # selct four subjects
 plot_id <- sort(c(68959, 68624, 64198, 80517))
+
+# figure
+bind_rows(
+  pred_nhanes_fgfpca %>% filter(id %in% plot_id) %>% mutate(method="fGFPCA"),
+  pred_appl_gfosr_l5 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=5)"),
+  pred_appl_gfosr_l1 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=1)"),
+  pred_nhanes_adglmm %>% filter(id %in% plot_id) %>% mutate(method = "GLMMadaptive")) %>%
+  mutate_at(vars(pred360, pred720, pred1080), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %>%
+  mutate(method=factor(method, 
+         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.2)+
+  geom_line(aes(x=sind, y=pred360, col = "6am"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred720, col = "12pm"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=sind, y=pred1080, col = "6pm"), linewidth=1, na.rm=T)+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = "Maximum observation time", x = "Time", y="")+
+  scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
+  theme(legend.position = "bottom", axis.text.x = element_text(size = 7))+
+  scale_color_manual(values = cols)
+```
+
+```{r fig_appl_pre, fig.height=4, fig.width=8}
+# selct four subjects
+plot_id <- sort(c(64198, 80517))
 
 # figure
 bind_rows(
@@ -990,141 +1047,4 @@ pred_nhanes_fgfpca %>%
 
 ```
 
-# Additional figures
 
-```{r eval=FALSE}
-df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
-df_nhanes %>% 
-  select(SEQN, Z, sind) %>%
-  filter(SEQN %in% rand_id) %>%
-  filter(sind %in% 356:360) %>%
-  pivot_wider(names_from = sind, values_from = Z) %>% 
-  select(-SEQN) %>% distinct(.)
-
-
-pred_appl_gfosr_l5 %>% 
-  filter(id %in% rand_id) %>%
-  select(id, sind, pred360) %>%
-  pivot_wider(names_from = sind, values_from = pred360) %>% 
-  select(-id) %>% distinct(.)
-```
-
-<!-- ## fGFPCA algorithm demonstration -->
-
-<!-- ```{r binning, eval=FALSE} -->
-<!-- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
-<!--   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>%  -->
-<!--   mutate(SEQN = as.factor(SEQN)) %>%  -->
-<!--   ggplot()+ -->
-<!--   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+ -->
-<!--   geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+ -->
-<!--   scale_y_continuous(breaks = c(0, 1))+ -->
-<!--   labs(x="Time", y="", title = "NHANES binary activity indicator") -->
-<!-- ``` -->
-
-
-<!-- ```{r,eval=FALSE} -->
-<!-- df_fig <- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
-<!--   filter(SEQN %in% rand_id3 & sind >= 650 & sind <= 750) %>%  -->
-<!--   mutate(bin = cut(sind, breaks = seq(650, 750, by = 10),  -->
-<!--                    labels = seq(655, 745, by = 10), -->
-<!--                    include.lowest = T))  -->
-<!-- bin_mid <- seq(655, 745, by = 10) -->
-
-<!-- for(i in bin_mid){ -->
-<!--   df_bin_i <- df_fig %>% filter(bin==i)  -->
-<!--   glm_i <- glmer(Z ~ 1 + (1|SEQN), data = df_bin_i, family = binomial, nAGQ=0) -->
-<!--   eta_i <- predict(glm_i, type = "link") -->
-
-<!--   df_fig$eta_hat[df_fig$bin==i] <- eta_i -->
-<!-- } -->
-
-
-<!-- df_fig %>%  -->
-<!--   mutate(SEQN = as.factor(SEQN), -->
-<!--          eta_hat = exp(eta_hat)/(1+exp(eta_hat)), -->
-<!--          bin=as.numeric(as.character(bin))) %>%  -->
-
-<!--   ggplot()+ -->
-<!--   geom_point(aes(x=sind, y = Z, col = SEQN), size = 0.5)+ -->
-<!--   geom_vline(xintercept = seq(650, 750, by = 10), linetype="dashed")+ -->
-<!--   geom_point(aes(x=bin, y=eta_hat, col = SEQN))+ -->
-<!--   geom_line(aes(x=bin, y=eta_hat, col = SEQN))+ -->
-<!--   scale_y_continuous(breaks = c(0, 1))+ -->
-<!--   labs(x="Time", y="", title = "NHANES binary activity indicator") -->
-
-<!-- ``` -->
-
-
-<!-- ## Example of continuous and binary NHANES -->
-
-<!-- ```{r, eval=FALSE} -->
-<!-- df_nhanes_cont <- readRDS(here("Data/NHANES_AC_processed.rds")) -->
-<!-- p_cont <- df_nhanes_cont %>%  -->
-<!--   filter(SEQN %in% sample(unique(df_nhanes_cont$SEQN), 4) & WEEKDAY==6) %>%  -->
-<!--   select(starts_with("min"), SEQN) %>% -->
-<!--   pivot_longer(1:1440, names_to = "Minute") %>%  -->
-<!--   mutate(Minute = gsub("MIN", "", Minute)) %>% -->
-<!--   mutate(Minute = as.numeric(Minute), -->
-<!--          SEQN=as.factor(SEQN)) %>% -->
-<!--   ggplot(aes(x=Minute, y=value, col=SEQN))+ -->
-<!--   geom_point(size = 0.5, alpha=0.5)+ -->
-<!--   geom_smooth(se=F, size = 0.5)+ -->
-<!--   scale_x_continuous(breaks = seq(0, 1440, by = 480), -->
-<!--                      labels = c("Midnight", "8am", "4pm", "Midnight"))+ -->
-<!--   theme(axis.text = element_text(size = 5))+ -->
-<!--   labs(y="", title = "NHANES Activitiy count (2003-2004)") -->
-<!-- ``` -->
-
-
-<!-- ```{r, eval=FALSE} -->
-<!-- # a example of continuous and binary NHANES data -->
-<!-- p_bi <- df_nhanes %>% select(SEQN, Z, sind) %>%  -->
-<!--   filter(SEQN %in% rand_id3 & Z == 1) %>%  -->
-<!--   mutate(SEQN = as.factor(SEQN)) %>%  -->
-<!--   ggplot()+ -->
-<!--   geom_point(aes(x=sind, y = SEQN), size = 0.5)+ -->
-<!--   scale_x_continuous(breaks = seq(0, 1440, by = 480), -->
-<!--                      labels = c("Midnight", "8am", "4pm", "Midnight"))+ -->
-<!--   theme(axis.text = element_text(size = 5))+ -->
-<!--   labs(x="Time", y="Subject", title = "NHANES binary activity indicator (2011-2014)") -->
-<!-- ``` -->
-
-<!-- ```{r data_exp, fig.height=4, fig.width=10, eval=FALSE} -->
-<!-- ggarrange(p_cont, p_bi, nrow = 1) -->
-<!-- ``` -->
-
-
-<!-- ## Dynamic prediction example -->
-
-<!-- ```{r dynpred_exp,  fig.height=4, fig.width=10, eval=FALSE} -->
-<!-- ggarrange( -->
-<!--   pred_list_all[[1]] %>%  -->
-<!--     filter(id==501) %>% -->
-<!--     mutate(eta_i = ifelse(t<=0.2, eta_i, NA)) %>% -->
-<!--     ggplot()+ -->
-<!--     geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+ -->
-<!--     geom_line(aes(x=t, y=pred0.2, col = "Predicted"), na.rm = T,  -->
-<!--               linetype = "dashed")+ -->
-<!--     geom_vline(xintercept = 0.2, linetype = "dashed")+ -->
-<!--     labs(x="Time", y="")+ -->
-<!--     scale_x_continuous(breaks = seq(0, 1, by = 0.2))+ -->
-<!--     theme(axis.text = element_text(size = 5))+ -->
-<!--     ylim(-1.2, 1.7), -->
-
-<!--  pred_list_all[[1]] %>%  -->
-<!--     filter(id==501) %>% -->
-<!--     mutate(eta_i = ifelse(t<=0.4, eta_i, NA)) %>% -->
-<!--     ggplot()+ -->
-<!--     geom_line(aes(x=t, y=eta_i, col = "Observed"), na.rm = T)+ -->
-<!--     geom_line(aes(x=t, y=pred0.4, col = "Predicted"), na.rm = T,  -->
-<!--               linetype = "dashed")+ -->
-<!--     geom_vline(xintercept = 0.4, linetype = "dashed")+ -->
-<!--     labs(x="Time", y="")+ -->
-<!--     scale_x_continuous(breaks = seq(0, 1, by = 0.2))+ -->
-<!--     theme(axis.text = element_text(size = 5))+ -->
-<!--    ylim(-1.2, 1.7), -->
-<!--  nrow = 1, common.legend = T -->
-<!--   ) -->
-
-<!-- ``` -->
