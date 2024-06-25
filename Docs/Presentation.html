@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-05-28" />
+<meta name="date" content="2024-05-29" />
 
 <title>Presentation report</title>
 
@@ -252,7 +252,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Presentation report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-05-28</h4>
+<h4 class="date">2024-05-29</h4>
 
 </div>
 
@@ -340,8 +340,41 @@ sim2 &lt;- bind_rows(
 </div>
 <div id="data-application" class="section level1" number="2">
 <h1><span class="header-section-number">2</span> Data application</h1>
-<pre class="r"><code>df_nhanes &lt;- read_rds(here(&quot;Data/nhanes_bi.rds&quot;))
-df_nhanes %&gt;% 
+<pre class="r"><code># binary
+df_nhanes &lt;- read_rds(here(&quot;Data/nhanes_bi.rds&quot;))
+
+# continuous
+df_nhanes_cont &lt;- read_rds(here(&quot;Data/NHANES_AC_processed.rds&quot;))
+df_exp &lt;- df_nhanes_cont %&gt;%
+  filter(SEQN == 21910 | SEQN == 29599) %&gt;%
+  filter(WEEKDAY==5) %&gt;% 
+  group_by(Gender) %&gt;%
+  sample_n(1) %&gt;%
+  select(SEQN, Gender, starts_with(&quot;MIN&quot;)) %&gt;%
+  pivot_longer(starts_with(&quot;MIN&quot;)) %&gt;%
+  mutate(minute = as.numeric(gsub(&quot;MIN&quot;, &quot;&quot;, name))) %&gt;%
+  mutate(value_bi = value &gt; 100)</code></pre>
+<pre class="r"><code>df_exp %&gt;%
+  ggplot(aes(x=minute, y=value, col=Gender))+
+  geom_point(size = 0.5, alpha = 0.5)+
+  geom_smooth(method = &quot;loess&quot;, formula = y ~ x, show.legend = F)+
+  # scale_y_continuous(transform = &quot;log&quot;)+
+  scale_color_manual(values = c(&quot;#FC8D62&quot;, &quot;#8DA0CB&quot;))+
+  scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c(&quot;0am&quot;, &quot;6am&quot;, &quot;12pm&quot;, &quot;6pm&quot;, &quot;12am&quot;))+
+  labs(y = &quot;Activity count&quot;, x=&quot;&quot;)</code></pre>
+<p><img src="Presentation_files/figure-html/cont_func_exp-1.png" width="576" /></p>
+<pre class="r"><code>df_exp %&gt;%
+  filter(value_bi) %&gt;% 
+  ggplot(aes(x=minute, y=Gender, col=Gender))+
+  geom_point(size = 0.5, alpha = 0.5, show.legend = F)+
+  # scale_y_continuous(transform = &quot;log&quot;)+
+  scale_color_manual(values = c(&quot;#FC8D62&quot;, &quot;#8DA0CB&quot;))+
+  scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c(&quot;0am&quot;, &quot;6am&quot;, &quot;12pm&quot;, &quot;6pm&quot;, &quot;12am&quot;))+
+  labs(y = &quot;Activity indicator&quot;, x=&quot;&quot;)</code></pre>
+<p><img src="Presentation_files/figure-html/gen_func_exp-1.png" width="576" /></p>
+<pre class="r"><code>df_nhanes %&gt;% 
   select(SEQN, Z, sind) %&gt;% 
   filter(SEQN %in% sample(unique(df_nhanes$SEQN), size = 100)) %&gt;%
   filter(Z == 1) %&gt;%

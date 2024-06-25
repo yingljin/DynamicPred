@@ -9,3 +9,8 @@ b.	Outcome: binary
 c.	Sample size: start with N=500
 d.	Grid density: start with J=1000
 e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
+
+# 24/6/25
+1. Stress the target data is "high-dimensional dense repeated measures"
+2. Set up a motivation example (like fig.3 in the FCR paper)
+3, Develop a prediction interval (SD of scores)

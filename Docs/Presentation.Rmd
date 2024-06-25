@@ -161,8 +161,51 @@ bind_rows(sim1 %>% mutate(sim = "Simulation 1"), sim2 %>% mutate(sim = "Simulati
 
 # Data application
 
-```{r nhanes_exp, fig.width=8, fig.height=5}
+```{r load_nhanes}
+# binary
 df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
+
+# continuous
+df_nhanes_cont <- read_rds(here("Data/NHANES_AC_processed.rds"))
+df_exp <- df_nhanes_cont %>%
+  filter(SEQN == 21910 | SEQN == 29599) %>%
+  filter(WEEKDAY==5) %>% 
+  group_by(Gender) %>%
+  sample_n(1) %>%
+  select(SEQN, Gender, starts_with("MIN")) %>%
+  pivot_longer(starts_with("MIN")) %>%
+  mutate(minute = as.numeric(gsub("MIN", "", name))) %>%
+  mutate(value_bi = value > 100)
+
+```
+
+```{r cont_func_exp, fig.height=4, fig.width=6}
+df_exp %>%
+  ggplot(aes(x=minute, y=value, col=Gender))+
+  geom_point(size = 0.5, alpha = 0.5)+
+  geom_smooth(method = "loess", formula = y ~ x, show.legend = F)+
+  # scale_y_continuous(transform = "log")+
+  scale_color_manual(values = c("#FC8D62", "#8DA0CB"))+
+  scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
+  labs(y = "Activity count", x="")
+```
+
+```{r gen_func_exp, fig.height=4, fig.width=6}
+df_exp %>%
+  filter(value_bi) %>% 
+  ggplot(aes(x=minute, y=Gender, col=Gender))+
+  geom_point(size = 0.5, alpha = 0.5, show.legend = F)+
+  # scale_y_continuous(transform = "log")+
+  scale_color_manual(values = c("#FC8D62", "#8DA0CB"))+
+  scale_x_continuous(breaks = seq(0, 1440, by = 360),
+                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
+  labs(y = "Activity indicator", x="")
+```
+
+
+
+```{r nhanes_exp, fig.width=8, fig.height=5}
 df_nhanes %>% 
   select(SEQN, Z, sind) %>% 
   filter(SEQN %in% sample(unique(df_nhanes$SEQN), size = 100)) %>%
@@ -179,7 +222,7 @@ df_nhanes %>%
 
 
 
-```{r load_nhanes}
+```{r load_nhanes_result}
 # df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
 load(here("Data/ApplOutput_fGFPCA.RData"))
 load(here("Data/ApplOutput_GLMMadaptive.RData"))
