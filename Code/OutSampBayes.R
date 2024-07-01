@@ -12,7 +12,7 @@ Model <- function(parm, Data){
   xi.prior <- dmvnorm(xi, mean = rep(0, Data$K), sigma=Data$tao, log = TRUE)
   
   # log-posterior likelihood
-  eta <- Data$f0+Data$X %*% xi
+  eta <- Data$f0+as.vector(Data$X %*% xi)
   p <- exp(eta)/(1+exp(eta))
   LL <- sum(dbern(x=Data$y, prob=p, log = TRUE)) # log likelihood of Y|xi
   LP <- LL+sum(xi.prior) # joint log likelihood of (Y, xi)
