@@ -13,4 +13,6 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 # 24/6/25
 1. Stress the target data is "high-dimensional dense repeated measures"
 2. Set up a motivation example (like fig.3 in the FCR paper)
+- add a section in the manuscript
+- also format the paper in statistics in medicine format
 3, Develop a prediction interval (SD of scores)
