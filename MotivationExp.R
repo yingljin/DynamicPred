@@ -58,15 +58,22 @@ brewer.pal(5, "Set2")
 df_plot %>% 
   mutate(value = exp(value)/(1+exp(value))) %>%
   mutate(name=as.numeric(gsub("pred", "", name))) %>%
+  mutate(max_t=factor(name, levels = c(360, 720, 1080), 
+         labels = c("Observed up to 6am", 
+                    "Observed up to 12pm", 
+                    "Observed up to 6pm"))) %>%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.5)+
   geom_line(aes(x=sind, y = value), col = "red")+
   geom_vline(aes(xintercept = name), linetype = "dashed")+
-  facet_grid(cols = vars(name))+
-  scale_x_continuous(breaks = c(360, 720, 1080), 
+  facet_grid(cols = vars(max_t))+
+  scale_x_continuous(name = "",
+                     breaks = c(360, 720, 1080), 
                      labels = c("6am", "12pm", "6pm"))+
-  theme(strip.background = element_blank(), strip.text = element_blank(),
-        legend = element_blank())+
-  labs(x="", y = "Y")
+  scale_y_continuous(name = "Observed indicator",
+                     sec.axis = dup_axis(name="Predicted probablity"))+
+  theme(legend = element_blank(),
+        axis.title.y.right = element_text(color="red"),
+        axis.text.y.right = element_text(color="red"))
 ggsave(here("Images/MotiveExp.jpeg"),
        width=10, height=3)
