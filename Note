@@ -18,6 +18,7 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 - also format the paper in statistics in medicine format
 
 3. Develop a prediction interval (SD of scores)
+
 - There are a few ways this can be down. We can estimate the score and calculate a wald interval. But I think we probably shouldn't compare the converage to other methods. 
 - I am not sure if we need to add in the variantion of mean function, since the variation of scores is estimated conditional on the mean
 - Also, I am not sure if we should compare the CI as well
@@ -29,3 +30,12 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 - Should I priotize this over prediction interval? 
 
 5. Format in statistics in medicine/biometrics format
+
+
+# 24/7/9
+1. Motivation example: add a panel title and (y) axis labels for observed vs predicted
+2. Prediction interval:
+1) Try to explore the coverage interval
+2) Write out how the prediction interval is calculated 
+3) Try the out-of-sample prection part in stan
+4) Priotize the interval part over pacakge development
