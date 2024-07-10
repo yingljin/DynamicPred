@@ -34,8 +34,16 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 
 # 24/7/9
 1. Motivation example: add a panel title and (y) axis labels for observed vs predicted
+- How to do the split facet title? 
+
 2. Prediction interval:
+
 1) Try to explore the coverage interval
+- For LaplaceApproximation, it seems that either probablity interval or standard deviation change dramatically with the estimation (of Hessian matrix) method used. Therefore, I think I should probably turn to stan. 
+- what is the different between standard deviation (SD) and monte carlo standard error (mean_se)?
+- Results from stan seemed much more resonable, and stable as I change the algorithm/update observed track
+- The standard deviation for sure decreased as more data is collected before it
+
 2) Write out how the prediction interval is calculated 
 3) Try the out-of-sample prection part in stan
 4) Priotize the interval part over pacakge development

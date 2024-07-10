@@ -171,7 +171,7 @@ for(m in 1:M){
       
       # fit laplace approximation
       Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
-                                  CovEst = "OPG")
+                                  CovEst = "Sandwich")
       converge_state_m[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
       score <- Fit$Summary1[, "Mode"]
       # score_list_m[i, , which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- score
@@ -284,7 +284,7 @@ ggarrange(
     geom_line(aes(x=sind, y=pred0.8_ub), linetype="dashed",na.rm=T, col = "red"),
   nrow = 1
 )
-ggsave(here("Images/IntervalExp.jpeg"), height=3, width = 12)
+ggsave(here("Images/IntervalExp.jpeg"), height=12, width = 12)
 
 # variace of scores
 head(sd_list_all[[1]][1, ])
