@@ -43,7 +43,15 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 - what is the different between standard deviation (SD) and monte carlo standard error (mean_se)?
 - Results from stan seemed much more resonable, and stable as I change the algorithm/update observed track
 - The standard deviation for sure decreased as more data is collected before it
+- 
 
-2) Write out how the prediction interval is calculated 
-3) Try the out-of-sample prection part in stan
-4) Priotize the interval part over pacakge development
+# 24/7/16
+
+1. How do we report the prediction interval? 
+- Coverage probablity curve? (not doable for data application)
+- Either hard to compare across methods or had to see visually
+
+2. After using stan, it seems that ISE increased compared to LaplaceDemon, though still better than the other methods?
+- What is the cause of lower accuracy? Could it have to do with the warnings on small bulk due to sample size? 
+
+2. Draft out to the committee

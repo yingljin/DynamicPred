@@ -18,7 +18,8 @@ library(knitr)
 library(mvtnorm)
 library(mgcv)
 library(splines)
-library(LaplacesDemon)
+# library(LaplacesDemon)
+library(rstan)
 theme_set(theme_minimal())
 
 my_logis <- function(x){exp(x)/(1+exp(x))}
@@ -46,7 +47,7 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 
 # functions
 source(here("Code/GLMM-FPCA.R")) 
-source(here("Code/OutSampBayes.R"))
+# source(here("Code/OutSampBayes.R"))
 
 # split data into train and test set
 N_train <- 500
@@ -67,11 +68,11 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-M <- 5
-M
+# M <- 5
+# M
 pred_list_all <- list()
 # score_list_all <- list()
-sd_list_all <- list()
+# sd_list_all <- list()
 converge_state_list <- list()
 fit_time <- pred_time <- rep(NA, M)
 
@@ -141,72 +142,70 @@ for(m in 1:M){
   t2 <- Sys.time()
   fit_time[m] <- t2-t1
   
-  # Prediction pf test sample using Laplace approximation
+  # Prediction pf test sample using stan
   # container
   pred_list_m <- list()
-  converge_state_m <- matrix(NA, N_test, 4)
+  # converge_state_m <- matrix(NA, N_test, 4)
   # score_list_m <- array(NA, dim = c(N_test, K, 4))
-  sd_list_m <- array(NA, dim = c(N_test, K, 4)) # subject by PC by case
+  # sd_list_m <- array(NA, dim = c(N_test, K, 4)) # subject by PC by case
+  test_id <- unique(test_df$id)
+  tmax_vec <- c(0.2, 0.4, 0.6, 0.8)
   
   t1 <- Sys.time()
-  # per subject
-  test_id <- unique(test_df$id)
   for(i in seq_along(test_id)){
+    
     df_i <- test_df %>% filter(id==test_id[i])
     
-    # per max obs time
-    for(tmax in c(0.2, 0.4, 0.6, 0.8)){
+    # container for one subject
+    # scores <- matrix(NA, K, length(tmax_vec))
+    # sd_scores <- matrix(NA, K, length(tmax_vec))
+    
+    for(tid in seq_along(tmax_vec)){
+      
+      tmax <- tmax_vec[tid]
       df_it <- df_i %>% filter(t <= tmax)
-      max_rid <- nrow(df_it)
       
       # into a list
-      MyData <- list(K=K, 
-                     X=new_phi[1:max_rid, ], 
-                     mon.names=mon.names,
-                     parm.names=parm.names, 
-                     pos.xi=pos.xi, 
-                     y=df_it$Y, 
-                     tao=diag(new_lambda), f0=new_mu[1:max_rid])
+      stanData <- list(
+        J = J, Ju = nrow(df_it), Y = df_it$Y, K = K,
+        efuncs = new_phi, 
+        b0 = new_mu,
+        lambda = new_lambda
+      )
       
+      fit <- stan(
+        file = here("Code/prediction.stan"),  # Stan program
+        data = stanData,    # named list of data
+        chains = 2,             # number of Markov chains
+        warmup = 500,          # number of warmup iterations per chain
+        iter = 1000,            # total number of iterations per chain
+        cores = 1,              # number of cores (could use one per chain)
+        refresh = 0             # no progress shown
+      )
       
-      # fit laplace approximation
-      Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", Iterations = 1000,
-                                  CovEst = "Sandwich")
-      converge_state_m[i, which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- Fit$Converged
-      score <- Fit$Summary1[, "Mode"]
-      # score_list_m[i, , which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- score
-      sd <- Fit$Summary1[, "SD"]
-      sd_list_m[i, , which(c(0.2, 0.4, 0.6, 0.8)==tmax)] <- sd
+      scores_tmax <- summary(fit)$summary[1:K, "mean"]
+      sd_scores_tmax <- summary(fit)$summary[1:K, "sd"]
       
-      # prediction
-      eta_pred_out <- new_mu+new_phi%*%score
+      # latent function predictions
+      eta_pred_out <- new_mu+new_phi%*%scores_tmax
       df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
       
       # prediction interval
-      sd_eta <- sqrt((new_phi^2) %*% sd^2)
+      sd_eta <- sqrt((new_phi^2) %*% sd_scores_tmax^2)
       df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(eta_pred_out[, 1]-qnorm(0.975)*sd_eta)
       df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(eta_pred_out[, 1]+qnorm(0.975)*sd_eta)
     }
     
-    pred_list_m[[i]] <- df_i
+   pred_list_m[[i]] <- df_i
+    
   }
   t2 <- Sys.time()
   t_pred <- t2-t1 # About 3.5 minutes
   pred_time[m] <- t2-t1
   
-  # save predictions
-  df_pred <- bind_rows(pred_list_m)
-  # df_pred$pred0.2[df_pred$t<=0.2] <- NA
-  # df_pred$pred0.4[df_pred$t<=0.4] <- NA
-  # df_pred$pred0.6[df_pred$t<=0.6] <- NA
-  # df_pred$pred0.8[df_pred$t<=0.8] <- NA
- 
-  pred_list_all[[m]] <- df_pred
-  
-  # save convergence status
-  converge_state_list[[m]] <- converge_state_m
-  # score_list_all[[m]] <- score_list_m
-  sd_list_all[[m]] <- sd_list_m
+  # save results
+  pred_list_all[[m]]<- bind_rows(pred_list_m)
+  # converge_state_list[[m]] <- converge_state_m
   
   setTxtProgressBar(pb, m)
 }
@@ -218,38 +217,57 @@ close(pb)
 
 #### Check output ####
 
-mean(fit_time) # average time for model fitting: 44 secs
+# time 
+mean(fit_time) # average time for model fitting: 45 secs
+head(fit_time, 15)
 mean(pred_time) # average time for prediction: 1.8 min 
                 # 3 minutes if we calculate the variation
+head(pred_time,15)
 
+
+# prediction
 pred_list_all %>% lapply(dim)
+head(pred_list_all[[137]])
 
-# convergence status
-mean(sapply(converge_state_list, mean)) # all dataset converged
+# figure
+rand_id <- sample(test_id, 4)
 
-# standard deviation of score
-sd_list_all[[1]][1,,]
-
-# visualize test samples
-rand_id <- sample(test_id, 2)
-
-pred_list_all[[1]] %>% View()
-
-
-
-# prediction results
-df_exp <- pred_list_all[[1]] %>% 
-  # filter(id %in% sample(test_id, 4)) %>% 
+df_exp <- pred_list_all[[137]] %>% 
+  filter(id %in% rand_id) %>% 
   mutate_at(vars(eta_i, starts_with("pred")), 
-            function(x){exp(x)/(1+exp(x))}) 
+            function(x){exp(x)/(1+exp(x))})  
 df_exp[df_exp$t<=0.2, c("pred0.2", "pred0.2_lb", "pred0.2_ub")] <- NA
 df_exp[df_exp$t<=0.4, c("pred0.4", "pred0.4_lb", "pred0.4_ub")] <- NA
 df_exp[df_exp$t<=0.6, c("pred0.6", "pred0.6_lb", "pred0.6_ub")] <- NA
 df_exp[df_exp$t<=0.8, c("pred0.8", "pred0.8_lb", "pred0.8_ub")] <- NA
+
+df_exp %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.2_lb, ymax = pred0.2_ub,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.4_lb, ymax = pred0.4_ub,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.6_lb, ymax = pred0.6_ub,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.8_lb, ymax = pred0.8_ub,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  facet_grid(rows = vars(id))+
+  guides(alpha = "none", col="none")
+ggsave(here("Images/IntervalExp1.jpeg"), height=12, width = 5)  
   
-df_exp %>% filter(t>0.78) %>%select(starts_with("pred0.8"))  %>% View()
-df_exp <- df_exp %>% filter(id == 568)
-# figure with prediction interval
+ 
+  
+# another figure
 ggarrange(
   df_exp %>% 
     ggplot()+
@@ -286,40 +304,24 @@ ggarrange(
 )
 ggsave(here("Images/IntervalExp.jpeg"), height=12, width = 12)
 
-# variace of scores
-head(sd_list_all[[1]][1, ])
 
-apply(, MARGIN = c(2, 3), mean)
 
-df_exp %>% filter(id == 568) %>%
+
+
+
+df_exp %>% 
   ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=eta_i, col = "True"))+
-  # geom_line(aes(x=sind, y=pred0.2, col = "0.2"), na.rm=T)+
-  # geom_line(aes(x=sind, y=pred0.2_lb, col = "0.2"), linetype="dashed", na.rm=T)+
-  # geom_line(aes(x=sind, y=pred0.2_ub, col = "0.2"), linetype="dashed",na.rm=T)+
-  geom_line(aes(x=sind, y=pred0.4, col = "0.4"), na.rm=T)+
-  geom_line(aes(x=sind, y=pred0.4_lb, col = "0.4"), linetype="dashed", na.rm=T)+
-  geom_line(aes(x=sind, y=pred0.4_ub, col = "0.4"), linetype="dashed",na.rm=T)
-
-
-
-
-df_i %>% 
-    # filter(id %in% sample(test_id, 4)) %>% 
-    mutate_at(vars(eta_i, starts_with("pred")), 
-              function(x){exp(x)/(1+exp(x))}) %>% 
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=eta_i, col = "True"))+
-  geom_line(aes(x=sind, y=pred0.2, col = "0.2"), , na.rm=T)+
-  geom_line(aes(x=sind, y=pred0.2_lb, col = "0.2"), linetype="dashed")+
-  geom_line(aes(x=sind, y=pred0.2_ub, col = "0.2"), linetype="dashed")
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm=T, linewidth = 1.0)+
 
 
 #### Save results ####
 
-save(pred_list_all, fit_time, pred_time, converge_state_list,
+save(pred_list_all, fit_time, pred_time,
      file = here("Data/SimOutput_fGFPCA.RData"))
 
 #### Calculate ISE ####
@@ -358,6 +360,8 @@ for(m in 1:M){
   
 }
 
+ise_mat
+
 mean_ise <- apply(ise_mat, c(1, 2), mean)
 mean_ise <- data.frame(mean_ise) %>% 
   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
@@ -390,7 +394,7 @@ get_auc(pred_list_all[[1]]$Y[pred_list_all[[1]]$t>0.2],
 
 for(m in 1:M){
   this_df <- pred_list_all[[m]]
-  auc_tb <- df_pred %>% 
+  auc_tb <- this_df %>% 
     mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
     select(Y, starts_with("pred"), window) %>%
     group_by(window) %>%
@@ -412,5 +416,52 @@ mean_auc <- data.frame(mean_auc) %>%
 colnames(mean_auc) <- c("Window", "0.2", "0.4", "0.6", "0.8")
 mean_auc
 
-#### Convergence ####
-mean(sapply(converge_state_list, mean)) # 100% precent convergence 
+## prediction interval
+## Maybe start with if the prediction interval covers the truth?
+
+list_cover <- list()
+
+for(m in 1:M){
+
+  list_cover[[m]] <- pred_list_all[[m]] %>%
+    mutate(
+      cover0.2 = pred0.2_lb<=eta_i & pred0.2_ub>=eta_i,
+      cover0.4 = pred0.4_lb<=eta_i & pred0.4_ub>=eta_i,
+      cover0.6 = pred0.6_lb<=eta_i & pred0.6_ub>=eta_i,
+      cover0.8 = pred0.8_lb<=eta_i & pred0.8_ub>=eta_i
+    ) %>% 
+    group_by(t) %>% 
+    summarize_at(vars(starts_with("cover")), mean)
+}
+  
+### one simulation
+list_cover[[137]] %>% 
+  mutate(cover0.2=ifelse(t<=0.2, NA, cover0.2),
+         cover0.4=ifelse(t<=0.4, NA, cover0.4),
+         cover0.6=ifelse(t<=0.6, NA, cover0.6),
+         cover0.8=ifelse(t<=0.8, NA, cover0.8)) %>%
+  ggplot()+
+  geom_line(aes(x=t, y=cover0.2, col="0.2"))+
+  geom_line(aes(x=t, y=cover0.4, col="0.4"))+
+  geom_line(aes(x=t, y=cover0.6, col="0.6"))+
+  geom_line(aes(x=t, y=cover0.8, col="0.8"))+
+  labs(x="t", y="coverage rate", title = "One simulation")
+ggsave(here("Images/CoverRate.jpeg"), height=5, width = 5)
+
+### All simulation
+list_cover %>% 
+  bind_rows(.id="iter") %>%
+  group_by(t) %>% 
+  summarize_at(vars(starts_with("cover")), mean) %>% 
+  mutate(cover0.2=ifelse(t<=0.2, NA, cover0.2),
+         cover0.4=ifelse(t<=0.4, NA, cover0.4),
+         cover0.6=ifelse(t<=0.6, NA, cover0.6),
+         cover0.8=ifelse(t<=0.8, NA, cover0.8)) %>%
+  ggplot()+
+  geom_line(aes(x=t, y=cover0.2, col="0.2"))+
+  geom_line(aes(x=t, y=cover0.4, col="0.4"))+
+  geom_line(aes(x=t, y=cover0.6, col="0.6"))+
+  geom_line(aes(x=t, y=cover0.8, col="0.8"))+
+  labs(x="t", y="coverage rate", title = "All simulation")
+  
+ggsave(here("Images/CoverRate_All.jpeg"), height=5, width = 5)

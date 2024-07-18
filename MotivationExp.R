@@ -26,12 +26,15 @@ load(here("Data/ApplOutput_fGFPCA.RData"))
 length(unique(df$SEQN)) # 8763 subjects
 df %>% select(SEQN, age_years_interview, BMI, gender) %>% distinct(.) %>% 
   select(BMI) %>% 
-  lapply(mean)
+  lapply(summary)
+
+
 
 # age: 49.53 (17.52)
 # BMI: 29.08 (7.04)
 # gender: 4202 male, 4561 female
 
+4561/8763
 
 #### Figure ####
 

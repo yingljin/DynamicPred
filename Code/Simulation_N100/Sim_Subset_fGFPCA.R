@@ -13,10 +13,10 @@ library(mgcv)
 library(ggpubr)
 library(gridExtra)
 library(kableExtra)
-library(LaplacesDemon)
+# library(LaplacesDemon)
 library(mvtnorm)
 library(splines)
-
+library(rstan)
 
 
 
