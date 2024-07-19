@@ -3,10 +3,6 @@ title: "Manuscript progress report"
 author: "Ying Jin"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
-    keep_tex: yes
   html_document:
     self_contained: no
     number_sections: yes
@@ -16,13 +12,17 @@ output:
     toc_float: yes
     font: 12pt
     keep_tex: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+    keep_tex: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 options(knitr.kable.NA = "")
 
-set.seed(1120)
+set.seed(1114)
 
 
 library(here)
@@ -40,6 +40,7 @@ library(splines)
 library(boot)
 library(RColorBrewer)
 
+
 # plot settings
 theme_set(theme_minimal())
 cols <- c(brewer.pal(4, "Set2"), "#000000") # define a color palette 
@@ -48,9 +49,12 @@ names(cols) <- c("0.2", "0.4", "0.6", "0.8", "True")
 # display.brewer.pal(4, "Set2")
 # brewer.pal(5, "Set2")
 
+# code 
+source(here("Code/PredEval.R"))
+
 ## prediction window 
 window <- seq(0, 1, by = 0.2)
-M <- 500
+M <- 5
 
 ```
 
@@ -197,44 +201,86 @@ where:
 ## Figures
 
 ```{r load_sim1}
-load(here("Data/SimOutput_fGFPCA.RData"))
-load(here("Data/SimOutput_GLMMadaptive.RData"))
-load(here("Data/SimOutput_GFOSR_L1.RData"))
-pred_list_gfosr_l1 <- pred_list_gfofr
-t_vec_gfosr_l1 <- t_vec_gfofr
-rm(pred_list_gfofr, t_vec_gfofr)
-load(here("Data/SimOutput_GFOSR_L5.RData"))
-pred_list_gfosr_l5 <- pred_list_gfofr
-t_vec_gfosr_l5 <- t_vec_gfofr
-rm(pred_list_gfofr, t_vec_gfofr)
+load(here("Data/TrialRun/SimOutput_fGFPCA.RData"))
+load(here("Data/TrialRun/SimOutput_GLMMadaptive.RData"))
+load(here("Data/TrialRun/SimOutput_GFOSR_L1.RData"))
+load(here("Data/TrialRun/SimOutput_GFOSR_L5.RData"))
 
 rand_id <- sample(501:600, size = 4)
 ```
 
 
-```{r fig_large_sim_paper, fig.height=8, fig.width=8}
+```{r DataFormat}
+pred_list_fGFPCA <- lapply(pred_list_fGFPCA, function(x){x %>% select(-bin)})
+name_vec <- colnames(pred_list_fGFPCA[[1]])
+pred_list_fGFPCA <- lapply(pred_list_fGFPCA, 
+                           function(x){
+                      x[x$t<=0.2, c("pred0.2", "pred0.2_lb", "pred0.2_ub")] <- NA
+                      x[x$t<=0.4, c("pred0.4", "pred0.4_lb", "pred0.4_ub")] <- NA
+                      x[x$t<=0.6, c("pred0.6", "pred0.6_lb", "pred0.6_ub")] <- NA
+                      x[x$t<=0.8, c("pred0.8", "pred0.8_lb", "pred0.8_ub")] <- NA
+                      return(x)    
+                       })
+
+
+
+pred_list_GLMMad <- lapply(pred_list_GLMMad, function(x){
+  colnames(x) <- name_vec
+  return(x)
+})
+
+pred_list_gfofr <- lapply(pred_list_gfofr, function(x){
+  x <- x %>% select(-window)
+  colnames(x) <- name_vec
+  return(x)
+})
+
+pred_list_gfofr_l5 <- lapply(pred_list_gfofr_l5, function(x){
+  x <- x %>% select(-window)
+  colnames(x) <- name_vec
+  return(x)
+})
+
+
+
+```
+
+
+```{r large_sim_plot, fig.height=8, fig.width=8}
 bind_rows(
-  pred_list_all[[1]] %>% filter(id %in% rand_id) %>% 
+  pred_list_fGFPCA[[1]] %>% filter(id %in% rand_id) %>% 
     mutate(method="fGFPCA"),
-  pred_list_ref[[1]] %>% filter(id %in% rand_id) %>%
+  pred_list_GLMMad[[1]] %>% filter(id %in% rand_id) %>%
     mutate(method = "GLMMadaptive"),
-  pred_list_gfosr_l1[[1]] %>% filter(id %in% rand_id) %>%
-    mutate(method = "GFOSR (L=1)") %>%
-    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
-  pred_list_gfosr_l5[[1]] %>% filter(id %in% rand_id) %>%
-    mutate(method = "GFOSR (L=5)") %>%
-    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4)
-) %>% mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
+  pred_list_gfofr[[1]] %>% filter(id %in% rand_id) %>%
+    mutate(method = "GFOSR (L=1)"),
+  pred_list_gfofr_l5[[1]] %>% filter(id %in% rand_id) %>%
+    mutate(method = "GFOSR (L=5)") 
+) %>% 
+  mutate_at(vars(eta_i, starts_with("pred")), 
                 .funs = function(x){exp(x)/(1+exp(x))}) %>%
   mutate(method=factor(method, 
          levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.2_lb, ymax = pred0.2_ub,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.4_lb, ymax = pred0.4_ub,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.6_lb, ymax = pred0.6_ub,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.8_lb, ymax = pred0.8_ub,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  guides(alpha = "none", col="none")+
   facet_grid(rows = vars(id), cols = vars(method))+
   labs(col = "Maximum observation time", x = "Time", y="")+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
@@ -242,809 +288,89 @@ bind_rows(
   scale_color_manual(values = cols)
 ```
 
-## ISE and AUC
+## Preformance
 
-```{r ise}
-## ISE container 
-ise_fgfpca <- ise_adglmm <- ise_gfosr_l1 <- ise_gfosr_l5 <- 
-  array(NA, dim = c(length(window)-2, length(window)-2, M))
-# dims: prediction window, max obs time, simulation iter
+Please note that here, the GLMM has a **square** time for both fixed effect and random effect.
 
-```
-
-```{r ise_fGFPCA}
-## calculation
-for(m in 1:M){
-  # this_df <- pred_list_all[[m]]
-  ise_tb <- pred_list_all[[m]] %>%
-    mutate(err1 = (pred0.2-eta_i)^2,
-           err2 = (pred0.4-eta_i)^2,
-           err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>%
-    select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("err"))
-  ise_fgfpca[, ,m] <- as.matrix(ise_tb)
-  
-  
-}
-
-mean_ise_fgfpca <- apply(ise_fgfpca, c(1, 2), mean)
-
-# mean_ise <- data.frame(mean_ise) %>%
-#   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-#          .before = 1)
-colnames(mean_ise_fgfpca) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r ise_adglmm}
-## calculation
-for(m in 1:M){
-  # this_df <- pred_list_gfosr_l1[[m]]
-  ise_tb <- pred_list_ref[[m]] %>%
-    mutate(err1 = (pred0.2-eta_i)^2,
-           err2 = (pred0.4-eta_i)^2,
-           err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>%
-    select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("err"))
-  ise_adglmm[, ,m] <- as.matrix(ise_tb)
-}
-
-mean_ise_adglmm <- apply(ise_adglmm, c(1, 2), mean)
-colnames(mean_ise_adglmm) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r ise_gfosr_l1}
-## calculation
-for(m in 1:M){
-  # this_df <- pred_list_ref[[m]]
-  ise_tb <- pred_list_gfosr_l1[[m]] %>%
-    mutate(err1 = (pred_w1-eta_i)^2,
-           err2 = (pred_w2-eta_i)^2,
-           err3 = (pred_w3-eta_i)^2,
-           err4 = (pred_w4-eta_i)^2) %>%
-    select(id, t, starts_with("err"), window) %>% 
-    # mutate(window = factor(window, levels = 1:5, 
-    #                        labels = c("[0,0.2]", "(0.2,0.4]", "(0.4,0.6]",))) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != 1) %>% 
-    select(starts_with("err"))
-  ise_gfosr_l1[, ,m] <- as.matrix(ise_tb)
-}
-
-mean_ise_gfosr_l1 <- apply(ise_gfosr_l1, c(1, 2), mean)
-colnames(mean_ise_gfosr_l1) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r ise_gfosr_l5}
-## calculation
-for(m in 1:M){
-  # this_df <- pred_list_ref[[m]]
-  ise_tb <- pred_list_gfosr_l5[[m]] %>%
-    mutate(err1 = (pred_w1-eta_i)^2,
-           err2 = (pred_w2-eta_i)^2,
-           err3 = (pred_w3-eta_i)^2,
-           err4 = (pred_w4-eta_i)^2) %>%
-    select(id, t, starts_with("err"), window) %>% 
-    # mutate(window = factor(window, levels = 1:5, 
-    #                        labels = c("[0,0.2]", "(0.2,0.4]", "(0.4,0.6]",))) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != 1) %>% 
-    select(starts_with("err"))
-  ise_gfosr_l5[, ,m] <- as.matrix(ise_tb)
-}
-
-mean_ise_gfosr_l5 <- apply(ise_gfosr_l5, c(1, 2), mean)
-colnames(mean_ise_gfosr_l5) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-
-
-```{r auc_func}
-## a function to calculate AUC
-get_auc <- function(y, pred){
-  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
-    auc <- NA
-  }
-  else{
-    this_perf <- performance(prediction(pred, y), measure = "auc")
-    auc <- this_perf@y.values[[1]]
-  }
-  return(auc)
-}
-
-```
-
+### Time (minutes)
 
 ```{r}
-## auc container 
-auc_fgfpca <- auc_adglmm <- auc_gfosr_l1 <- auc_gfosr_l5 <- 
-  array(NA, dim = c(length(window)-2, length(window)-2, M))
+data.frame(Method = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"), 
+           Time = c(mean(time_fGFPCA),
+                    mean(time_gfofr_l5),
+                    mean(time_gfofr),
+                    mean(time_GLMMad))) %>%
+  kable(digits = 3, booktabs=T,
+        table.attr="style=\"color:black;\"") %>%
+  kable_styling(full_width = F)
 ```
 
+### ISE
 
-```{r auc_fGFPCA}
-for(m in 1:M){
-  this_df <- pred_list_all[[m]]
-  auc_tb <- this_df %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred0.2),
-              auc2 = get_auc(Y, pred0.4),
-              auc3 = get_auc(Y, pred0.6),
-              auc4 = get_auc(Y, pred0.8)) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("auc"))
-  auc_fgfpca[, ,m] <- as.matrix(auc_tb)
-}
-
-
-mean_auc_fgfpca <- apply(auc_fgfpca, c(1, 2), mean)
-# mean_auc <- data.frame(mean_auc) %>% 
-#   mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-#          .before = 1)
-colnames(mean_auc_fgfpca) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r auc_GLMMadaptive}
-for(m in 1:M){
-  this_df <- pred_list_ref[[m]]
-  auc_tb <- this_df %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred0.2),
-              auc2 = get_auc(Y, pred0.4),
-              auc3 = get_auc(Y, pred0.6),
-              auc4 = get_auc(Y, pred0.8)) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("auc"))
-  auc_adglmm[, ,m] <- as.matrix(auc_tb)
-
-}
-
-
-mean_auc_adglmm <- apply(auc_adglmm, c(1, 2), mean)
-colnames(mean_auc_adglmm) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r auc_gfosr_l1}
-for(m in 1:M){
-  this_df <- pred_list_gfosr_l1[[m]]
-  auc_tb <- this_df %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred_w1),
-              auc2 = get_auc(Y, pred_w2),
-              auc3 = get_auc(Y, pred_w3),
-              auc4 = get_auc(Y, pred_w4)) %>%
-    filter(window != 1) %>% 
-    select(starts_with("auc"))
-  auc_gfosr_l1[, ,m] <- as.matrix(auc_tb)
-
-}
-
-
-mean_auc_gfosr_l1 <- apply(auc_gfosr_l1, c(1, 2), mean)
-colnames(mean_auc_gfosr_l1) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r auc_gfosr_l5}
-for(m in 1:M){
-  this_df <- pred_list_gfosr_l5[[m]]
-  auc_tb <- this_df %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred_w1),
-              auc2 = get_auc(Y, pred_w2),
-              auc3 = get_auc(Y, pred_w3),
-              auc4 = get_auc(Y, pred_w4)) %>%
-    filter(window != 1) %>% 
-    select(starts_with("auc"))
-  auc_gfosr_l5[, ,m] <- as.matrix(auc_tb)
-
-}
-
-
-mean_auc_gfosr_l5 <- apply(auc_gfosr_l5, c(1, 2), mean)
-colnames(mean_auc_gfosr_l5) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-
-
-
-
-
-```{r table_sim1}
-fgfpca1 <- rbind(mean_ise_fgfpca ,mean_auc_fgfpca) %>% as_tibble() %>%
-  mutate(Window = rep(c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"), 2), .before=1)
-gfosr_l5_1 <- rbind(mean_ise_gfosr_l5 ,mean_auc_gfosr_l5) %>% as_tibble()
-gfosr_l1_1 <- rbind(mean_ise_gfosr_l1 ,mean_auc_gfosr_l1) %>% as_tibble()
-adglmm1 <- rbind(mean_ise_adglmm ,mean_auc_adglmm) %>% as_tibble() 
-
-bind_cols(fgfpca1, gfosr_l5_1, gfosr_l1_1, adglmm1, .name_repair = "minimal") %>%
+```{r}
+cbind(calc_ISE(pred_list_fGFPCA, window),
+      calc_ISE(pred_list_gfofr, window),
+      calc_ISE(pred_list_gfofr_l5, window),
+      calc_ISE(pred_list_GLMMad, window)) %>%
+  data.frame(window = c("[0, 0.2]", "(0,2, 0.4]", "(0.4, 0.6]", 
+                    "(0.6, 0.8]","(0.8, 1]"),
+             ., 
+             check.names = F) %>%
   kable(digits = 3, booktabs=T,
         table.attr="style=\"color:black;\"") %>%
   kable_styling(full_width = F) %>% 
   add_header_above(c(" " = 1, "fGFPCA" = 4, "GFOSR (L=5)" = 4, 
                      "GFOSR (L=1)" = 4, "GLMMadaptive" = 4)) %>%
   add_header_above(c(" " = 1, "Maximum observation time" = 16)) %>%
-  group_rows(index = c("ISE"= 4, "AUC" = 4)) %>%
   landscape()
-
 ```
 
 
+It looks like the predictive performance can be seriously worse if the prediction window is far from the observation window.
 
 
-# Small-scale simulation
-
-I have used 100 subjects for training and testing, and repeated 500 times. When fitting GLMMadpative, I reduce the number of measurements in the training dataset to 1/10 by taking one every 10 observations. The prediction is on the original grid. 
-
-
-```{r load_sim2}
-load(here("Data/SubSimOutput_GLMMadaptive.RData"))
-
-load(here("Data/SubSimOutput_fGFPCA.RData"))
-pred_subset_adglmm <- pred_subset_adglmm[!num_probs]
-fit_time_subset_adglmm <- fit_time_subset_adglmm[!num_probs]
-pred_time_subset_adglmm <- pred_time_subset_adglmm[!num_probs]
-
-load(here("Data/SubSimOutput_GFOSR_L1.RData"))
-pred_subset_gfosr_l1 <- pred_list_gfofr_subset
-t_subset_gfosr_l1 <- t_vec_gfofr_subset
-rm(pred_list_gfofr_subset, t_vec_gfofr_subset)
-
-load(here("Data/SubSimOutput_GFOSR_L5.RData"))
-pred_subset_gfosr_l5 <- pred_list_gfofr_subset
-t_subset_gfosr_l5 <- t_vec_gfofr_subset
-rm(pred_list_gfofr_subset, t_vec_gfofr_subset)
-
-rand_id <- sample(101:200, size = 4)
-```
-
-## Figure
-
-```{r fig_small_sim_paper, fig.height=8, fig.width=8}
-bind_rows(
-  pred_subset_fGFPCA[[1]] %>% filter(id %in% rand_id) %>% mutate(method="fGFPCA"),
-  pred_subset_gfosr_l5[[1]] %>% filter(id %in% rand_id) %>% mutate(method = "GFOSR (L=5)") %>% 
-    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
-  pred_subset_gfosr_l1[[1]] %>% filter(id %in% rand_id) %>% mutate(method = "GFOSR (L=1)") %>%
-    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
-  pred_subset_adglmm[[1]] %>% filter(id %in% rand_id) %>% mutate(method = "GLMMadaptive")) %>%
-  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
-                .funs = function(x){exp(x)/(1+exp(x))}) %>%
-  mutate(method=factor(method, 
-         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linewidth=1, na.rm=T)+
-  facet_grid(rows = vars(id), cols = vars(method))+
-  labs(col = "Maximum observation time", x = "Time", y="")+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
-  theme(legend.position = "bottom")+
-  scale_color_manual(values = cols)
-```
+### AUC
 
 ```{r}
-sep_plot <- bind_rows(
-  pred_subset_fGFPCA[[1]] %>% filter(id==189) %>% mutate(method="fGFPCA"),
-  pred_subset_gfosr_l5[[1]] %>% filter(id==189) %>% mutate(method = "GFOSR (L=5)") %>% 
-    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
-  pred_subset_gfosr_l1[[1]] %>% filter(id==189) %>% mutate(method = "GFOSR (L=1)") %>%
-    rename(pred0.2=pred_w1, pred0.4=pred_w2, pred0.6=pred_w3, pred0.8=pred_w4),
-  pred_subset_adglmm[[1]] %>% filter(id==189) %>% mutate(method = "GLMMadaptive")) %>%
-  mutate_at(vars(eta_i, pred0.2, pred0.4, pred0.6, pred0.8), 
-                .funs = function(x){exp(x)/(1+exp(x))}) %>%
-  mutate(method=factor(method, 
-         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
+cbind(calc_AUC(pred_list_fGFPCA, window),
+      calc_AUC(pred_list_gfofr, window),
+      calc_AUC(pred_list_gfofr_l5, window),
+      calc_AUC(pred_list_GLMMad, window)) %>%
+  data.frame(window = c("[0, 0.2]", "(0,2, 0.4]", "(0.4, 0.6]", 
+                    "(0.6, 0.8]","(0.8, 1]"),
+             ., 
+             check.names = F) %>%
+  kable(digits = 3, booktabs=T,
+        table.attr="style=\"color:black;\"") %>%
+  kable_styling(full_width = F) %>% 
+  add_header_above(c(" " = 1, "fGFPCA" = 4, "GFOSR (L=5)" = 4, 
+                     "GFOSR (L=1)" = 4, "GLMMadaptive" = 4)) %>%
+  add_header_above(c(" " = 1, "Maximum observation time" = 16)) %>%
+  landscape()
+```
+
+It seems that the GFOSR models, while are the fastest, also performs the worst in AUC.
+
+
+### Prediction interval
+
+
+Not sure how to display. Maybe start with if the prediction interval covers the truth? That is, coverage rate at each time point, averaged over all simulation and subjects? 
+
+```{r, fig.height=4, fig.width=16}
+bind_rows(calc_predint_cover(pred_list_fGFPCA) %>% mutate(method = "fGFPCA"),
+          calc_predint_cover(pred_list_gfofr_l5) %>% mutate(method = "GFOSR (L=5)"),
+          calc_predint_cover(pred_list_gfofr) %>% mutate(method = "GFOSR (L=1)"),
+          calc_predint_cover(pred_list_GLMMad) %>% mutate(method = "GLMMadaptive")) %>%
   ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), linewidth=1, na.rm=T)+
+  geom_line(aes(x=t, y=cover0.2, col = "0.2"), na.rm = T)+
+  geom_line(aes(x=t, y=cover0.4, col = "0.4"), na.rm = T)+
+  geom_line(aes(x=t, y=cover0.6, col = "0.6"), na.rm = T)+
+  geom_line(aes(x=t, y=cover0.8, col = "0.8"), na.rm = T)+
   facet_grid(cols = vars(method))+
-  labs(col = "Maximum observation time", x = "t", y="")+
-  scale_x_continuous(breaks = seq(0, 1, by = 0.2))
-```
-
-
-```{r, fig_small_sim_pre, fig.height=2, fig.width=8}
-sep_plot+scale_color_manual(values = cols, guide="none")+
-  #theme(legend.position = "bottom")+
-  scale_color_manual(values = cols, guide = "none")
-```
-
-
-```{r, legend, fig.height=0.2, fig.width=8}
-as_ggplot(ggpubr::get_legend(sep_plot+theme(legend.position = "bottom")+
-                               scale_color_manual(values = cols)))
-```
-
-## ISE and AUC
-
-
-```{r ise_subset}
-## ISE container 
-ise_fgfpca2 <- ise_adglmm2 <- ise_gfosr_l1_2 <- ise_gfosr_l5_2 <- 
-  array(NA, dim = c(length(window)-2, length(window)-2, M))
-# dims: prediction window, max obs time, simulation iter
-
-```
-
-```{r ise_fGFPCA_subset}
-for(m in 1:length(pred_subset_fGFPCA)){
-  this_df <- pred_subset_fGFPCA[[m]]
-  ise_tb_m <- this_df %>%
-    mutate(err1 = (pred0.2-eta_i)^2,
-           err2 = (pred0.4-eta_i)^2,
-           err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>%
-    select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("err")) %>% as.matrix()
-  ise_fgfpca2[,,m] <- ise_tb_m
-}
-
-mean_ise_fgfpca2 <- apply(ise_fgfpca2, c(1, 2), mean)
-
-colnames(mean_ise_fgfpca2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r ise_GLMMadaptive_subset}
-for(m in 1:length(pred_subset_adglmm)){
-  this_df <- pred_subset_adglmm[[m]]
-  ise_tb_m <- this_df %>%
-    mutate(err1 = (pred0.2-eta_i)^2,
-           err2 = (pred0.4-eta_i)^2,
-           err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>%
-    select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("err")) %>% as.matrix()
-  ise_adglmm2[,,m] <- ise_tb_m
-}
-
-mean_ise_adglmm2<- apply(ise_adglmm2, c(1, 2), mean, na.rm = T)
-
-colnames(mean_ise_adglmm2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-
-```{r ise_gfosr_l1_subset}
-for(m in 1:length(pred_subset_gfosr_l1)){
-  this_df <- pred_subset_gfosr_l1[[m]]
-  ise_tb_m <- this_df %>%
-    mutate(err1 = (pred_w1-eta_i)^2,
-           err2 = (pred_w2-eta_i)^2,
-           err3 = (pred_w3-eta_i)^2,
-           err4 = (pred_w4-eta_i)^2) %>%
-    select(id, t, starts_with("err"), window) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != 1) %>% 
-    select(starts_with("err")) %>% as.matrix()
-  ise_gfosr_l1_2[,,m] <- ise_tb_m
-}
-
-mean_ise_gfosr_l1_2<- apply(ise_gfosr_l1_2, c(1, 2), mean, na.rm = T)
-
-colnames(mean_ise_gfosr_l1_2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-
-```{r ise_gfosr_l5_subset}
-for(m in 1:length(pred_subset_gfosr_l5)){
-  this_df <- pred_subset_gfosr_l5[[m]]
-  ise_tb_m <- this_df %>%
-    mutate(err1 = (pred_w1-eta_i)^2,
-           err2 = (pred_w2-eta_i)^2,
-           err3 = (pred_w3-eta_i)^2,
-           err4 = (pred_w4-eta_i)^2) %>%
-    select(id, t, starts_with("err"), window) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != 1) %>% 
-    select(starts_with("err")) %>% as.matrix()
-  ise_gfosr_l5_2[,,m] <- ise_tb_m
-}
-
-mean_ise_gfosr_l5_2 <- apply(ise_gfosr_l5_2, c(1, 2), mean, na.rm = T)
-
-colnames(mean_ise_gfosr_l5_2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-
-```{r auc2}
-## auc container 
-auc_fgfpca2 <- auc_adglmm2 <- auc_gfosr_l1_2 <- auc_gfosr_l5_2 <- 
-  array(NA, dim = c(length(window)-2, length(window)-2, M))
-```
-
-
-```{r auc_fGFPCA_subset}
-for(m in 1:length(pred_subset_fGFPCA)){
-  this_df <- pred_subset_fGFPCA[[m]]
-  auc_tb_m <- this_df %>%
-  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.2),
-            auc2 = get_auc(Y, pred0.4),
-            auc3 = get_auc(Y, pred0.6),
-            auc4 = get_auc(Y, pred0.8)) %>%
-  filter(window != "[0,0.2]") %>% 
-  select(starts_with("auc")) %>% as.matrix()
-  
-  auc_fgfpca2[, , m] <- auc_tb_m
-  
-}
-
-mean_auc_fgfpca2 <- apply(auc_fgfpca2, c(1,2), mean)
-colnames(mean_auc_fgfpca2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r auc_GLMMadaptive_subset}
-for(m in 1:length(pred_subset_adglmm)){
-  this_df <- pred_subset_adglmm[[m]]
-  auc_tb_m <- this_df %>%
-  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.2),
-            auc2 = get_auc(Y, pred0.4),
-            auc3 = get_auc(Y, pred0.6),
-            auc4 = get_auc(Y, pred0.8)) %>%
-  filter(window != "[0,0.2]") %>% 
-  select(starts_with("auc")) %>% as.matrix()
-  
-  auc_adglmm2[, , m] <- auc_tb_m
-  
-}
-
-mean_auc_adglmm2 <- apply(auc_adglmm2, c(1,2), mean, na.rm = T)
-colnames(mean_auc_adglmm2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r auc_GFOSR_subset_l1}
-for(m in 1:length(pred_subset_gfosr_l1)){
-  this_df <- pred_subset_gfosr_l1[[m]]
-  auc_tb_m <- this_df %>%
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred_w1),
-            auc2 = get_auc(Y, pred_w2),
-            auc3 = get_auc(Y, pred_w3),
-            auc4 = get_auc(Y, pred_w4)) %>%
-  filter(window != 1) %>% 
-  select(starts_with("auc")) %>% as.matrix()
-  
-  auc_gfosr_l1_2[, , m] <- auc_tb_m
-  
-}
-
-mean_auc_gfosr_l1_2 <- apply(auc_gfosr_l1_2, c(1,2), mean)
-colnames(mean_auc_gfosr_l1_2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-
-```{r auc_GFOSR_subset_l5}
-for(m in 1:length(pred_subset_gfosr_l5)){
-  this_df <- pred_subset_gfosr_l5[[m]]
-  auc_tb_m <- this_df %>%
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred_w1),
-            auc2 = get_auc(Y, pred_w2),
-            auc3 = get_auc(Y, pred_w3),
-            auc4 = get_auc(Y, pred_w4)) %>%
-  filter(window != 1) %>% 
-  select(starts_with("auc")) %>% as.matrix()
-  
-  auc_gfosr_l5_2[, , m] <- auc_tb_m
-  
-}
-
-mean_auc_gfosr_l5_2 <- apply(auc_gfosr_l5_2, c(1,2), mean)
-colnames(mean_auc_gfosr_l5_2) <- c("0.2", "0.4", "0.6", "0.8")
-```
-
-```{r table_sim2}
-fgfpca2 <- rbind(mean_ise_fgfpca2 ,mean_auc_fgfpca2) %>% as_tibble() %>%
-  mutate(Window = rep(c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"), 2), .before=1)
-gfosr_l5_2 <- rbind(mean_ise_gfosr_l5_2 ,mean_auc_gfosr_l5_2) %>% as_tibble()
-gfosr_l1_2 <- rbind(mean_ise_gfosr_l1_2 ,mean_auc_gfosr_l1_2) %>% as_tibble()
-adglmm2 <- rbind(mean_ise_adglmm2 ,mean_auc_adglmm2) %>% as_tibble() 
-
-bind_cols(fgfpca2, gfosr_l5_2, gfosr_l1_2, adglmm2, .name_repair = "minimal") %>%
-  kable(digits = 3, booktabs=T,
-        table.attr="style=\"color:black;\"") %>%
-  kable_styling(full_width = F) %>% 
-  add_header_above(c(" " = 1, "fGFPCA" = 4, "GFOSR (L=5)" = 4, 
-                     "GFOSR (L=1)" = 4, "GLMMadaptive" = 4)) %>%
-  add_header_above(c(" " = 1, "Maximum observation time" = 16)) %>%
-  group_rows(index = c("ISE"= 4, "AUC" = 4)) %>%
-  landscape()
-
-```
-
-
-Among 500 hundred iterations, `r sum(num_probs)` did not converge for the GLMMadaptive model. No numeric issue for fGFPCA. 
-
-# Time
-
-Average time per iteration in minutes
-
-```{r}
-time_tb <- data.frame(sim1 = c(mean(fit_time/60+pred_time),
-             mean(fit_time_ref+pred_time_ref/60),
-             mean(t_vec_gfosr_l1/60), 
-             mean(t_vec_gfosr_l5/60)),
-           sim2 = c(mean(fit_time_subset_fGFPCA/60+pred_time_subset_fGFPCA),
-             mean(fit_time_subset_adglmm+pred_time_subset_adglmm/60),
-             mean(t_subset_gfosr_l1/60), 
-             mean(t_subset_gfosr_l5/60))) %>% t()
-colnames(time_tb) <- c("fGFPCA", "GLMMadaptive", "GFOSR (L=1)", "GFOSR (L=5)")
-rownames(time_tb) <- c("Simulation 1", "Simulation 2")
-```
-
-```{r time_tb}
-time_tb %>% 
-  kable(digits = 3, booktabs = T, table.attr = "style = \"color:black;\"") %>%
-  kable_styling(full_width = F) 
-```
-
-
-
-# NHANES data application
-
-We take 60% subjects (N = 5257) for training, 40% (n = 3506) for out-of-sample prediction. When using the full sample The debiase step (mgcv::bam) in fGFPCA took a really a long time, and GLMM adaptive only works for intercept-only model. In the debias step, re-evaluated eigenvalues also lost their decreasing nature. 
-
-
-```{r load_nhanes}
-# df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
-load(here("Data/ApplOutput_fGFPCA.RData"))
-load(here("Data/ApplOutput_GLMMadaptive.RData"))
-
-load(here("Data/Appl_GFOSR_L5.RData"))
-load(here("Data/Appl_GFOSR_L1.RData"))
-
-pred_appl_gfosr_l1 <- pred_appl_gfosr_l1 %>%
-  rename(pred360=pred_w1, pred720=pred_w2, pred1080=pred_w3)
-pred_appl_gfosr_l5 <- pred_appl_gfosr_l5 %>%
-  rename(pred360=pred_w1, pred720=pred_w2, pred1080=pred_w3)
-```
-
-```{r nhance_example, eval=FALSE}
-df_nhanes %>% select(SEQN, Z, sind) %>% 
-  filter(SEQN %in% unique(nhanes_pred_adglmm$id) | SEQN %in% unique(nhanes_pred_fgfpca$id)) %>%
-  mutate(Z = factor(Z, levels = 0:1, labels = c("Inactive", "Active"))) %>%
-  mutate(SEQN = factor(SEQN)) %>%
-  ggplot()+
-  geom_tile(aes(x=sind, y = SEQN, fill = Z))+
-  labs(x="Time", y="Subject", title = "Overview of NHANES binary activity indicator")+
-  theme(axis.text.y = element_blank())+
-  scale_x_continuous(breaks = seq(0, 1440, by = 480),
-                     labels = c("Midnight", "8am", "4pm", "Midnight"))
-```
-
-
-## AUC
-
-```{r}
-# window
-window <- seq(0, 1440, by = 360)
-```
-
-
-```{r auc_appl}
-auc_appl_fgfpca <- pred_nhanes_fgfpca %>% 
-    mutate(window = cut(sind, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred360),
-              auc2 = get_auc(Y, pred720),
-              auc3 = get_auc(Y, pred1080)) %>%
-    filter(window != "[0,360]") %>% 
-    select(starts_with("auc"))
-
-auc_appl_gfosr_l5 <- pred_appl_gfosr_l5 %>% 
-  select(-window) %>%
-    mutate(window = cut(sind, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred360),
-              auc2 = get_auc(Y, pred720),
-              auc3 = get_auc(Y, pred1080)) %>%
-    filter(window != "[0,360]") %>% 
-    select(starts_with("auc"))
-
-auc_appl_gfosr_l1 <- pred_appl_gfosr_l1 %>% 
-  select(-window) %>%
-    mutate(window = cut(sind, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred360),
-              auc2 = get_auc(Y, pred720),
-              auc3 = get_auc(Y, pred1080)) %>%
-    filter(window != "[0,360]") %>% 
-    select(starts_with("auc"))
-
-auc_appl_adglmm <- pred_nhanes_adglmm %>%
-    mutate(window = cut(sind, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred360),
-              auc2 = get_auc(Y, pred720),
-              auc3 = get_auc(Y, pred1080)) %>%
-    filter(window != "[0,360]") %>% 
-    select(starts_with("auc"))
-
-colnames(auc_appl_fgfpca) <- colnames(auc_appl_gfosr_l5) <- colnames(auc_appl_gfosr_l1) <- colnames(auc_appl_adglmm) <- c("6am", "12pm", "6pm")
-```
-
-
-```{r table_appl}
-bind_cols(Window = c("6am-12pm", "12pm-6pm", "6pm-12am"),
-          auc_appl_fgfpca, auc_appl_gfosr_l5, auc_appl_gfosr_l1, auc_appl_adglmm,
-          .name_repair = "minimal") %>%
-  kable(digits = 3, booktabs=T,
-        table.attr="style=\"color:black;\"") %>%
-  kable_styling(full_width = F) %>% 
-  add_header_above(c(" " = 1, "fGFPCA" = 3, "GFOSR (L=5)" = 3, 
-                     "GFOSR (L=1)" = 3, "GLMMadaptive" = 3)) %>%
-  add_header_above(c(" " = 1, "Maximum observation time" = 12)) %>%
-  landscape()
-```
-
-
-## Figure
-
-```{r fig_appl_paper, fig.height=8, fig.width=8}
-# redefine color scale
-cols <- cols[1:3] 
-names(cols) <- c("6am", "12pm", "6pm")
-
-# selct four subjects
-plot_id <- sort(c(68959, 68624, 64198, 80517))
-
-# figure
-bind_rows(
-  pred_nhanes_fgfpca %>% filter(id %in% plot_id) %>% mutate(method="fGFPCA"),
-  pred_appl_gfosr_l5 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=5)"),
-  pred_appl_gfosr_l1 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=1)"),
-  pred_nhanes_adglmm %>% filter(id %in% plot_id) %>% mutate(method = "GLMMadaptive")) %>%
-  mutate_at(vars(pred360, pred720, pred1080), 
-                .funs = function(x){exp(x)/(1+exp(x))}) %>%
-  mutate(method=factor(method, 
-         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=pred360, col = "6am"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=sind, y=pred720, col = "12pm"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=sind, y=pred1080, col = "6pm"), linewidth=1, na.rm=T)+
-  facet_grid(rows = vars(id), cols = vars(method))+
-  labs(col = "Maximum observation time", x = "Time", y="")+
-  scale_x_continuous(breaks = seq(0, 1440, by = 360),
-                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
-  theme(legend.position = "bottom", axis.text.x = element_text(size = 7))+
+  labs(col = "Maximum observation time", x = "Time", y="Coverage rate")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(legend.position = "bottom")+
   scale_color_manual(values = cols)
 ```
-
-```{r fig_appl_pre, fig.height=4, fig.width=8}
-# selct four subjects
-plot_id <- sort(c(64198, 80517))
-
-# figure
-bind_rows(
-  pred_nhanes_fgfpca %>% filter(id %in% plot_id) %>% mutate(method="fGFPCA"),
-  pred_appl_gfosr_l5 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=5)"),
-  pred_appl_gfosr_l1 %>% filter(id %in% plot_id) %>% mutate(method = "GFOSR (L=1)"),
-  pred_nhanes_adglmm %>% filter(id %in% plot_id) %>% mutate(method = "GLMMadaptive")) %>%
-  mutate_at(vars(pred360, pred720, pred1080), 
-                .funs = function(x){exp(x)/(1+exp(x))}) %>%
-  mutate(method=factor(method, 
-         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.2)+
-  geom_line(aes(x=sind, y=pred360, col = "6am"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=sind, y=pred720, col = "12pm"), linewidth=1, na.rm=T)+
-  geom_line(aes(x=sind, y=pred1080, col = "6pm"), linewidth=1, na.rm=T)+
-  facet_grid(rows = vars(id), cols = vars(method))+
-  labs(col = "Maximum observation time", x = "Time", y="")+
-  scale_x_continuous(breaks = seq(0, 1440, by = 360),
-                     labels = c("0am", "6am", "12pm", "6pm", "12am"))+
-  theme(legend.position = "bottom", axis.text.x = element_text(size = 7))+
-  scale_color_manual(values = cols)
-```
-
-The fGFPCA prediction conditional on observation up to 6am looks identical across subjects. This is not due to coding issue. In fact, if we look at individual tracks, out of 3506 subjects there are 1473 unique predicted tracks. There is a high change the selected four subjects all have the same predicted tracks. 
-
-PS number of unique predicted tracks is:
-- 3456 when conditional on 12 pm
-- 3488 when conditional on 6pm
-
-I think this is closedly determined by the variety of observed outcome across individuals. When conditioning on 6am, there are 1475 unique observed tracks; and 3465 and 3488 respectively when obesrved up to 12pm and 6pm. As we see, these numbers are very close to the number of unique prediction tracks in fGFPCA.
-
-I'd note that the four randomly selected subjects from the last report happen to have exactly the same observations from 0-6am. That is why they also have identical prediction after 6am. Therefore, in this report I arbitrarily assigned subjects to be displayed: 62161, . 
-
-In addition: 
-- For GFOSR (L5), number of unique predicted tracks are 31, 32, 32
-- For GFOSR (L1), number of unique predicted tracks are 2, 2, 2
-- For GLMMadaptive, number of unique predicted tracks are 294, 712, 1533. 
-
-```{r, eval=FALSE}
-length(unique(pred_nhanes_adglmm$id))
-pred_nhanes_fgfpca %>%
-  # filter(id %in% rand_id) %>%
-  select(id, sind, Y) %>%
-  filter(sind <=  360) %>%
-  pivot_wider(names_from = sind, values_from = Y, names_prefix = "sind") %>%
-  distinct(., pick(starts_with("sind")), .keep_all = T) %>%
-  select(id) %>%
-  t() %>%
-  sample(., size = 4)
-
-
-  # ggplot(aes(x=sind, y=pred360, col = as.factor(id), group = as.factor(id)))+
-  # geom_line()
-```
-
-
-```{r, eval=FALSE}
-pred_nhanes_fgfpca %>%
-  select(id, sind, pred360) %>%
-  filter(sind>360) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y=pred360, col = as.factor(id)), show.legend = F)
-
-pred_nhanes_fgfpca %>%
-  select(id, sind, pred720) %>%
-  filter(sind>720) %>%
-  ggplot()+
-  geom_line(aes(x=sind, y=pred720, col = as.factor(id)), show.legend = F)
-
-
-```
-
 
