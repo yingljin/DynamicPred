@@ -50,8 +50,13 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 1. How do we report the prediction interval? 
 - Coverage probablity curve? (not doable for data application)
 - Either hard to compare across methods or had to see visually
+- For GOFSR, the prediction interval is very very narrow and pretty much never covers the true latent function. Hw does BAM severely underestimate the standard deviation? 
+- For GLMMadaptive, a quaratic time will take more than 10 minutes. Is it worth it to do that? 
 
 2. After using stan, it seems that ISE increased compared to LaplaceDemon, though still better than the other methods?
 - What is the cause of lower accuracy? Could it have to do with the warnings on small bulk due to sample size? 
+
+3. Prediction time increased if we want the standard deviation estimates
+- about 3 minutes
 
 2. Draft out to the committee

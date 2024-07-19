@@ -1,3 +1,4 @@
+
 # This script implements the full simulation 
 # for dynamic prediction using GLMMadaptive
 # as a completing method 
@@ -50,9 +51,9 @@ N_train <- 500
 N_test <- 100
 
 # containers
-pred_list_ref <- list()
-fit_time_ref <- pred_time_ref <- rep(NA, M)
-
+M <- 5
+pred_list_GLMMad <- list()
+time_GLMMad <- pred_time_ref <- rep(NA, M)
 
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 
@@ -65,65 +66,105 @@ for(m in 1:M){
   
   t1 <- Sys.time()
   # fit GLMM adaptive model: linear time fixed and random effect
-  adglmm <- mixed_model(Y ~ t, random = ~ t | id,
+  adglmm <- mixed_model(Y ~ t + I(t^2), random = ~ t + I(t^2) | id,
                         data =  train_df, family = binomial())
   t2 <- Sys.time()
-  fit_time_ref[m] <- t2-t1 # minutes
   
   # prediction on test set
-  t1 <- Sys.time()
   pred_m <- list(
     predict(adglmm, newdata = test_df %>% filter(t <= 0.2),
             newdata2 =  test_df %>% filter(t>0.2), 
             type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2,
+            se.fit = T, return_newdata = TRUE)$newdata2,
     
     predict(adglmm, newdata = test_df %>% filter(t <= 0.4),
             newdata2 =  test_df %>% filter(t>0.4), 
             type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2,
+            se.fit = T, return_newdata = TRUE)$newdata2,
     
     predict(adglmm, newdata = test_df %>% filter(t <= 0.6),
             newdata2 =  test_df %>% filter(t>0.6), 
             type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2,
+            se.fit = T, return_newdata = TRUE)$newdata2,
     
     predict(adglmm, newdata = test_df %>% filter(t <= 0.8),
             newdata2 =  test_df %>% filter(t>0.8), 
             type = "subject_specific", type_pred = "link",
-            se.fit = FALSE, return_newdata = TRUE)$newdata2
+            se.fit = T, return_newdata = TRUE)$newdata2
   )
   t2 <- Sys.time()
-  pred_time_ref[m] <- t2-t1 # seconds
+  time_GLMMad[m] <- difftime(t2, t1, units = "mins") # minutes
   
   # format
-  pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred)})
-  pred_list_ref[[m]] <- test_df %>% 
+  pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred, low, upp)})
+  pred_list_GLMMad[[m]] <- test_df %>% 
     left_join(pred_m[[1]]) %>% 
-    rename(pred0.2 = pred) %>% 
+    rename(pred0.2 = pred,
+           pred_lb0.2 = low, 
+           pred_ub0.2 = upp) %>% 
     left_join(pred_m[[2]]) %>% 
-    rename(pred0.4 = pred) %>% 
+    rename(pred0.4 = pred,
+           pred_lb0.4 = low, 
+           pred_ub0.4 = upp) %>% 
     left_join(pred_m[[3]]) %>% 
-    rename(pred0.6 = pred) %>% 
+    rename(pred0.6 = pred,
+           pred_lb0.6 = low, 
+           pred_ub0.6 = upp) %>% 
     left_join(pred_m[[4]]) %>% 
-    rename(pred0.8 = pred)
+    rename(pred0.8 = pred,
+           pred_lb0.8 = low, 
+           pred_ub0.8 = upp)
   
   
   setTxtProgressBar(pb, m)
 }
 
 
+#### Check results ####
 
-save(pred_list_ref, fit_time_ref, pred_time_ref, 
-     file = here("Data/SimOutput_GLMMadaptive.RData"))
+rand_id <- sample(test_df$id, 4)
+
+df_exp <- pred_list_GLMMad[[1]] %>% 
+  filter(id %in% rand_id) %>% 
+  mutate_at(vars(eta_i, starts_with("pred")), 
+            function(x){exp(x)/(1+exp(x))})  
+
+df_exp %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.2, ymax = pred_ub0.2,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.4, ymax = pred_ub0.4,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.6, ymax = pred_ub0.6,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.8, ymax = pred_ub0.8,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  facet_grid(rows = vars(id))+
+  guides(alpha = "none", col="none")+
+  labs(title = "GLMMadaptive")
+ggsave(here("Images/IntervalExp1_4.jpeg"), height=12, width = 5)  
+
+#### Save results ####
+save(pred_list_GLMMad, time_GLMMad, 
+     file = here("Data/TrialRun/SimOutput_GLMMadaptive.RData"))
 
 
 #### Calculate ISE ####
 
 # load simulation results
 load(here("Data/SimOutput_GLMMadaptive.RData"))
-mean(fit_time_ref)
-mean(pred_time_ref)
+mean(time_GLMMad)
+
 
 head(pred_list_ref[[1]])
 
@@ -137,8 +178,8 @@ ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
 
 ## calculation
 for(m in 1:M){
-  this_df <- pred_list_ref[[m]]
-  ise_tb <- pred_list_ref[[m]] %>%
+  # this_df <- pred_list_GLMMad[[m]]
+  ise_tb <- pred_list_GLMMad[[m]] %>%
     mutate(err1 = (pred0.2-eta_i)^2,
            err2 = (pred0.4-eta_i)^2,
            err3 = (pred0.6-eta_i)^2,

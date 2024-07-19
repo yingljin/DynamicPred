@@ -38,7 +38,7 @@ rand_id <- sample(N, size = 4)
 sim_data[[357]] %>% filter(id %in% rand_id) %>% 
   ggplot()+
   geom_point(aes(x=t, y=Y))+
-  geom_line(aes(x=t, y=plogis(eta_i)), col = "red")+
+  geom_line(aes(x=t, y=exp(eta_i)/(1+exp(eta_i))), col = "red")+
   #geom_line(aes(x=sind_inx, y=eta_i), col = "blue")+
   facet_wrap(~id)
 
@@ -46,11 +46,12 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 N_train <- 500 # training sample size
 N_test <- 100 # testing sample szie 
 # L <- 5 # number of last observations used as time-fixed predictor
-L <- 1
+L <- 5
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 #### Simulation ####
-t_vec_gfofr <- rep(NA, M)
+M <-5
+time_gfofr <- rep(NA, M)
 pred_list_gfofr <- list()
 
 pb <- txtProgressBar(min=0, max = M, initial = 0, style = 3)
@@ -106,13 +107,21 @@ for(m in 1:M){
       mutate_at(vars(Y, starts_with("yl")), as.factor)
     
     # predict using the FOSR model fit above
-    pred_name <- paste0("pred_w", w)
-    test_df[, pred_name] <- NA
-    test_df[test_df$window>w, pred_name] <- predict(fit_gen_fosr, newdata = df_pred_te, type = "link")
+    ## and prediction interval
+    pred_mw <- predict(fit_gen_fosr, newdata = df_pred_te, 
+                       type = "link",
+                       se.fit = T)
+    pred_int_lb <- pred_mw$fit-qnorm(0.975)*pred_mw$se.fit
+    pred_int_ub <- pred_mw$fit+qnorm(0.975)*pred_mw$se.fit
+    
+    pred_name <- paste0(c("pred", "pred_lb", "pred_ub"), w)
+    test_df[test_df$window>w, pred_name[1]] <- pred_mw$fit
+    test_df[test_df$window>w, pred_name[2]] <- pred_int_lb
+    test_df[test_df$window>w, pred_name[3]] <- pred_int_ub
   }
   t2 <- Sys.time()
   
-  t_vec_gfofr[m] <- t2-t1 # seconds
+  time_gfofr[m] <- difftime(t2, t1, units = "mins")
   pred_list_gfofr[[m]] <- test_df
   
   setTxtProgressBar(pb, m)
@@ -120,7 +129,55 @@ for(m in 1:M){
 
 close(pb)
 
-save(pred_list_gfofr, t_vec_gfofr, file = here("Data/SimOutput_GFOSR_L1.RData"))
+#### Check output ####
+pred_list_gfofr[[1]] %>% filter(t>=0.35) %>% View()
+
+rand_id <- sample(test_df$id, 4)
+
+df_exp <- pred_list_gfofr[[3]] %>% 
+  filter(id %in% rand_id) %>% 
+  mutate_at(vars(eta_i, starts_with("pred")), 
+            function(x){exp(x)/(1+exp(x))})  
+df_exp[df_exp$t<=0.2, c("pred1", "pred_lb1", "pred_ub1")] <- NA
+df_exp[df_exp$t<=0.4, c("pred2", "pred_lb2", "pred_ub2")] <- NA
+df_exp[df_exp$t<=0.6, c("pred3", "pred_lb3", "pred_ub3")] <- NA
+df_exp[df_exp$t<=0.8, c("pred1", "pred_lb4", "pred_ub4")] <- NA
+
+df_exp %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred1, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb1, ymax = pred_ub1,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred2, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb2, ymax = pred_ub2,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred3, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb3, ymax = pred_ub3,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred4, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb4, ymax = pred_ub4,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  facet_grid(rows = vars(id))+
+  guides(alpha = "none", col="none")+
+  labs(title = "GFOSR (L=5)")
+ggsave(here("Images/IntervalExp1_3.jpeg"), height=12, width = 5)  
+
+#### Save results ####
+
+pred_list_gfofr_l5 <- pred_list_gfofr
+time_gfofr_l5 <- time_gfofr
+
+
+save(pred_list_gfofr, time_gfofr, 
+     file = here("Data//TrialRun/SimOutput_GFOSR_L1.RData"))
+save(pred_list_gfofr_l5, time_gfofr_l5, 
+     file = here("Data//TrialRun/SimOutput_GFOSR_L5.RData"))
 
 pred_list_gfofr[[399]] %>%
   filter(t>0.55 & t<0.65)

@@ -6,6 +6,8 @@
 
 set.seed(1114)
 
+# options(mc.cores=parallel::detectCores())
+
 library(here)
 library(tidyverse)
 library(ggpubr)
@@ -68,13 +70,13 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-# M <- 5
+M <- 5
 # M
-pred_list_all <- list()
+pred_list_fGFPCA <- list()
 # score_list_all <- list()
 # sd_list_all <- list()
-converge_state_list <- list()
-fit_time <- pred_time <- rep(NA, M)
+# converge_state_list <- list()
+time_fGFPCA <- rep(NA, M)
 
 
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
@@ -139,8 +141,8 @@ for(m in 1:M){
   new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
   new_phi <- as.matrix(new_phi)
   new_lambda <- new_lambda/n_bin
-  t2 <- Sys.time()
-  fit_time[m] <- t2-t1
+  # t2 <- Sys.time()
+  # fit_time[m] <- difftime(t2, t1, units = "mins")
   
   # Prediction pf test sample using stan
   # container
@@ -151,7 +153,7 @@ for(m in 1:M){
   test_id <- unique(test_df$id)
   tmax_vec <- c(0.2, 0.4, 0.6, 0.8)
   
-  t1 <- Sys.time()
+  # t1 <- Sys.time()
   for(i in seq_along(test_id)){
     
     df_i <- test_df %>% filter(id==test_id[i])
@@ -177,8 +179,8 @@ for(m in 1:M){
         file = here("Code/prediction.stan"),  # Stan program
         data = stanData,    # named list of data
         chains = 2,             # number of Markov chains
-        warmup = 500,          # number of warmup iterations per chain
-        iter = 1000,            # total number of iterations per chain
+        warmup = 1000,          # number of warmup iterations per chain
+        iter = 2000,            # total number of iterations per chain
         cores = 1,              # number of cores (could use one per chain)
         refresh = 0             # no progress shown
       )
@@ -200,11 +202,11 @@ for(m in 1:M){
     
   }
   t2 <- Sys.time()
-  t_pred <- t2-t1 # About 3.5 minutes
-  pred_time[m] <- t2-t1
+  # t_pred <- t2-t1 # About 3.5 minutes
+  time_fGFPCA[m] <- difftime(t2, t1, units = "mins")
   
   # save results
-  pred_list_all[[m]]<- bind_rows(pred_list_m)
+  pred_list_fGFPCA[[m]]<- bind_rows(pred_list_m)
   # converge_state_list[[m]] <- converge_state_m
   
   setTxtProgressBar(pb, m)
@@ -218,21 +220,17 @@ close(pb)
 #### Check output ####
 
 # time 
-mean(fit_time) # average time for model fitting: 45 secs
-head(fit_time, 15)
-mean(pred_time) # average time for prediction: 1.8 min 
-                # 3 minutes if we calculate the variation
-head(pred_time,15)
+time_fGFPCA
 
 
 # prediction
 pred_list_all %>% lapply(dim)
-head(pred_list_all[[137]])
+head(pred_list_all[[3]])
 
 # figure
 rand_id <- sample(test_id, 4)
 
-df_exp <- pred_list_all[[137]] %>% 
+df_exp <- pred_list_fGFPCA[[3]] %>% 
   filter(id %in% rand_id) %>% 
   mutate_at(vars(eta_i, starts_with("pred")), 
             function(x){exp(x)/(1+exp(x))})  
@@ -321,8 +319,8 @@ df_exp %>%
 
 #### Save results ####
 
-save(pred_list_all, fit_time, pred_time,
-     file = here("Data/SimOutput_fGFPCA.RData"))
+save(pred_list_fGFPCA, time_fGFPCA,
+     file = here("Data/TrialRun/SimOutput_fGFPCA.RData"))
 
 #### Calculate ISE ####
 
