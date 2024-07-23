@@ -31,7 +31,6 @@ load(here("Data/sim_data.RData"))
 N <- length(unique(sim_data[[1]]$id))
 J <- length(unique(sim_data[[1]]$t))
 t <- unique(sim_data[[1]]$t)
-M <- length(sim_data)
 K <- 4 # number of eigenfunctions to use
 
 # overview of a few samples
@@ -39,7 +38,7 @@ rand_id <- sample(N, size = 4)
 sim_data[[357]] %>% filter(id %in% rand_id) %>% 
   ggplot()+
   geom_point(aes(x=t, y=Y))+
-  geom_line(aes(x=t, y=plogis(eta_i)), col = "red")+
+  geom_line(aes(x=t, y=exp(eta_i)/(1+exp(eta_i))), col = "red")+
   #geom_line(aes(x=sind_inx, y=eta_i), col = "blue")+
   facet_wrap(~id)
 
@@ -51,7 +50,7 @@ N_train <- 500
 N_test <- 100
 
 # containers
-M <- 5
+M <- length(sim_data)
 pred_list_GLMMad <- list()
 time_GLMMad <- pred_time_ref <- rep(NA, M)
 

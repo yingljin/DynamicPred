@@ -45,7 +45,7 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 - The standard deviation for sure decreased as more data is collected before it
 - 
 
-# 24/7/16
+# 24/7/23
 
 1. How do we report the prediction interval? 
 - Coverage probablity curve? (not doable for data application)
@@ -60,3 +60,11 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 - about 3 minutes
 
 2. Draft out to the committee
+
+
+# 24/7/23
+1. Do stan, but using true eigenfunctions eigenvalues and mean function, see if it reaches nominal coverage. If it does, than probably we failed to account for prior variation. If not, if may be the posterior distribution is not Gaussian.
+2. Check bias of prediction
+3. motivation example
+- add some transparency to the black dots
+- use discrete axis ticks on the left, and continous red axis on the right

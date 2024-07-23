@@ -414,7 +414,7 @@ mean_auc <- data.frame(mean_auc) %>%
 colnames(mean_auc) <- c("Window", "0.2", "0.4", "0.6", "0.8")
 mean_auc
 
-## prediction interval
+#### prediction interval ####
 ## Maybe start with if the prediction interval covers the truth?
 
 list_cover <- list()
