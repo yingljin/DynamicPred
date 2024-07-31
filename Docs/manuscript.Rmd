@@ -224,6 +224,7 @@ pred_list_fGFPCA <- lapply(pred_list_fGFPCA,
 
 
 
+pred_list_GLMMad <- pred_list_GLMMad[1:5]
 pred_list_GLMMad <- lapply(pred_list_GLMMad, function(x){
   colnames(x) <- name_vec
   return(x)

@@ -24,7 +24,6 @@ library(splines)
 library(rstan)
 theme_set(theme_minimal())
 
-my_logis <- function(x){exp(x)/(1+exp(x))}
 
 #### load simulated data ####
 
@@ -41,7 +40,7 @@ rand_id <- sample(N, size = 4)
 sim_data[[357]] %>% filter(id %in% rand_id) %>% 
   ggplot()+
   geom_point(aes(x=t, y=Y))+
-  geom_line(aes(x=t, y=my_logis(eta_i)), col = "red")+
+  geom_line(aes(x=t, y=exp(eta_i)/(1+exp(eta_i))), col = "red")+
   #geom_line(aes(x=sind_inx, y=eta_i), col = "blue")+
   facet_wrap(~id)
 
@@ -186,16 +185,22 @@ for(m in 1:M){
       )
       
       scores_tmax <- summary(fit)$summary[1:K, "mean"]
-      sd_scores_tmax <- summary(fit)$summary[1:K, "sd"]
+      # sd_scores_tmax <- summary(fit)$summary[1:K, "sd"]
+      qt_score_tmax <- summary(fit)$summary[1:K, c("2.5%", "97.5%")]
       
       # latent function predictions
       eta_pred_out <- new_mu+new_phi%*%scores_tmax
       df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
       
       # prediction interval
-      sd_eta <- sqrt((new_phi^2) %*% sd_scores_tmax^2)
-      df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(eta_pred_out[, 1]-qnorm(0.975)*sd_eta)
-      df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(eta_pred_out[, 1]+qnorm(0.975)*sd_eta)
+      # sd_eta <- sqrt((new_phi^2) %*% sd_scores_tmax^2)
+      # df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(eta_pred_out[, 1]-qnorm(0.975)*sd_eta)
+      # df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(eta_pred_out[, 1]+qnorm(0.975)*sd_eta)
+      # 
+      # quantile interval
+      df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(new_mu+new_phi%*%qt_score_tmax[, 1])
+      df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(new_mu+new_phi%*%qt_score_tmax[, 2])
+      
     }
     
    pred_list_m[[i]] <- df_i
@@ -224,20 +229,22 @@ time_fGFPCA
 
 
 # prediction
-pred_list_all %>% lapply(dim)
-head(pred_list_all[[3]])
 
 # figure
 rand_id <- sample(test_id, 4)
 
-df_exp <- pred_list_fGFPCA[[3]] %>% 
-  filter(id %in% rand_id) %>% 
+df_exp <- pred_list_fGFPCA[[3]] %>%
+  filter(id %in% rand_id) %>%
   mutate_at(vars(eta_i, starts_with("pred")), 
             function(x){exp(x)/(1+exp(x))})  
-df_exp[df_exp$t<=0.2, c("pred0.2", "pred0.2_lb", "pred0.2_ub")] <- NA
-df_exp[df_exp$t<=0.4, c("pred0.4", "pred0.4_lb", "pred0.4_ub")] <- NA
-df_exp[df_exp$t<=0.6, c("pred0.6", "pred0.6_lb", "pred0.6_ub")] <- NA
-df_exp[df_exp$t<=0.8, c("pred0.8", "pred0.8_lb", "pred0.8_ub")] <- NA
+df_exp[df_exp$t<=0.2, c("pred0.2", "pred0.2_lb", "pred0.2_ub",
+                        "pred0.2_qlb", "pred0.2_qub")] <- NA
+df_exp[df_exp$t<=0.4, c("pred0.4", "pred0.4_lb", "pred0.4_ub",
+                        "pred0.4_qlb", "pred0.4_qub")] <- NA
+df_exp[df_exp$t<=0.6, c("pred0.6", "pred0.6_lb", "pred0.6_ub",
+                        "pred0.6_qlb", "pred0.6_qub")] <- NA
+df_exp[df_exp$t<=0.8, c("pred0.8", "pred0.8_lb", "pred0.8_ub",
+                        "pred0.8_qlb", "pred0.8_qub")] <- NA
 
 df_exp %>%
   ggplot()+
@@ -257,6 +264,29 @@ df_exp %>%
               linetype="dashed")+
   geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.8_lb, ymax = pred0.8_ub,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  facet_grid(rows = vars(id))+
+  guides(alpha = "none", col="none")
+
+df_exp %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.2_qlb, ymax = pred0.2_qub,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.4_qlb, ymax = pred0.4_qub,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.6_qlb, ymax = pred0.6_qub,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.8_qlb, ymax = pred0.8_qub,
                   col = "0.8", fill = "0.8", alpha = 0.1),
               linetype="dashed")+
   facet_grid(rows = vars(id))+
@@ -314,7 +344,7 @@ df_exp %>%
   geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm=T, linewidth = 1.0)+
   geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm=T, linewidth = 1.0)+
   geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm=T, linewidth = 1.0)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm=T, linewidth = 1.0)
 
 
 #### Save results ####

@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Ying Jin" />
+
+<meta name="date" content="2024-07-31" />
+
+<title>Manuscript progress report</title>
+
+<script src="manuscript_files/header-attrs-2.26/header-attrs.js"></script>
+<script src="manuscript_files/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="manuscript_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="manuscript_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="manuscript_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="manuscript_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="manuscript_files/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="manuscript_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="manuscript_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="manuscript_files/navigation-1.1/tabsets.js"></script>
+<script src="manuscript_files/navigation-1.1/codefolding.js"></script>
+<link href="manuscript_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="manuscript_files/highlightjs-9.12.0/highlight.js"></script>
+<script src="manuscript_files/kePrint-0.0.1/kePrint.js"></script>
+<link href="manuscript_files/lightable-0.0.1/lightable.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div id="header">
+
+<div class="btn-group pull-right float-right">
+<button type="button" class="btn btn-default btn-xs btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu dropdown-menu-right" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">Manuscript progress report</h1>
+<h4 class="author">Ying Jin</h4>
+<h4 class="date">2024-07-31</h4>
+
+</div>
+
+
+<div id="method" class="section level1" number="1">
+<h1><span class="header-section-number">1</span> Method</h1>
+<div id="assumptions" class="section level2" number="1.1">
+<h2><span class="header-section-number">1.1</span> Assumptions</h2>
+<ul>
+<li>For each subject i in the population, a generalized outcome <span
+class="math inline">\(Y_i(t)\)</span> is generated along a variable t
+(for example, time), where <span class="math inline">\(t \in (0,
+T)\)</span>.</li>
+<li>The outcome, at any specific t, follows an exponential family
+distribution characterized by a (latent) continuous function <span
+class="math inline">\(\eta_i(t)\)</span>:</li>
+</ul>
+<p><span class="math display">\[g[E(Y_i(t))] = \eta_i(t) =
+\beta_0(t)+b_i(t)\]</span></p>
+<p><span class="math display">\[p(Y_i(t)) =
+h(Y_i(t))exp\{\eta_i(t)T[Y_i(t)]-A(\eta_i(t))\}\]</span></p>
+<ul>
+<li>The continuous latent function consists of a population-level fixed
+process and an individual-level random process</li>
+</ul>
+<p><span class="math display">\[\eta_i(t) =
+\beta_0(t)+b_i(t)\]</span></p>
+</div>
+<div id="observed-data" class="section level2" number="1.2">
+<h2><span class="header-section-number">1.2</span> Observed data</h2>
+<p>In practice we would observe the discrete realization of <span
+class="math inline">\(\{Y_i(t), t\}\)</span> along a dense grid. For
+simplicity, we assume the observation grid is regular (same across
+sample). When we have J observations points in <span
+class="math inline">\((0, T]\)</span>, then for the jth observation
+point, we denote the corresponding value of t as <span
+class="math inline">\(t_j\)</span>, and the corresponding outcome at
+this point <span class="math inline">\(Y_i(t_j)\)</span>.</p>
+</div>
+<div id="fgfpca-algorithm" class="section level2" number="1.3">
+<h2><span class="header-section-number">1.3</span> fGFPCA Algorithm</h2>
+<div id="bin-data" class="section level3" number="1.3.1">
+<h3><span class="header-section-number">1.3.1</span> Bin data:</h3>
+<p>Choose a proper bin width <span class="math inline">\(w\)</span>
+considering model complexity and identifiability. For now let’s say the
+bins are equal-length and non-overlapping.</p>
+<ul>
+<li>Bin index <span class="math inline">\(s = 1...S\)</span></li>
+<li>Index of bin midpoints <span class="math inline">\(m_s\)</span></li>
+<li>Value of t corresponding to bin midpoints <span
+class="math inline">\(t_{m_s}\)</span></li>
+<li>Bin endpoints: <span class="math inline">\((t_{m_s}-\frac{w}{2},
+t_{m_s}+\frac{w}{2}]\)</span></li>
+</ul>
+</div>
+<div id="local-glmms" class="section level3" number="1.3.2">
+<h3><span class="header-section-number">1.3.2</span> Local GLMMs</h3>
+<p>At the every bin, we fit a local intercept-only model:</p>
+<p><span class="math display">\[g[E(Y_i(t_j))] =\eta_i(t_{m_s})=
+\beta_0(t_{m_s})+b_i(t_{m_s})\]</span> where <span
+class="math inline">\(t_j \in (t_{m_s}-\frac{w}{2},
+t_{m_s}+\frac{w}{2}]\)</span>.</p>
+<p>Here we are basically saying that the value of latent function is
+constant within the same bin, which clearly is a misspecification of the
+true latent process.</p>
+<p>From the model above. we will be able to estimate a <span
+class="math inline">\(\hat{\eta_i}(t_{m_s})\)</span> on the binned grid
+for every individual in the training sample.</p>
+</div>
+<div id="fpca" class="section level3" number="1.3.3">
+<h3><span class="header-section-number">1.3.3</span> FPCA</h3>
+<p>Here, we fit a FPCA model on the <span
+class="math inline">\(\hat{\eta_i}(t_{m_s})\)</span> obtained from step
+2:</p>
+<p><span class="math display">\[\hat{\eta}_i(t_{m_s}) =
+f_0(t_{m_s})+\sum_{k=1}^K\xi_{ik}\phi_{k}(t_{m_s})+\epsilon_i(t_{m_s})\]</span></p>
+<p>where <span class="math inline">\(\xi_{ik}\)</span> independently
+follows normal distribution <span class="math inline">\(N(0,
+\lambda_k)\)</span>, and <span
+class="math inline">\(\epsilon_i(t_{m_s})\)</span> at each point follows
+<span class="math inline">\(N(0, \sigma_2)\)</span>.</p>
+<p>From this model, we will be able to obtain the following estimates
+which are shared across population:</p>
+<ul>
+<li>Population mean <span
+class="math inline">\(\hat{f_0}(t_{m_s})\)</span></li>
+<li>Basis functions <span class="math inline">\(\hat{\mathbf{\Phi}} =
+\{\hat{\phi}_1(t_{m_s}), ...,\hat{\phi}_K(t_{m_s}))\}\)</span></li>
+<li>Estimates of variance of scores <span
+class="math inline">\(\hat{\lambda}_1...\hat{\lambda}_K\)</span></li>
+</ul>
+</div>
+<div id="projection-and-debias" class="section level3" number="1.3.4">
+<h3><span class="header-section-number">1.3.4</span> Projection and
+Debias</h3>
+<p>The mean and basis functions are evaluated on the binned grid. To
+extend it to the original measurement grid data was collected on, we
+project the estimated eigenfunctions <span
+class="math inline">\(\hat{\mathbf{\Phi}}\)</span> back use spline
+basis. Now we have extend the <span
+class="math inline">\(\hat{\phi}_k(t_{m_s})\)</span> to the original
+grid <span class="math inline">\(\hat{\phi}_k(t_j)\)</span></p>
+<p>Because of the misspecification of local GLMMs, the estimated
+eigenfunctions and eigenvalues are also biased by a constant
+multiplicative effect. Therefore, we use a GLMM to re-evaluate the mean
+function, eigenfunctions and eigenvalues.</p>
+</div>
+</div>
+<div id="out-of-sample-prediction" class="section level2" number="1.4">
+<h2><span class="header-section-number">1.4</span> Out-of-sample
+prediction</h2>
+<p>Now, let’s assume we have a new subject <span
+class="math inline">\(u\)</span> with <span
+class="math inline">\(J_u\)</span> observations (<span
+class="math inline">\(J_u &lt; J\)</span>). Then the log-likelihood of
+this new subject would be:</p>
+<p><span
+class="math display">\[l_u=\sum_{t_j&lt;t_{J_u}}log(h(Y_u(t_j)))+\hat{\eta}_u(t_j)T(Y_u(t_j))-log(A[\hat{\eta}_u(t_j)])\]</span></p>
+<p>where <span class="math inline">\(\hat{\eta}_u(t_j) =
+\hat{f}_0(t_j)+\sum_{k=1}^K \xi_{uk}\hat{\phi}(t_j)\)</span>.</p>
+<p>With estimates for the population-level parameters from fGFPCA
+algorithms above, we can estimate <span
+class="math inline">\(\xi_{uk}\)</span> by maximization of <span
+class="math inline">\(l_u\)</span>. Direct maximization some times does
+not have closed form solution. Numeric maximization methods seem not
+very stable as well. So I have decided to used a Bayes approach (Laplace
+Approximation):</p>
+<ul>
+<li>Prior distribution: <span class="math inline">\(\xi_{uk} \sim N(0,
+\hat{\lambda}_k)\)</span></li>
+<li>Posterior distribution: the likelihood of <span
+class="math inline">\(l_u =l(Y_u(t_j)|\mathbf{\xi}_u)\)</span></li>
+</ul>
+<p>Laplace Approximation would get the posterior mode of <span
+class="math inline">\(\xi_{uk}\)</span> through quadratic
+approximation.</p>
+</div>
+</div>
+<div id="reference-method" class="section level1" number="2">
+<h1><span class="header-section-number">2</span> Reference method</h1>
+<div id="glmmadaptive" class="section level2" number="2.1">
+<h2><span class="header-section-number">2.1</span> GLMMadaptive</h2>
+<ul>
+<li>For large datasets, we can fit a model with random intercept and
+slope for time. It is doable on 500 datasets, but obviously too simple
+for the data generation scheme. We would expect it to perform
+terribly.</li>
+</ul>
+<p><span class="math display">\[g(E(Y_i(t))) =
+\beta_0+\beta_1t+b_{i0}+b_{i1}t\]</span></p>
+<ul>
+<li>For small datasets, we would like to fit fGFPCA and GLMMadaptive on
+a dataset with smaller sample size and/or smaller measurement density.
+For the GLMMadaptive model, we would set it up with spline basis
+functions so that its flexibility is comparable with fGFPCA model, such
+as:</li>
+</ul>
+<p><span class="math display">\[g(E(Y_i(t))) =
+\sum_{k=1}^4\zeta_{k}B_k(t)+\sum_{l=1}^4\xi_{il}\phi_l(t)\]</span></p>
+</div>
+<div id="generalized-functional-on-scalar-regression"
+class="section level2" number="2.2">
+<h2><span class="header-section-number">2.2</span> Generalized
+functional-on-scalar regression</h2>
+<p>We would like to use a second reference method for predictive
+performance comparision. In this model, predictions on a specific
+interval are all made using the last few observations in the observed
+window. For example, if we are given observations on [0, 0.2] (j =
+1…200), we may use L observations taken right before t=0.2 (<span
+class="math inline">\(t_j: j=200, ... 200-(L-1)\)</span>) as time-fixed
+covariate to predict any future time.</p>
+<p>Let’s write out the model expression (with questionable notation). If
+the observations if up to <span class="math inline">\(t_m\)</span>,
+then:</p>
+<p><span class="math display">\[\begin{aligned}
+g(E[Y_i(t)]) &amp;= \beta_0(t) +\sum_{l=1}^L \beta_l (t)Y_i(t_l)\\
+l &amp; = m,...m-(j-1)\\
+t &amp;&gt; t_m
+\end{aligned}\]</span></p>
+<p>This is a simple function-on-scalar model with no random effect,
+meaning all subject with the same last observed outcome would have the
+same estimated/predicted latent track. This is clearly anti-intuitive.
+But adding random effects would make out-of-sample prediction
+impossible.</p>
+<p>Under both frameworks, for each dataset we need to fit four models
+(similar to the GLMMadaptive method):</p>
+<ul>
+<li>Given 0-0.2, predict 0.2-1</li>
+<li>Given 0-0.4, predict 0.4-1</li>
+<li>Given 0-0.6, predict 0.6-1</li>
+<li>Given 0-0.8, predict 0.8-1</li>
+</ul>
+<p>But prediction performance will be reported by equal-length time
+window.</p>
+</div>
+</div>
+<div id="larger-scale-simulation" class="section level1" number="3">
+<h1><span class="header-section-number">3</span> Larger-scale
+simulation</h1>
+<div id="simulation-set-up" class="section level2" number="3.1">
+<h2><span class="header-section-number">3.1</span> Simulation set
+up</h2>
+<p>Here we simulate binary data from cyclic latent process:</p>
+<p><span class="math display">\[\begin{aligned}
+Y_i(t) &amp; \sim Bernoulli(\frac{exp(\eta_i(t))}{1+exp(\eta_i(t))}) \\
+\eta_i(t) &amp;= f_0(t)+ \xi_{i1}\sqrt{2}sin(2\pi
+t)+\xi_{i2}\sqrt{2}cos(2\pi t)+\xi_{i3}\sqrt{2}sin(4\pi
+t)+\xi_{i4}\sqrt{2}cos(4\pi t)
+\end{aligned}\]</span></p>
+<p>where:</p>
+<ul>
+<li><span class="math inline">\(t\)</span> is 1000 equal-spaced
+observations points on <span class="math inline">\([0, 1]\)</span> (J =
+1000).</li>
+<li><span class="math inline">\(f_0(t)=0\)</span></li>
+<li><span class="math inline">\(\xi_k \sim N(0, \lambda_k)\)</span>, and
+<span class="math inline">\(\lambda_k = 1, 0.5, 0.25, 0.125\)</span> for
+k = 1, 2, 3, 4 respectively.</li>
+<li>Sample size <span class="math inline">\(N = 500\)</span></li>
+<li>In the binning step, we bin every 10 observations</li>
+<li>500 simulations were implemented</li>
+</ul>
+</div>
+<div id="figures" class="section level2" number="3.2">
+<h2><span class="header-section-number">3.2</span> Figures</h2>
+<pre class="r"><code>load(here(&quot;Data/TrialRun/SimOutput_fGFPCA.RData&quot;))
+load(here(&quot;Data/TrialRun/SimOutput_GLMMadaptive.RData&quot;))
+load(here(&quot;Data/TrialRun/SimOutput_GFOSR_L1.RData&quot;))
+load(here(&quot;Data/TrialRun/SimOutput_GFOSR_L5.RData&quot;))
+
+rand_id &lt;- sample(501:600, size = 4)</code></pre>
+<pre class="r"><code>pred_list_fGFPCA &lt;- lapply(pred_list_fGFPCA, function(x){x %&gt;% select(-bin)})
+name_vec &lt;- colnames(pred_list_fGFPCA[[1]])
+pred_list_fGFPCA &lt;- lapply(pred_list_fGFPCA, 
+                           function(x){
+                      x[x$t&lt;=0.2, c(&quot;pred0.2&quot;, &quot;pred0.2_lb&quot;, &quot;pred0.2_ub&quot;)] &lt;- NA
+                      x[x$t&lt;=0.4, c(&quot;pred0.4&quot;, &quot;pred0.4_lb&quot;, &quot;pred0.4_ub&quot;)] &lt;- NA
+                      x[x$t&lt;=0.6, c(&quot;pred0.6&quot;, &quot;pred0.6_lb&quot;, &quot;pred0.6_ub&quot;)] &lt;- NA
+                      x[x$t&lt;=0.8, c(&quot;pred0.8&quot;, &quot;pred0.8_lb&quot;, &quot;pred0.8_ub&quot;)] &lt;- NA
+                      return(x)    
+                       })
+
+
+
+pred_list_GLMMad &lt;- pred_list_GLMMad[1:5]
+pred_list_GLMMad &lt;- lapply(pred_list_GLMMad, function(x){
+  colnames(x) &lt;- name_vec
+  return(x)
+})
+
+pred_list_gfofr &lt;- lapply(pred_list_gfofr, function(x){
+  x &lt;- x %&gt;% select(-window)
+  colnames(x) &lt;- name_vec
+  return(x)
+})
+
+pred_list_gfofr_l5 &lt;- lapply(pred_list_gfofr_l5, function(x){
+  x &lt;- x %&gt;% select(-window)
+  colnames(x) &lt;- name_vec
+  return(x)
+})</code></pre>
+<pre class="r"><code>bind_rows(
+  pred_list_fGFPCA[[1]] %&gt;% filter(id %in% rand_id) %&gt;% 
+    mutate(method=&quot;fGFPCA&quot;),
+  pred_list_GLMMad[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GLMMadaptive&quot;),
+  pred_list_gfofr[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GFOSR (L=1)&quot;),
+  pred_list_gfofr_l5[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GFOSR (L=5)&quot;) 
+) %&gt;% 
+  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.2_lb, ymax = pred0.2_ub,
+                  col = &quot;0.2&quot;, fill = &quot;0.2&quot;, alpha = 0.1),
+              linetype=&quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.4_lb, ymax = pred0.4_ub,
+                  col = &quot;0.4&quot;, fill = &quot;0.4&quot;, alpha = 0.1),
+              linetype=&quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.6_lb, ymax = pred0.6_ub,
+                  col = &quot;0.6&quot;, fill = &quot;0.6&quot;, alpha = 0.1),
+              linetype=&quot;dashed&quot;)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred0.8_lb, ymax = pred0.8_ub,
+                  col = &quot;0.8&quot;, fill = &quot;0.8&quot;, alpha = 0.1),
+              linetype=&quot;dashed&quot;)+
+  guides(alpha = &quot;none&quot;, col=&quot;none&quot;)+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/large_sim_plot-1.png" width="768" /></p>
+</div>
+<div id="preformance" class="section level2" number="3.3">
+<h2><span class="header-section-number">3.3</span> Preformance</h2>
+<p>Please note that here, the GLMM has a <strong>square</strong> time
+for both fixed effect and random effect.</p>
+<div id="time-minutes" class="section level3" number="3.3.1">
+<h3><span class="header-section-number">3.3.1</span> Time (minutes)</h3>
+<pre class="r"><code>data.frame(Method = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;), 
+           Time = c(mean(time_fGFPCA),
+                    mean(time_gfofr_l5),
+                    mean(time_gfofr),
+                    mean(time_GLMMad))) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
+  kable_styling(full_width = F)</code></pre>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Method
+</th>
+<th style="text-align:right;">
+Time
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+fGFPCA
+</td>
+<td style="text-align:right;">
+5.192
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GFOSR (L=5)
+</td>
+<td style="text-align:right;">
+0.030
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GFOSR (L=1)
+</td>
+<td style="text-align:right;">
+0.028
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GLMMadaptive
+</td>
+<td style="text-align:right;">
+2.980
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="ise" class="section level3" number="3.3.2">
+<h3><span class="header-section-number">3.3.2</span> ISE</h3>
+<pre class="r"><code>cbind(calc_ISE(pred_list_fGFPCA, window),
+      calc_ISE(pred_list_gfofr, window),
+      calc_ISE(pred_list_gfofr_l5, window),
+      calc_ISE(pred_list_GLMMad, window)) %&gt;%
+  data.frame(window = c(&quot;[0, 0.2]&quot;, &quot;(0,2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
+                    &quot;(0.6, 0.8]&quot;,&quot;(0.8, 1]&quot;),
+             ., 
+             check.names = F) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 4, &quot;GFOSR (L=5)&quot; = 4, 
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 16)) %&gt;%
+  landscape()</code></pre>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="16">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Maximum observation time
+</div>
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+fGFPCA
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=5)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=1)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GLMMadaptive
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+window
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+[0, 0.2]
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0,2, 0.4]
+</td>
+<td style="text-align:right;">
+178.082
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+374.394
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+374.645
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+413.011
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+228.905
+</td>
+<td style="text-align:right;">
+118.286
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+314.109
+</td>
+<td style="text-align:right;">
+287.260
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+314.891
+</td>
+<td style="text-align:right;">
+287.805
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+324.998
+</td>
+<td style="text-align:right;">
+299.396
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+275.979
+</td>
+<td style="text-align:right;">
+80.120
+</td>
+<td style="text-align:right;">
+28.495
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+382.277
+</td>
+<td style="text-align:right;">
+406.546
+</td>
+<td style="text-align:right;">
+385.733
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+378.012
+</td>
+<td style="text-align:right;">
+407.618
+</td>
+<td style="text-align:right;">
+382.618
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+322.210
+</td>
+<td style="text-align:right;">
+287.527
+</td>
+<td style="text-align:right;">
+287.768
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.8, 1]
+</td>
+<td style="text-align:right;">
+124.762
+</td>
+<td style="text-align:right;">
+105.689
+</td>
+<td style="text-align:right;">
+26.314
+</td>
+<td style="text-align:right;">
+15.772
+</td>
+<td style="text-align:right;">
+334.577
+</td>
+<td style="text-align:right;">
+346.989
+</td>
+<td style="text-align:right;">
+353.747
+</td>
+<td style="text-align:right;">
+350.626
+</td>
+<td style="text-align:right;">
+335.239
+</td>
+<td style="text-align:right;">
+342.321
+</td>
+<td style="text-align:right;">
+355.273
+</td>
+<td style="text-align:right;">
+350.136
+</td>
+<td style="text-align:right;">
+607.647
+</td>
+<td style="text-align:right;">
+509.109
+</td>
+<td style="text-align:right;">
+641.272
+</td>
+<td style="text-align:right;">
+621.421
+</td>
+</tr>
+</tbody>
+</table>
+<p>It looks like the predictive performance can be seriously worse if
+the prediction window is far from the observation window.</p>
+</div>
+<div id="auc" class="section level3" number="3.3.3">
+<h3><span class="header-section-number">3.3.3</span> AUC</h3>
+<pre class="r"><code>cbind(calc_AUC(pred_list_fGFPCA, window),
+      calc_AUC(pred_list_gfofr, window),
+      calc_AUC(pred_list_gfofr_l5, window),
+      calc_AUC(pred_list_GLMMad, window)) %&gt;%
+  data.frame(window = c(&quot;[0, 0.2]&quot;, &quot;(0,2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
+                    &quot;(0.6, 0.8]&quot;,&quot;(0.8, 1]&quot;),
+             ., 
+             check.names = F) %&gt;%
+  kable(digits = 3, booktabs=T,
+        table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
+  kable_styling(full_width = F) %&gt;% 
+  add_header_above(c(&quot; &quot; = 1, &quot;fGFPCA&quot; = 4, &quot;GFOSR (L=5)&quot; = 4, 
+                     &quot;GFOSR (L=1)&quot; = 4, &quot;GLMMadaptive&quot; = 4)) %&gt;%
+  add_header_above(c(&quot; &quot; = 1, &quot;Maximum observation time&quot; = 16)) %&gt;%
+  landscape()</code></pre>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="16">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Maximum observation time
+</div>
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+fGFPCA
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=5)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GFOSR (L=1)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+GLMMadaptive
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+window
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+<th style="text-align:right;">
+0.2
+</th>
+<th style="text-align:right;">
+0.4
+</th>
+<th style="text-align:right;">
+0.6
+</th>
+<th style="text-align:right;">
+0.8
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+[0, 0.2]
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0,2, 0.4]
+</td>
+<td style="text-align:right;">
+0.747
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.628
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.630
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.587
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.4, 0.6]
+</td>
+<td style="text-align:right;">
+0.657
+</td>
+<td style="text-align:right;">
+0.721
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.550
+</td>
+<td style="text-align:right;">
+0.600
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.549
+</td>
+<td style="text-align:right;">
+0.593
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.518
+</td>
+<td style="text-align:right;">
+0.597
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.6, 0.8]
+</td>
+<td style="text-align:right;">
+0.699
+</td>
+<td style="text-align:right;">
+0.777
+</td>
+<td style="text-align:right;">
+0.799
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.602
+</td>
+<td style="text-align:right;">
+0.579
+</td>
+<td style="text-align:right;">
+0.621
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.606
+</td>
+<td style="text-align:right;">
+0.573
+</td>
+<td style="text-align:right;">
+0.621
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.663
+</td>
+<td style="text-align:right;">
+0.689
+</td>
+<td style="text-align:right;">
+0.678
+</td>
+<td style="text-align:right;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+(0.8, 1]
+</td>
+<td style="text-align:right;">
+0.735
+</td>
+<td style="text-align:right;">
+0.744
+</td>
+<td style="text-align:right;">
+0.780
+</td>
+<td style="text-align:right;">
+0.784
+</td>
+<td style="text-align:right;">
+0.587
+</td>
+<td style="text-align:right;">
+0.575
+</td>
+<td style="text-align:right;">
+0.544
+</td>
+<td style="text-align:right;">
+0.553
+</td>
+<td style="text-align:right;">
+0.579
+</td>
+<td style="text-align:right;">
+0.570
+</td>
+<td style="text-align:right;">
+0.547
+</td>
+<td style="text-align:right;">
+0.557
+</td>
+<td style="text-align:right;">
+0.496
+</td>
+<td style="text-align:right;">
+0.540
+</td>
+<td style="text-align:right;">
+0.512
+</td>
+<td style="text-align:right;">
+0.558
+</td>
+</tr>
+</tbody>
+</table>
+<p>It seems that the GFOSR models, while are the fastest, also performs
+the worst in AUC.</p>
+</div>
+<div id="prediction-interval" class="section level3" number="3.3.4">
+<h3><span class="header-section-number">3.3.4</span> Prediction
+interval</h3>
+<p>Not sure how to display. Maybe start with if the prediction interval
+covers the truth? That is, coverage rate at each time point, averaged
+over all simulation and subjects?</p>
+<pre class="r"><code>bind_rows(calc_predint_cover(pred_list_fGFPCA) %&gt;% mutate(method = &quot;fGFPCA&quot;),
+          calc_predint_cover(pred_list_gfofr_l5) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;),
+          calc_predint_cover(pred_list_gfofr) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;),
+          calc_predint_cover(pred_list_GLMMad) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
+  ggplot()+
+  geom_line(aes(x=t, y=cover0.2, col = &quot;0.2&quot;), na.rm = T)+
+  geom_line(aes(x=t, y=cover0.4, col = &quot;0.4&quot;), na.rm = T)+
+  geom_line(aes(x=t, y=cover0.6, col = &quot;0.6&quot;), na.rm = T)+
+  geom_line(aes(x=t, y=cover0.8, col = &quot;0.8&quot;), na.rm = T)+
+  facet_grid(cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;Coverage rate&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/unnamed-chunk-4-1.png" width="1536" /></p>
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
