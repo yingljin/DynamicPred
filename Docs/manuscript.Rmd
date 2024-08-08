@@ -289,6 +289,41 @@ bind_rows(
   scale_color_manual(values = cols)
 ```
 
+
+For the fGFPCA method, which interval should we use? Sampling quantile would cross zero and the coverage rate seems to fluctuate a lot. 
+
+## A closer look at confidence/credible interval
+
+Since using the true parameters did not change the results, I don't think ignoring prior variance made a huge difference. If we plot the variance of mean (from global bam) or the variance of estimated $\eta$, the trend would in fact be roughly cyclic. 
+
+I am not sure how to take into account the prior variation. As below:
+
+$$Var(\hat{\eta}(t)) = Var(\hat{\mu}_0(t)+
+\sum_k \hat{\phi}_k(t)
+\hat{\xi}_k)$$
+
+$$
+\begin{aligned}
+Var(\hat{\eta}(t) | \hat{\mu}_0(t), \hat{\lambda}_k, \hat{\phi}_k(t)) & = Var(\hat{\mu}_0(t))+
+Var(\sum_k \hat{\phi}_k(t)
+\hat{\xi}_k)\\
+
+& = Var(\hat{\mu}_0(t))+ \sum_k \hat{\phi}_k^2(t)
+\hat{\lambda}_k
+\end{aligned}
+$$
+
+Not sure why we need to take into account the variation of mean function (from global BAM).
+
+If we want to get rid of the conditions (let's for now assume the terms are independent):
+
+$$Var(\hat{\eta}(t))  = Var(\hat{\mu}_0(t))+
+Var(\sum_k \hat{\phi}_k(t)
+\hat{\xi}_k)$$
+
+The second term would be difficult to calculate. Is the estimated mean and variance of basis functions available? 
+
+
 ## Preformance
 
 Please note that here, the GLMM has a **square** time for both fixed effect and random effect.

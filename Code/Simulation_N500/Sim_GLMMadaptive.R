@@ -50,7 +50,8 @@ N_train <- 500
 N_test <- 100
 
 # containers
-M <- length(sim_data)
+# M <- length(sim_data)
+M <- 5
 pred_list_GLMMad <- list()
 time_GLMMad <- pred_time_ref <- rep(NA, M)
 
@@ -65,7 +66,7 @@ for(m in 1:M){
   
   t1 <- Sys.time()
   # fit GLMM adaptive model: linear time fixed and random effect
-  adglmm <- mixed_model(Y ~ t + I(t^2), random = ~ t + I(t^2) | id,
+  adglmm <- mixed_model(Y ~ t, random = ~ t | id,
                         data =  train_df, family = binomial())
   t2 <- Sys.time()
   

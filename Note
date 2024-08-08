@@ -66,6 +66,7 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 1. Do stan, but using true eigenfunctions eigenvalues and mean function, see if it reaches nominal coverage. If it does, than probably we failed to account for prior variation. If not, if may be the posterior distribution is not Gaussian.
 
 - used truth. No fanning out. No improvement in coverage rate
+- the sampling quantiles: fans out, crosses at zero too. 
 
 2. Check bias of prediction
 
