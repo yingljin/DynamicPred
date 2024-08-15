@@ -184,22 +184,27 @@ for(m in 1:M){
         refresh = 0             # no progress shown
       )
       
+      # point prediction
       scores_tmax <- summary(fit)$summary[1:K, "mean"]
-      # sd_scores_tmax <- summary(fit)$summary[1:K, "sd"]
-      qt_score_tmax <- summary(fit)$summary[1:K, c("2.5%", "97.5%")]
-      
-      # latent function predictions
       eta_pred_out <- new_mu+new_phi%*%scores_tmax
       df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
       
-      # prediction interval
+      # prediction interval using sampling quantiles
+      score_draws <- as.matrix(fit)[, 1:4]
+      eta_draws <- new_phi %*% t(score_draws)
+      eta_draws <- apply(eta_draws, 1, quantile, probs = c(0.025, 0.975))
+      # quantile interval
+      df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(new_mu+eta_draws[1, ])
+      df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(new_mu+eta_draws[2, ])
+      
+    
+      # sd_scores_tmax <- summary(fit)$summary[1:K, "sd"]
+      # qt_score_tmax <- summary(fit)$summary[1:K, c("2.5%", "97.5%")]
+  
       # sd_eta <- sqrt((new_phi^2) %*% sd_scores_tmax^2)
       # df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(eta_pred_out[, 1]-qnorm(0.975)*sd_eta)
       # df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(eta_pred_out[, 1]+qnorm(0.975)*sd_eta)
       # 
-      # quantile interval
-      df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(new_mu+new_phi%*%qt_score_tmax[, 1])
-      df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(new_mu+new_phi%*%qt_score_tmax[, 2])
       
     }
     
@@ -233,7 +238,7 @@ time_fGFPCA
 # figure
 rand_id <- sample(test_id, 4)
 
-df_exp <- pred_list_fGFPCA[[3]] %>%
+df_exp <- pred_list_fGFPCA[[1]] %>%
   filter(id %in% rand_id) %>%
   mutate_at(vars(eta_i, starts_with("pred")), 
             function(x){exp(x)/(1+exp(x))})  
