@@ -73,3 +73,6 @@ e.	Bin width, overlap or not: non-overlap, bin width = 10 (100 bins)
 3. motivation example
 - add some transparency to the black dots
 - use discrete axis ticks on the left, and continous red axis on the right
+
+# 24/8/20
+1. Why can't the bayes credible interval reaches nominal value? Does it still under estimates variability? It is because the lack of prior probablity? 

@@ -69,7 +69,7 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-M <- 5
+# M <- 5
 # M
 pred_list_fGFPCA <- list()
 # score_list_all <- list()
@@ -230,7 +230,7 @@ close(pb)
 #### Check output ####
 
 # time 
-time_fGFPCA
+mean(time_fGFPCA)
 
 
 # prediction
@@ -356,6 +356,10 @@ df_exp %>%
 
 save(pred_list_fGFPCA, time_fGFPCA,
      file = here("Data/TrialRun/SimOutput_fGFPCA.RData"))
+
+save(pred_list_fGFPCA, time_fGFPCA,
+     file = here("Data/SimN500/SimOutput_fGFPCA.RData"))
+
 
 #### Calculate ISE ####
 
