@@ -201,10 +201,10 @@ where:
 ## Figures
 
 ```{r load_sim1}
-load(here("Data/TrialRun/SimOutput_fGFPCA.RData"))
-load(here("Data/TrialRun/SimOutput_GLMMadaptive.RData"))
-load(here("Data/TrialRun/SimOutput_GFOSR_L1.RData"))
-load(here("Data/TrialRun/SimOutput_GFOSR_L5.RData"))
+load(here("Data/SimN500/SimOutput_fGFPCA.RData"))
+load(here("Data/SimN500/SimOutput_GLMMadaptive.RData"))
+load(here("Data/SimN500/SimOutput_GFOSR_L1.RData"))
+load(here("Data/SimN500/SimOutput_GFOSR_L5.RData"))
 
 rand_id <- sample(501:600, size = 4)
 ```
@@ -224,13 +224,13 @@ pred_list_fGFPCA <- lapply(pred_list_fGFPCA,
 
 
 
-pred_list_GLMMad <- pred_list_GLMMad[1:5]
+# pred_list_GLMMad <- pred_list_GLMMad[1:5]
 pred_list_GLMMad <- lapply(pred_list_GLMMad, function(x){
   colnames(x) <- name_vec
   return(x)
 })
 
-pred_list_gfofr <- lapply(pred_list_gfofr, function(x){
+pred_list_gfofr_l1 <- lapply(pred_list_gfofr_l1, function(x){
   x <- x %>% select(-window)
   colnames(x) <- name_vec
   return(x)
@@ -246,14 +246,13 @@ pred_list_gfofr_l5 <- lapply(pred_list_gfofr_l5, function(x){
 
 ```
 
-
 ```{r large_sim_plot, fig.height=8, fig.width=8}
 bind_rows(
   pred_list_fGFPCA[[1]] %>% filter(id %in% rand_id) %>% 
     mutate(method="fGFPCA"),
   pred_list_GLMMad[[1]] %>% filter(id %in% rand_id) %>%
     mutate(method = "GLMMadaptive"),
-  pred_list_gfofr[[1]] %>% filter(id %in% rand_id) %>%
+  pred_list_gfofr_l1[[1]] %>% filter(id %in% rand_id) %>%
     mutate(method = "GFOSR (L=1)"),
   pred_list_gfofr_l5[[1]] %>% filter(id %in% rand_id) %>%
     mutate(method = "GFOSR (L=5)") 
@@ -266,18 +265,49 @@ bind_rows(
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = "True"))+
   geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  guides(alpha = "none", col="none")+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = "Maximum observation time", x = "Time", y="")+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(legend.position = "bottom")+
+  scale_color_manual(values = cols)
+```
+
+
+```{r large_sim_plot_ci, fig.height=8, fig.width=8}
+bind_rows(
+  pred_list_fGFPCA[[1]] %>% filter(id %in% rand_id) %>% 
+    mutate(method="fGFPCA"),
+  pred_list_GLMMad[[1]] %>% filter(id %in% rand_id) %>%
+    mutate(method = "GLMMadaptive"),
+  pred_list_gfofr_l1[[1]] %>% filter(id %in% rand_id) %>%
+    mutate(method = "GFOSR (L=1)"),
+  pred_list_gfofr_l5[[1]] %>% filter(id %in% rand_id) %>%
+    mutate(method = "GFOSR (L=5)") 
+) %>% 
+  mutate_at(vars(eta_i, starts_with("pred")), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %>%
+  mutate(method=factor(method, 
+         levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  # geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.2_lb, ymax = pred0.2_ub,
                   col = "0.2", fill = "0.2", alpha = 0.1),
               linetype="dashed")+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  # geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.4_lb, ymax = pred0.4_ub,
                   col = "0.4", fill = "0.4", alpha = 0.1),
               linetype="dashed")+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  # geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.6_lb, ymax = pred0.6_ub,
                   col = "0.6", fill = "0.6", alpha = 0.1),
               linetype="dashed")+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  # geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.8_lb, ymax = pred0.8_ub,
                   col = "0.8", fill = "0.8", alpha = 0.1),
               linetype="dashed")+
@@ -286,7 +316,8 @@ bind_rows(
   labs(col = "Maximum observation time", x = "Time", y="")+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
   theme(legend.position = "bottom")+
-  scale_color_manual(values = cols)
+  scale_color_manual(values = cols)+
+  scale_fill_manual(values = cols)
 ```
 
 
@@ -334,7 +365,7 @@ Please note that here, the GLMM has a **square** time for both fixed effect and 
 data.frame(Method = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"), 
            Time = c(mean(time_fGFPCA),
                     mean(time_gfofr_l5),
-                    mean(time_gfofr),
+                    mean(time_gfofr_l1),
                     mean(time_GLMMad))) %>%
   kable(digits = 3, booktabs=T,
         table.attr="style=\"color:black;\"") %>%
@@ -345,7 +376,7 @@ data.frame(Method = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"),
 
 ```{r}
 cbind(calc_ISE(pred_list_fGFPCA, window),
-      calc_ISE(pred_list_gfofr, window),
+      calc_ISE(pred_list_gfofr_l1, window),
       calc_ISE(pred_list_gfofr_l5, window),
       calc_ISE(pred_list_GLMMad, window)) %>%
   data.frame(window = c("[0, 0.2]", "(0,2, 0.4]", "(0.4, 0.6]", 
@@ -369,7 +400,7 @@ It looks like the predictive performance can be seriously worse if the predictio
 
 ```{r}
 cbind(calc_AUC(pred_list_fGFPCA, window),
-      calc_AUC(pred_list_gfofr, window),
+      calc_AUC(pred_list_gfofr_l1, window),
       calc_AUC(pred_list_gfofr_l5, window),
       calc_AUC(pred_list_GLMMad, window)) %>%
   data.frame(window = c("[0, 0.2]", "(0,2, 0.4]", "(0.4, 0.6]", 
@@ -396,7 +427,7 @@ Not sure how to display. Maybe start with if the prediction interval covers the 
 ```{r, fig.height=4, fig.width=16}
 bind_rows(calc_predint_cover(pred_list_fGFPCA) %>% mutate(method = "fGFPCA"),
           calc_predint_cover(pred_list_gfofr_l5) %>% mutate(method = "GFOSR (L=5)"),
-          calc_predint_cover(pred_list_gfofr) %>% mutate(method = "GFOSR (L=1)"),
+          calc_predint_cover(pred_list_gfofr_l1) %>% mutate(method = "GFOSR (L=1)"),
           calc_predint_cover(pred_list_GLMMad) %>% mutate(method = "GLMMadaptive")) %>%
   ggplot()+
   geom_line(aes(x=t, y=cover0.2, col = "0.2"), na.rm = T)+

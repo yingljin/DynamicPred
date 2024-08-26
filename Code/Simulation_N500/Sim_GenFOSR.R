@@ -45,12 +45,11 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 
 N_train <- 500 # training sample size
 N_test <- 100 # testing sample szie 
-# L <- 5 # number of last observations used as time-fixed predictor
-L <- 5
+L <- 1 # number of last observations used as time-fixed predictor
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 #### Simulation ####
-M <-5
+# M <-5
 time_gfofr <- rep(NA, M)
 pred_list_gfofr <- list()
 
@@ -79,19 +78,19 @@ for(m in 1:M){
     # outcome (training set)
     df_pred_tr <- train_df %>% filter(window > w) %>%
       left_join(y_obs_max, by = "id") %>% 
-      mutate_at(vars(Y, starts_with("yl")), as.factor) 
-    # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+      mutate_at(vars(Y, starts_with("yl")), as.factor)
+    # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
     #                       s(t, bs="cr", k=20, by = yl5)+
     #                       s(t, bs="cr", k=20, by = yl4)+
     #                       s(t, bs="cr", k=20, by = yl3)+
     #                       s(t, bs="cr", k=20, by = yl2)+
     #                       s(t, bs="cr", k=20, by = yl1),
-    #                     family = binomial, data=df_pred_tr, 
+    #                     family = binomial, data=df_pred_tr,
     #                     method = "fREML",
     #                     discrete = TRUE)
-    fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) + 
+    fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
                           s(t, bs="cr", k=20, by = yl1),
-                        family = binomial, data=df_pred_tr, 
+                        family = binomial, data=df_pred_tr,
                         method = "fREML",
                         discrete = TRUE)
     
@@ -170,14 +169,14 @@ ggsave(here("Images/IntervalExp1_3.jpeg"), height=12, width = 5)
 
 #### Save results ####
 
-pred_list_gfofr_l5 <- pred_list_gfofr
-time_gfofr_l5 <- time_gfofr
+pred_list_gfofr_l1 <- pred_list_gfofr
+time_gfofr_l1 <- time_gfofr
 
 
 save(pred_list_gfofr, time_gfofr, 
      file = here("Data//TrialRun/SimOutput_GFOSR_L1.RData"))
-save(pred_list_gfofr_l5, time_gfofr_l5, 
-     file = here("Data//TrialRun/SimOutput_GFOSR_L5.RData"))
+save(pred_list_gfofr_l1, time_gfofr_l1, 
+     file = here("Data/SimN500/SimOutput_GFOSR_L1.RData"))
 
 pred_list_gfofr[[399]] %>%
   filter(t>0.55 & t<0.65)

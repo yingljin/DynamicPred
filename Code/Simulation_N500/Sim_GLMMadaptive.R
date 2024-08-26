@@ -50,8 +50,8 @@ N_train <- 500
 N_test <- 100
 
 # containers
-# M <- length(sim_data)
-M <- 5
+M <- length(sim_data)
+# M <- 5
 pred_list_GLMMad <- list()
 time_GLMMad <- pred_time_ref <- rep(NA, M)
 
@@ -156,7 +156,7 @@ ggsave(here("Images/IntervalExp1_4.jpeg"), height=12, width = 5)
 
 #### Save results ####
 save(pred_list_GLMMad, time_GLMMad, 
-     file = here("Data/TrialRun/SimOutput_GLMMadaptive.RData"))
+     file = here("Data/SimN500/SimOutput_GLMMadaptive.RData"))
 
 
 #### Calculate ISE ####

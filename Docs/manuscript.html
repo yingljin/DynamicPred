@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-08-15" />
+<meta name="date" content="2024-08-21" />
 
 <title>Manuscript progress report</title>
 
@@ -254,7 +254,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Manuscript progress report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-08-15</h4>
+<h4 class="date">2024-08-21</h4>
 
 </div>
 
@@ -480,10 +480,10 @@ k = 1, 2, 3, 4 respectively.</li>
 </div>
 <div id="figures" class="section level2" number="3.2">
 <h2><span class="header-section-number">3.2</span> Figures</h2>
-<pre class="r"><code>load(here(&quot;Data/TrialRun/SimOutput_fGFPCA.RData&quot;))
-load(here(&quot;Data/TrialRun/SimOutput_GLMMadaptive.RData&quot;))
-load(here(&quot;Data/TrialRun/SimOutput_GFOSR_L1.RData&quot;))
-load(here(&quot;Data/TrialRun/SimOutput_GFOSR_L5.RData&quot;))
+<pre class="r"><code>load(here(&quot;Data/SimN500/SimOutput_fGFPCA.RData&quot;))
+load(here(&quot;Data/SimN500/SimOutput_GLMMadaptive.RData&quot;))
+load(here(&quot;Data/SimN500/SimOutput_GFOSR_L1.RData&quot;))
+load(here(&quot;Data/SimN500/SimOutput_GFOSR_L5.RData&quot;))
 
 rand_id &lt;- sample(501:600, size = 4)</code></pre>
 <pre class="r"><code>pred_list_fGFPCA &lt;- lapply(pred_list_fGFPCA, function(x){x %&gt;% select(-bin)})
@@ -499,13 +499,13 @@ pred_list_fGFPCA &lt;- lapply(pred_list_fGFPCA,
 
 
 
-pred_list_GLMMad &lt;- pred_list_GLMMad[1:5]
+# pred_list_GLMMad &lt;- pred_list_GLMMad[1:5]
 pred_list_GLMMad &lt;- lapply(pred_list_GLMMad, function(x){
   colnames(x) &lt;- name_vec
   return(x)
 })
 
-pred_list_gfofr &lt;- lapply(pred_list_gfofr, function(x){
+pred_list_gfofr_l1 &lt;- lapply(pred_list_gfofr_l1, function(x){
   x &lt;- x %&gt;% select(-window)
   colnames(x) &lt;- name_vec
   return(x)
@@ -521,7 +521,7 @@ pred_list_gfofr_l5 &lt;- lapply(pred_list_gfofr_l5, function(x){
     mutate(method=&quot;fGFPCA&quot;),
   pred_list_GLMMad[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
     mutate(method = &quot;GLMMadaptive&quot;),
-  pred_list_gfofr[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+  pred_list_gfofr_l1[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
     mutate(method = &quot;GFOSR (L=1)&quot;),
   pred_list_gfofr_l5[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
     mutate(method = &quot;GFOSR (L=5)&quot;) 
@@ -534,18 +534,46 @@ pred_list_gfofr_l5 &lt;- lapply(pred_list_gfofr_l5, function(x){
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
   geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), na.rm = T)+
+  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), na.rm = T)+
+  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), na.rm = T)+
+  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), na.rm = T)+
+  guides(alpha = &quot;none&quot;, col=&quot;none&quot;)+
+  facet_grid(rows = vars(id), cols = vars(method))+
+  labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
+  theme(legend.position = &quot;bottom&quot;)+
+  scale_color_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/large_sim_plot-1.png" width="768" /></p>
+<pre class="r"><code>bind_rows(
+  pred_list_fGFPCA[[1]] %&gt;% filter(id %in% rand_id) %&gt;% 
+    mutate(method=&quot;fGFPCA&quot;),
+  pred_list_GLMMad[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GLMMadaptive&quot;),
+  pred_list_gfofr_l1[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GFOSR (L=1)&quot;),
+  pred_list_gfofr_l5[[1]] %&gt;% filter(id %in% rand_id) %&gt;%
+    mutate(method = &quot;GFOSR (L=5)&quot;) 
+) %&gt;% 
+  mutate_at(vars(eta_i, starts_with(&quot;pred&quot;)), 
+                .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
+  mutate(method=factor(method, 
+         levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;))) %&gt;%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;))+
+  # geom_line(aes(x=t, y=pred0.2, col = &quot;0.2&quot;), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.2_lb, ymax = pred0.2_ub,
                   col = &quot;0.2&quot;, fill = &quot;0.2&quot;, alpha = 0.1),
               linetype=&quot;dashed&quot;)+
-  geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), na.rm = T)+
+  # geom_line(aes(x=t, y=pred0.4, col = &quot;0.4&quot;), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.4_lb, ymax = pred0.4_ub,
                   col = &quot;0.4&quot;, fill = &quot;0.4&quot;, alpha = 0.1),
               linetype=&quot;dashed&quot;)+
-  geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), na.rm = T)+
+  # geom_line(aes(x=t, y=pred0.6, col = &quot;0.6&quot;), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.6_lb, ymax = pred0.6_ub,
                   col = &quot;0.6&quot;, fill = &quot;0.6&quot;, alpha = 0.1),
               linetype=&quot;dashed&quot;)+
-  geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), na.rm = T)+
+  # geom_line(aes(x=t, y=pred0.8, col = &quot;0.8&quot;), na.rm = T)+
   geom_ribbon(aes(x=t, ymin=pred0.8_lb, ymax = pred0.8_ub,
                   col = &quot;0.8&quot;, fill = &quot;0.8&quot;, alpha = 0.1),
               linetype=&quot;dashed&quot;)+
@@ -554,8 +582,9 @@ pred_list_gfofr_l5 &lt;- lapply(pred_list_gfofr_l5, function(x){
   labs(col = &quot;Maximum observation time&quot;, x = &quot;Time&quot;, y=&quot;&quot;)+
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
   theme(legend.position = &quot;bottom&quot;)+
-  scale_color_manual(values = cols)</code></pre>
-<p><img src="manuscript_files/figure-html/large_sim_plot-1.png" width="768" /></p>
+  scale_color_manual(values = cols)+
+  scale_fill_manual(values = cols)</code></pre>
+<p><img src="manuscript_files/figure-html/large_sim_plot_ci-1.png" width="768" /></p>
 <p>For the fGFPCA method, which interval should we use? Sampling
 quantile would cross zero and the coverage rate seems to fluctuate a
 lot.</p>
@@ -605,7 +634,7 @@ for both fixed effect and random effect.</p>
 <pre class="r"><code>data.frame(Method = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;), 
            Time = c(mean(time_fGFPCA),
                     mean(time_gfofr_l5),
-                    mean(time_gfofr),
+                    mean(time_gfofr_l1),
                     mean(time_GLMMad))) %&gt;%
   kable(digits = 3, booktabs=T,
         table.attr=&quot;style=\&quot;color:black;\&quot;&quot;) %&gt;%
@@ -627,7 +656,7 @@ Time
 fGFPCA
 </td>
 <td style="text-align:right;">
-5.819
+5.806
 </td>
 </tr>
 <tr>
@@ -635,7 +664,7 @@ fGFPCA
 GFOSR (L=5)
 </td>
 <td style="text-align:right;">
-0.030
+0.168
 </td>
 </tr>
 <tr>
@@ -643,7 +672,7 @@ GFOSR (L=5)
 GFOSR (L=1)
 </td>
 <td style="text-align:right;">
-0.028
+0.029
 </td>
 </tr>
 <tr>
@@ -651,7 +680,7 @@ GFOSR (L=1)
 GLMMadaptive
 </td>
 <td style="text-align:right;">
-2.980
+3.351
 </td>
 </tr>
 </tbody>
@@ -660,7 +689,7 @@ GLMMadaptive
 <div id="ise" class="section level3" number="3.4.2">
 <h3><span class="header-section-number">3.4.2</span> ISE</h3>
 <pre class="r"><code>cbind(calc_ISE(pred_list_fGFPCA, window),
-      calc_ISE(pred_list_gfofr, window),
+      calc_ISE(pred_list_gfofr_l1, window),
       calc_ISE(pred_list_gfofr_l5, window),
       calc_ISE(pred_list_GLMMad, window)) %&gt;%
   data.frame(window = c(&quot;[0, 0.2]&quot;, &quot;(0,2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
@@ -806,7 +835,7 @@ window
 (0,2, 0.4]
 </td>
 <td style="text-align:right;">
-178.079
+184.187
 </td>
 <td style="text-align:right;">
 </td>
@@ -815,7 +844,7 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-374.394
+362.476
 </td>
 <td style="text-align:right;">
 </td>
@@ -824,7 +853,7 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-374.645
+274.947
 </td>
 <td style="text-align:right;">
 </td>
@@ -833,7 +862,7 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-413.011
+387.708
 </td>
 <td style="text-align:right;">
 </td>
@@ -847,40 +876,40 @@ window
 (0.4, 0.6]
 </td>
 <td style="text-align:right;">
-228.903
+218.566
 </td>
 <td style="text-align:right;">
-118.286
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-314.109
-</td>
-<td style="text-align:right;">
-287.260
+113.454
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-314.891
+286.614
 </td>
 <td style="text-align:right;">
-287.805
+262.552
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-324.998
+277.438
 </td>
 <td style="text-align:right;">
-299.396
+220.209
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+291.579
+</td>
+<td style="text-align:right;">
+269.799
 </td>
 <td style="text-align:right;">
 </td>
@@ -892,46 +921,46 @@ window
 (0.6, 0.8]
 </td>
 <td style="text-align:right;">
-275.978
+274.571
 </td>
 <td style="text-align:right;">
-80.120
+76.514
 </td>
 <td style="text-align:right;">
-28.495
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-382.277
-</td>
-<td style="text-align:right;">
-406.546
-</td>
-<td style="text-align:right;">
-385.733
+27.066
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-378.012
+385.701
 </td>
 <td style="text-align:right;">
-407.618
+410.508
 </td>
 <td style="text-align:right;">
-382.618
+389.305
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-322.210
+322.338
 </td>
 <td style="text-align:right;">
-287.527
+373.108
 </td>
 <td style="text-align:right;">
-287.768
+325.017
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+315.778
+</td>
+<td style="text-align:right;">
+282.736
+</td>
+<td style="text-align:right;">
+278.242
 </td>
 <td style="text-align:right;">
 </td>
@@ -941,52 +970,52 @@ window
 (0.8, 1]
 </td>
 <td style="text-align:right;">
-124.764
+119.594
 </td>
 <td style="text-align:right;">
-105.689
+106.934
 </td>
 <td style="text-align:right;">
-26.314
+25.459
 </td>
 <td style="text-align:right;">
-15.772
+16.414
 </td>
 <td style="text-align:right;">
-334.577
+328.482
 </td>
 <td style="text-align:right;">
-346.989
+341.274
 </td>
 <td style="text-align:right;">
-353.747
+354.211
 </td>
 <td style="text-align:right;">
-350.626
+347.067
 </td>
 <td style="text-align:right;">
-335.239
+290.982
 </td>
 <td style="text-align:right;">
-342.321
+318.079
 </td>
 <td style="text-align:right;">
-355.273
+350.850
 </td>
 <td style="text-align:right;">
-350.136
+333.58
 </td>
 <td style="text-align:right;">
-607.647
+563.011
 </td>
 <td style="text-align:right;">
-509.109
+477.485
 </td>
 <td style="text-align:right;">
-641.272
+597.746
 </td>
 <td style="text-align:right;">
-621.421
+600.34
 </td>
 </tr>
 </tbody>
@@ -997,7 +1026,7 @@ the prediction window is far from the observation window.</p>
 <div id="auc" class="section level3" number="3.4.3">
 <h3><span class="header-section-number">3.4.3</span> AUC</h3>
 <pre class="r"><code>cbind(calc_AUC(pred_list_fGFPCA, window),
-      calc_AUC(pred_list_gfofr, window),
+      calc_AUC(pred_list_gfofr_l1, window),
       calc_AUC(pred_list_gfofr_l5, window),
       calc_AUC(pred_list_GLMMad, window)) %&gt;%
   data.frame(window = c(&quot;[0, 0.2]&quot;, &quot;(0,2, 0.4]&quot;, &quot;(0.4, 0.6]&quot;, 
@@ -1143,7 +1172,7 @@ window
 (0,2, 0.4]
 </td>
 <td style="text-align:right;">
-0.747
+0.737
 </td>
 <td style="text-align:right;">
 </td>
@@ -1152,7 +1181,7 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.628
+0.624
 </td>
 <td style="text-align:right;">
 </td>
@@ -1161,7 +1190,7 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.630
+0.686
 </td>
 <td style="text-align:right;">
 </td>
@@ -1170,7 +1199,7 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.587
+0.591
 </td>
 <td style="text-align:right;">
 </td>
@@ -1184,40 +1213,40 @@ window
 (0.4, 0.6]
 </td>
 <td style="text-align:right;">
-0.657
+0.645
 </td>
 <td style="text-align:right;">
-0.721
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-0.550
-</td>
-<td style="text-align:right;">
-0.600
+0.711
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.549
+0.543
 </td>
 <td style="text-align:right;">
-0.593
+0.590
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.518
+0.563
 </td>
 <td style="text-align:right;">
-0.597
+0.630
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.524
+</td>
+<td style="text-align:right;">
+0.596
 </td>
 <td style="text-align:right;">
 </td>
@@ -1232,7 +1261,7 @@ window
 0.699
 </td>
 <td style="text-align:right;">
-0.777
+0.779
 </td>
 <td style="text-align:right;">
 0.799
@@ -1240,35 +1269,35 @@ window
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.602
+0.604
 </td>
 <td style="text-align:right;">
-0.579
+0.577
 </td>
 <td style="text-align:right;">
-0.621
-</td>
-<td style="text-align:right;">
-</td>
-<td style="text-align:right;">
-0.606
-</td>
-<td style="text-align:right;">
-0.573
-</td>
-<td style="text-align:right;">
-0.621
+0.615
 </td>
 <td style="text-align:right;">
 </td>
 <td style="text-align:right;">
-0.663
+0.669
 </td>
 <td style="text-align:right;">
-0.689
+0.628
 </td>
 <td style="text-align:right;">
-0.678
+0.676
+</td>
+<td style="text-align:right;">
+</td>
+<td style="text-align:right;">
+0.669
+</td>
+<td style="text-align:right;">
+0.694
+</td>
+<td style="text-align:right;">
+0.687
 </td>
 <td style="text-align:right;">
 </td>
@@ -1278,52 +1307,52 @@ window
 (0.8, 1]
 </td>
 <td style="text-align:right;">
-0.735
+0.736
 </td>
 <td style="text-align:right;">
-0.744
+0.741
 </td>
 <td style="text-align:right;">
-0.780
+0.779
 </td>
 <td style="text-align:right;">
-0.784
+0.783
 </td>
 <td style="text-align:right;">
-0.587
+0.588
 </td>
 <td style="text-align:right;">
-0.575
+0.564
 </td>
 <td style="text-align:right;">
-0.544
+0.537
 </td>
 <td style="text-align:right;">
-0.553
+0.551
 </td>
 <td style="text-align:right;">
-0.579
+0.626
 </td>
 <td style="text-align:right;">
-0.570
+0.606
 </td>
 <td style="text-align:right;">
-0.547
+0.552
 </td>
 <td style="text-align:right;">
-0.557
+0.584
 </td>
 <td style="text-align:right;">
-0.496
+0.514
 </td>
 <td style="text-align:right;">
-0.540
+0.556
 </td>
 <td style="text-align:right;">
-0.512
+0.526
 </td>
 <td style="text-align:right;">
-0.558
+0.564
 </td>
 </tr>
 </tbody>
@@ -1339,7 +1368,7 @@ covers the truth? That is, coverage rate at each time point, averaged
 over all simulation and subjects?</p>
 <pre class="r"><code>bind_rows(calc_predint_cover(pred_list_fGFPCA) %&gt;% mutate(method = &quot;fGFPCA&quot;),
           calc_predint_cover(pred_list_gfofr_l5) %&gt;% mutate(method = &quot;GFOSR (L=5)&quot;),
-          calc_predint_cover(pred_list_gfofr) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;),
+          calc_predint_cover(pred_list_gfofr_l1) %&gt;% mutate(method = &quot;GFOSR (L=1)&quot;),
           calc_predint_cover(pred_list_GLMMad) %&gt;% mutate(method = &quot;GLMMadaptive&quot;)) %&gt;%
   ggplot()+
   geom_line(aes(x=t, y=cover0.2, col = &quot;0.2&quot;), na.rm = T)+
