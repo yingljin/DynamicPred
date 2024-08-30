@@ -52,12 +52,14 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
   facet_wrap(~id)
 
 #### model set up ####
-L <- 1
+L <- 5
 # L <- 5 # number of last observations used as time-fixed predictor
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 
+
 #### Simulation ####
+
 t_vec_gfofr_subset <- rep(NA, M)
 pred_list_gfofr_subset <- list()
 
@@ -88,20 +90,20 @@ for(m in 1:M){
     df_pred_tr <- train_df %>% filter(window > w) %>%
       left_join(y_obs_max, by = "id") %>% 
       mutate_at(vars(Y, starts_with("yl")), as.factor) 
-    # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
-    #                       s(t, bs="cr", k=20, by = yl5)+
-    #                       s(t, bs="cr", k=20, by = yl4)+
-    #                       s(t, bs="cr", k=20, by = yl3)+
-    #                       s(t, bs="cr", k=20, by = yl2)+
-    #                       s(t, bs="cr", k=20, by = yl1),
-    #                     family = binomial, data=df_pred_tr,
-    #                     method = "fREML",
-    #                     discrete = TRUE)
     fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
+                          s(t, bs="cr", k=20, by = yl5)+
+                          s(t, bs="cr", k=20, by = yl4)+
+                          s(t, bs="cr", k=20, by = yl3)+
+                          s(t, bs="cr", k=20, by = yl2)+
                           s(t, bs="cr", k=20, by = yl1),
                         family = binomial, data=df_pred_tr,
                         method = "fREML",
                         discrete = TRUE)
+    # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
+    #                       s(t, bs="cr", k=20, by = yl1),
+    #                     family = binomial, data=df_pred_tr,
+    #                     method = "fREML",
+    #                     discrete = TRUE)
     
     # prediction
     # predictor (testing set)
@@ -115,13 +117,20 @@ for(m in 1:M){
       mutate_at(vars(Y, starts_with("yl")), as.factor)
     
     # predict using the FOSR model fit above
-    pred_name <- paste0("pred_w", w)
-    test_df[, pred_name] <- NA
-    test_df[test_df$window>w, pred_name] <- predict(fit_gen_fosr, newdata = df_pred_te, type = "link")
+    pred_mw <- predict(fit_gen_fosr, newdata = df_pred_te, 
+                       type = "link",
+                       se.fit = T)
+    pred_int_lb <- pred_mw$fit-qnorm(0.975)*pred_mw$se.fit
+    pred_int_ub <- pred_mw$fit+qnorm(0.975)*pred_mw$se.fit
+    
+    pred_name <- paste0(c("pred", "pred_lb", "pred_ub"), w)
+    test_df[test_df$window>w, pred_name[1]] <- pred_mw$fit
+    test_df[test_df$window>w, pred_name[2]] <- pred_int_lb
+    test_df[test_df$window>w, pred_name[3]] <- pred_int_ub
   }
   t2 <- Sys.time()
   
-  t_vec_gfofr_subset[m] <- t2-t1 # seconds
+  t_vec_gfofr_subset[m] <- difftime(t2, t1, units = "mins")
   pred_list_gfofr_subset[[m]] <- test_df
   
   setTxtProgressBar(pb, m)
@@ -129,18 +138,41 @@ for(m in 1:M){
 
 close(pb)
 
-save(pred_list_gfofr_subset, t_vec_gfofr_subset, 
-     file = here("Data/SubSimOutput_GFOSR_L1.RData"))
+#### check result ####
 
-pred_list_gfofr_subset[[375]] %>% 
-  filter(t>0.55 & t<0.65) %>% View()
-  
-pred_list_gfofr_subset[[396]] %>% filter(id %in% c(101, 111, 121, 131)) %>% 
-    ggplot()+
-    geom_point(aes(x=t, y=Y))+
-    geom_line(aes(x=t, y=plogis(eta_i), col = "red"))+
-    geom_line(aes(x=t, y=plogis(pred_w1), col = "w1"))+
-    geom_line(aes(x=t, y=plogis(pred_w2), col = "w2"))+
-    geom_line(aes(x=t, y=plogis(pred_w3), col = "w3"))+
-    geom_line(aes(x=t, y=plogis(pred_w4), col = "w4"))+
-    facet_wrap(~id)
+pred_list_gfofr_subset[[1]] %>% filter(t>=0.35) %>% View()
+pred_list_gfofr_subset[[1]] %>% filter(id %in% 101:104) %>%
+  mutate_at(vars(eta_i, starts_with("pred")), 
+            function(x){exp(x)/(1+exp(x))})  %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred1, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb1, ymax = pred_ub1,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred2, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb2, ymax = pred_ub2,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred3, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb3, ymax = pred_ub3,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred4, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb4, ymax = pred_ub4,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  facet_grid(rows = vars(id))+
+  guides(alpha = "none", col="none")+
+  labs(title = "GFOSR (L=1)")
+
+mean(t_vec_gfofr_subset)
+
+#### save results ####
+
+pred_subset_gfofr_l5 <- pred_list_gfofr_subset
+time_subset_gfofr_l5 <- t_vec_gfofr_subset
+
+save(pred_subset_gfofr_l5, time_subset_gfofr_l5, 
+     file = here("Data/SimN100/SubSimOutput_GFOSR_L5.RData"))

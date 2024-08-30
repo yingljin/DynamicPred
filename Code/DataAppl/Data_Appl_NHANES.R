@@ -18,6 +18,7 @@ library(kableExtra)
 library(LaplacesDemon)
 library(splines)
 library(mvtnorm)
+library(rstan)
 
 #### load data ####
 df <- read_rds(here("Data/nhanes_bi.rds"))
@@ -30,7 +31,7 @@ K <- 4 # number of eigenfunctions to use
 
 # functions
 source(here("Code/GLMM-FPCA.R")) 
-source(here("Code/OutSampBayes.R"))
+# source(here("Code/OutSampBayes.R"))
 
 #### Data split ####
 
@@ -42,7 +43,7 @@ train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
 
 
-##### fGFPCA #####
+#### fGFPCA ####
 
 # Step 1: Bin every 10 observations
 bin_w <- 10 # bin width
@@ -166,11 +167,11 @@ debias_glmm <- bam(Y ~ s(sind, bs = "bs")+
                    discrete = TRUE)
 t2 <- Sys.time()
 t2-t1 # 21 hours
-# save(debias_glmm, file = here("Data/Appl_debias_model.RData"))
+save(debias_glmm, file = here("Data/DataAppl/global_bam.RData"))
 
 
 # reload the debias GLMM model
-load(here("Data/Appl_debias_model.RData"))
+# load(here("Data/DataAppl/global_bam.RData"))
 
 new_mu <- predict(debias_glmm, type = "terms")[1:J, 1]+coef(debias_glmm)[1]# extract re-evaluated mean
 plot(t, new_mu)
@@ -191,69 +192,158 @@ head(new_phi)
 new_lambda <- new_lambda/n_bin
 
 
-# prediction
+#### prediction ####
 # test_id <- test_id[1:500]
 
 window <- seq(0, J, by = 360) 
 
-converge_state_m <- matrix(NA, nrow = length(test_id), 4)
 pred_list_m <- list()
+
+pb = txtProgressBar(min = 0, max = length(test_id), initial = 0, style = 3) 
 
 t1 <- Sys.time()
 for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
   
   # per max obs time
-  for(tmax in window[2:5]){
+  t1 <- Sys.time()
+  for(tmax in window[2:4]){
     df_it <- df_i %>% filter(t <= tmax)
-    max_rid <- nrow(df_it)
     
     # into a list
-    MyData <- list(K=K, 
-                   X=new_phi[1:max_rid, ], 
-                   mon.names=mon.names,
-                   parm.names=parm.names, 
-                   pos.xi=pos.xi, 
-                   y=df_it$Y, 
-                   tao=diag(new_lambda), f0=new_mu[1:max_rid])
+    stanData <- list(
+      J = J, Ju = nrow(df_it), Y = df_it$Y, K = K,
+      efuncs = new_phi, 
+      b0 = new_mu,
+      lambda = new_lambda
+    )
     
+    # fit stan model
+    fit <- stan(
+      file = here("Code/prediction.stan"),  # Stan program
+      data = stanData,    # named list of data
+      chains = 2,             # number of Markov chains
+      warmup = 1000,          # number of warmup iterations per chain
+      iter = 2000,            # total number of iterations per chain
+      cores = 1,              # number of cores (could use one per chain)
+      refresh = 0             # no progress shown
+    )
     
-    # fit laplace approximation
-    Fit <- LaplaceApproximation(Model, parm = rep(0, K), Data=MyData, Method = "NM", 
-                                Iterations = 1000,
-                                CovEst = "Identity")
-    converge_state_m[i, which(window[2:6]==tmax)] <- Fit$Converged
-    score <- Fit$Summary1[, "Mode"]
-    
-    # prediction
-    eta_pred_out <- new_mu+new_phi%*%score
+
+    # point prediction
+    scores_tmax <- summary(fit)$summary[1:K, "mean"]
+    eta_pred_out <- new_mu+new_phi%*%scores_tmax
     df_i[ , paste0("pred", tmax)] <- eta_pred_out[,1]
+    
+    # prediction interval using sampling quantiles
+    score_draws <- as.matrix(fit)[, 1:4]
+    eta_draws <- new_phi %*% t(score_draws)
+    eta_draws <- apply(eta_draws, 1, quantile, probs = c(0.025, 0.975))
+    # quantile interval
+    df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(new_mu+eta_draws[1, ])
+    df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(new_mu+eta_draws[2, ])
   }
+  t2 <- Sys.time()
   
   pred_list_m[[i]] <- df_i
+  
+  setTxtProgressBar(pb, i)
 }
 t2 <- Sys.time()
-t2-t1 
+close(pb)
 
 
 
-# numeric problems
-mean(converge_state_m)
+#### Results ####
 
-# check results
 head(pred_list_m[[1]])
 length(pred_list_m)
 pred_nhanes_fgfpca <- bind_rows(pred_list_m)
 
-# some clean up
+#### save results ####
+save(pred_nhanes_fgfpca, 
+     file = here("Data/DataAppl/ApplOutput_fGFPCA.RData"))
+
+# motivation example images
+## figure 1a
+pred_nhanes_fgfpca %>% 
+  select(id, Y, sind, starts_with("pred1080")) %>% 
+  mutate_at(vars(starts_with("pred1080")), function(x)exp(x)/(1+exp(x))) %>%
+  mutate(id = factor(id, levels = unique(id),
+                     labels = paste0("Participant ", 1:6))) %>% 
+  ggplot()+
+  geom_line(aes(x=sind, y = pred1080, ), col = "red")+
+  geom_point(aes(x=sind, y = Y), size = 0.1, alpha = 0.3)+
+  facet_wrap(~id)+
+  scale_x_continuous(name = "",
+                     breaks = c(360, 720, 1080), 
+                     labels = c("6am", "12pm", "6pm"))+
+  scale_y_continuous(name = "Observed indicator",
+                     breaks = c(0, 1),
+                     sec.axis = dup_axis(name="Predicted probablity",
+                                         breaks = seq(0, 1, by = 0.25)))+
+  theme(legend = element_blank(),
+        axis.title.y.right = element_text(color="red"),
+        axis.text.y.right = element_text(color="red"))
+ggsave(here("Images/MotiveExp_a.pdf"),
+              width=10, height=6)
+
+
+# Figure 1b
+## one male (62178) and one female (62209)
+pred_nhanes_fgfpca %>% select(id, gender) %>% distinct(.)
+
+df_plot <- pred_nhanes_fgfpca %>% filter(id==62178 | id == 62209) %>% 
+  select(id, Y, sind, pred360, pred720, pred1080) %>% 
+  pivot_longer(starts_with("pred")) 
+  
+df_plot$Y[df_plot$name=="pred360" & df_plot$sind>360] <- NA
+df_plot$Y[df_plot$name=="pred720" & df_plot$sind>720] <- NA
+df_plot$Y[df_plot$name=="pred1080" & df_plot$sind>1080] <- NA
+
+df_plot$value[df_plot$name=="pred360" & df_plot$sind <= 360] <- NA
+df_plot$value[df_plot$name=="pred720" & df_plot$sind <= 720] <- NA
+df_plot$value[df_plot$name=="pred1080" & df_plot$sind <= 1080] <- NA
+
+
+
+df_plot %>% 
+  mutate_at("value", function(x)exp(x)/(1+exp(x))) %>% 
+  mutate(name = as.numeric(gsub("pred", "", name))) %>%
+  mutate(max_t=factor(name, levels = c(360, 720, 1080), 
+                      labels = c("Observed up to 6am", 
+                                 "Observed up to 12pm", 
+                                 "Observed up to 6pm"))) %>% 
+  mutate(id = factor(id, levels = unique(id), 
+                     labels = paste0("Participant ", c(4, 6)))) %>% 
+  ggplot()+
+  geom_point(aes(x=sind, y=Y), size = 0.1, alpha = 0.3)+
+  geom_line(aes(x=sind, y = value), col = "red")+
+  geom_vline(aes(xintercept = name), linetype = "dashed")+
+  facet_grid(cols = vars(max_t), rows = vars(id))+
+  scale_x_continuous(name = "",
+                     breaks = c(360, 720, 1080), 
+                     labels = c("6am", "12pm", "6pm"))+
+  scale_y_continuous(name = "Observed indicator",
+                     breaks = c(0, 1),
+                     sec.axis = dup_axis(name="Predicted probablity",
+                                         breaks = seq(0, 1, by = 0.25)))+
+  theme(legend = element_blank(),
+        axis.title.y.right = element_text(color="red"),
+        axis.text.y.right = element_text(color="red"))
+ggsave(here("Images/MotiveExp_b.pdf"),
+       width=10, height=6)
+
+# Prediction tracks
+head(pred_nhanes_fgfpca)
 pred_nhanes_fgfpca$pred360[pred_nhanes_fgfpca$sind<=360] <- NA
 pred_nhanes_fgfpca$pred720[pred_nhanes_fgfpca$sind<=720] <- NA
 pred_nhanes_fgfpca$pred1080[pred_nhanes_fgfpca$sind<=1080] <- NA
-pred_nhanes_fgfpca <- pred_nhanes_fgfpca %>% select(-pred1440)
-head(pred_nhanes_fgfpca)
+
 
 pred_nhanes_fgfpca %>% 
-  filter(id %in% sample(test_id, 4)) %>%
+  select(!ends_with("b")) %>% 
+  filter(id %in% sample(unique(pred_nhanes_fgfpca$id), 4)) %>%
   mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
   ggplot()+
   geom_line(aes(x=sind, y = pred360, col = "6am"), linetype = "dashed")+

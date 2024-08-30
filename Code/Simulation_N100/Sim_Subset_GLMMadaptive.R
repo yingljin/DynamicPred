@@ -48,9 +48,10 @@ t_bin <- seq(0, J, by = 10)
 
 #### Containers ####
 
+# M <- 5
 
 pred_list_all <- list()
-fit_time <- pred_time <- rep(NA, M)
+time_vec <- rep(NA, M)
 
 # incorporate a convergen check since some iteration would run into numeric issues
 # such as singularity
@@ -75,54 +76,61 @@ for(m in 1:M){
   fit_adglmm <- tryCatch(expr={mixed_model(fixed = Y ~ 0+ns(t, df = 4), 
                                            random = ~ 0+ns(t, df = 4) | id, 
                                            data =  df_train_m, family = binomial())},
-                      error = function(e){list(converged = FALSE)}
+                      error = function(e){list(converged = FALSE)},
+                      warning = function(w){list(converged = FALSE)}
                       )
-  t2 <- Sys.time()
   
   # skip datasets with numeric problems
   num_probs[m] <- ifelse(fit_adglmm$converged, 0, 1)  
   if(fit_adglmm$converged){
     
   # if the model was successfully fit, then
-      fit_time[m] <- t2-t1 ## minutes
+      # fit_time[m] <- t2-t1 ## minutes
       
       # prediction
-      t1 <- Sys.time()
+      # t1 <- Sys.time()
       pred_m <- list(
         predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.2),
                 newdata2 =  df_test_m %>% filter(t>0.2), 
                 type = "subject_specific", type_pred = "link",
-                se.fit = FALSE, return_newdata = TRUE)$newdata2,
+                se.fit = T, return_newdata = TRUE)$newdata2,
         
         predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.4),
                 newdata2 =  df_test_m %>% filter(t>0.4), 
                 type = "subject_specific", type_pred = "link",
-                se.fit = FALSE, return_newdata = TRUE)$newdata2,
+                se.fit = T, return_newdata = TRUE)$newdata2,
         
         predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.6),
                 newdata2 =  df_test_m %>% filter(t>0.6), 
                 type = "subject_specific", type_pred = "link",
-                se.fit = FALSE, return_newdata = TRUE)$newdata2,
+                se.fit = T, return_newdata = TRUE)$newdata2,
         
         predict(fit_adglmm, newdata = df_test_m %>% filter(t <= 0.8),
                 newdata2 =  df_test_m %>% filter(t>0.8), 
                 type = "subject_specific", type_pred = "link",
-                se.fit = FALSE, return_newdata = TRUE)$newdata2)
+                se.fit = T, return_newdata = TRUE)$newdata2)
       t2 <- Sys.time()
-      pred_time[m] <- t2-t1 # seconds
+      time_vec[m] <- difftime(t2, t1, units = "mins") # seconds
       
-      pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred)})
-      df_pred_m <- df_test_m %>% 
-        left_join(pred_m[[1]]) %>% 
-        rename(pred0.2 = pred) %>% 
-        left_join(pred_m[[2]]) %>% 
-        rename(pred0.4 = pred) %>% 
-        left_join(pred_m[[3]]) %>% 
-        rename(pred0.6 = pred) %>% 
-        left_join(pred_m[[4]]) %>% 
-        rename(pred0.8 = pred)
+      pred_m <- lapply(pred_m, function(x){x %>% select(id, t, pred, low, upp)})
+      pred_list_all[[m]] <- df_test_m %>% 
+        left_join(pred_m[[1]], by = c("id", "t")) %>% 
+        rename(pred0.2 = pred,
+               pred_lb0.2 = low, 
+               pred_ub0.2 = upp) %>% 
+        left_join(pred_m[[2]], by = c("id", "t")) %>% 
+        rename(pred0.4 = pred,
+               pred_lb0.4 = low, 
+               pred_ub0.4 = upp) %>% 
+        left_join(pred_m[[3]], by = c("id", "t")) %>% 
+        rename(pred0.6 = pred,
+               pred_lb0.6 = low, 
+               pred_ub0.6 = upp) %>% 
+        left_join(pred_m[[4]], by = c("id", "t")) %>% 
+        rename(pred0.8 = pred,
+               pred_lb0.8 = low, 
+               pred_ub0.8 = upp)
       
-      pred_list_all[[m]] <- df_pred_m
       setTxtProgressBar(pb, m)
   }
   
@@ -130,12 +138,40 @@ for(m in 1:M){
 
 close(pb)
 
-mean(fit_time)
-mean(pred_time)
+##### Check results #####
+
+mean(time_vec)
 sum(num_probs)
 
-pred_list_all[[96]] %>% filter(t>0.2) %>% View()
+pred_list_all[[1]] %>% filter(t>0.39) %>% View()
 pred_list_all[[99]] %>% filter(t>0.2) %>% View()
+
+pred_list_all[[1]] %>% 
+  filter(id %in% 101:104) %>% 
+  mutate_at(vars(eta_i, starts_with("pred")), 
+            function(x){exp(x)/(1+exp(x))})  %>%
+  ggplot()+
+  geom_point(aes(x=t, y=Y), size = 0.2)+
+  geom_line(aes(x=t, y=eta_i, col = "True"))+
+  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.2, ymax = pred_ub0.2,
+                  col = "0.2", fill = "0.2", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.4, ymax = pred_ub0.4,
+                  col = "0.4", fill = "0.4", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.6, ymax = pred_ub0.6,
+                  col = "0.6", fill = "0.6", alpha = 0.1),
+              linetype="dashed")+
+  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
+  geom_ribbon(aes(x=t, ymin=pred_lb0.8, ymax = pred_ub0.8,
+                  col = "0.8", fill = "0.8", alpha = 0.1),
+              linetype="dashed")+
+  facet_grid(rows = vars(id))+
+  guides(alpha = "none", col="none")+
+  labs(title = "GLMMadaptive")
 
 #### Save results ####
 
