@@ -4,7 +4,7 @@ author: "Ying Jin"
 date: "`r Sys.Date()`"
 output:
   html_document:
-    self_contained: no
+    self_contained: yes
     number_sections: yes
     code_folding: hide
     toc: yes

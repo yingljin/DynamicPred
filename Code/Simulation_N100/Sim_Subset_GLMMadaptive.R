@@ -175,13 +175,12 @@ pred_list_all[[1]] %>%
 
 #### Save results ####
 
-fit_time_subset_adglmm <- fit_time
-pred_time_subset_adglmm <- pred_time
+fit_time_subset_adglmm <- time_vec
 pred_subset_adglmm <- pred_list_all
 
-save(fit_time_subset_adglmm, pred_time_subset_adglmm, pred_subset_adglmm, 
+save(fit_time_subset_adglmm, pred_subset_adglmm, 
      num_probs,
-     file = here("Data/SubSimOutput_GLMMadaptive.RData"))
+     file = here("Data/SimN100/SubSimOutput_GLMMadaptive.RData"))
 
 
 

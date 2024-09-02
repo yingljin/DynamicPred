@@ -39,27 +39,37 @@ source(here("Code/PredEval.R"))
 
 
 
-#### Large scale simulation ####
+#### Simulation output ####
 # load data
+## N = 500
 load(here("Data/SimN500/SimOutput_fGFPCA.RData"))
 load(here("Data/SimN500/SimOutput_GLMMadaptive.RData"))
 load(here("Data/SimN500/SimOutput_GFOSR_L1.RData"))
 load(here("Data/SimN500/SimOutput_GFOSR_L5.RData"))
 
+## N = 100
+load(here("Data/SimN100/SubSimOutput_fGFPCA.RData"))
+load(here("Data/SimN100/SubSimOutput_GLMMadaptive.RData"))
+load(here("Data/SimN100/SubSimOutput_GFOSR_L1.RData"))
+load(here("Data/SimN100/SubSimOutput_GFOSR_L5.RData"))
+
 # choose 4 subjects to plot
 rand_id <- sample(501:600, size = 4)
+rand_id <- sample(101:200, size = 4)
 
-# format
+#### Format ####
+##### N = 500 #####
 pred_list_fGFPCA <- lapply(pred_list_fGFPCA, function(x){x %>% select(-bin)})
 name_vec <- colnames(pred_list_fGFPCA[[1]])
-pred_list_fGFPCA <- lapply(pred_list_fGFPCA, 
+pred_list_fGFPCA <- lapply(pred_list_fGFPCA,
                            function(x){
                              x[x$t<=0.2, c("pred0.2", "pred0.2_lb", "pred0.2_ub")] <- NA
                              x[x$t<=0.4, c("pred0.4", "pred0.4_lb", "pred0.4_ub")] <- NA
                              x[x$t<=0.6, c("pred0.6", "pred0.6_lb", "pred0.6_ub")] <- NA
                              x[x$t<=0.8, c("pred0.8", "pred0.8_lb", "pred0.8_ub")] <- NA
-                             return(x)    
+                             return(x)
                            })
+
 
 pred_list_GLMMad <- lapply(pred_list_GLMMad, function(x){
   colnames(x) <- name_vec
@@ -77,6 +87,44 @@ pred_list_gfofr_l5 <- lapply(pred_list_gfofr_l5, function(x){
   colnames(x) <- name_vec
   return(x)
 })
+
+
+##### N = 100 #####
+# N = 100
+name_vec <- colnames(pred_subset_fGFPCA[[1]])
+pred_list_fGFPCA <- lapply(pred_subset_fGFPCA, 
+                           function(x){
+                             x[x$t<=0.2, c("pred0.2", "pred0.2_lb", "pred0.2_ub")] <- NA
+                             x[x$t<=0.4, c("pred0.4", "pred0.4_lb", "pred0.4_ub")] <- NA
+                             x[x$t<=0.6, c("pred0.6", "pred0.6_lb", "pred0.6_ub")] <- NA
+                             x[x$t<=0.8, c("pred0.8", "pred0.8_lb", "pred0.8_ub")] <- NA
+                             return(x)    
+                           })
+head(pred_list_fGFPCA[[1]])
+
+
+head(pred_subset_adglmm[[1]])
+which(num_probs==1)
+pred_subset_adglmm <- pred_subset_adglmm[!num_probs] # remove data with numeric problems
+length(pred_subset_adglmm) # 6 nonconvergence problem
+pred_list_GLMMad <- lapply(pred_subset_adglmm, function(x){
+  colnames(x) <- name_vec
+  return(x)
+})
+
+head(pred_subset_gfofr_l1[[1]])
+pred_list_gfofr_l1 <- lapply(pred_subset_gfofr_l1, function(x){
+  x <- x %>% select(-window)
+  colnames(x) <- name_vec
+  return(x)
+})
+
+pred_list_gfofr_l5 <- lapply(pred_subset_gfofr_l5, function(x){
+  x <- x %>% select(-window)
+  colnames(x) <- name_vec
+  return(x)
+})
+
 
 # individual prediction tracks
 bind_rows(
@@ -108,6 +156,7 @@ bind_rows(
   theme(legend.position = "bottom")+
   scale_color_manual(values = cols)
 ggsave(filename = here("Images/simN500.pdf"), width=10, height=10)
+ggsave(filename = here("Images/simN100.pdf"), width=10, height=10)
 
 
 # coverage rate of prediction interval
@@ -126,3 +175,18 @@ bind_rows(calc_predint_cover(pred_list_fGFPCA) %>% mutate(method = "fGFPCA"),
   theme(legend.position = "bottom")+
   scale_color_manual(values = cols)
 ggsave(filename = here("Images/simN500_ci.pdf"), width=10, height=3)
+ggsave(filename = here("Images/simN100_ci.pdf"), width=10, height=3)
+
+
+#### ISE and AUC ####
+calc_ISE(pred_list_fGFPCA, window)
+
+
+calc_AUC(pred_list_fGFPCA, window)
+
+mean(time_subset_fGFPCA)
+mean(time_gfofr_l1)
+mean(time_gfofr_l5)
+mean(time_GLMMad)
+
+
