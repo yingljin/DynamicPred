@@ -38,7 +38,7 @@ df %>% select(SEQN, age_years_interview, BMI, gender) %>% distinct(.) %>%
 
 #### Figure ####
 
-# motivation example 1
+# motivation example a
 ## data structure
 id_vec <- unique(pred_nhanes_fgfpca$id)[1:6]
 
@@ -68,10 +68,10 @@ ggsave(here("Images/MotiveExp_a.pdf"),
 
 # motivation example b
 # dynamic prediction illustration
-## one male (62178) and one female (62209)
-pred_nhanes_fgfpca %>% select(id, gender) %>% distinct(.)
+## one male (62161) and one female (62164)
+pred_nhanes_fgfpca %>% select(id, gender) %>% distinct(.) %>% head()
 
-df_plot <- pred_nhanes_fgfpca %>% filter(id==62178 | id == 62209) %>% 
+df_plot <- pred_nhanes_fgfpca %>% filter(id==62164 | id == 62184) %>% 
   select(id, Y, sind, pred360, pred720, pred1080) %>% 
   pivot_longer(starts_with("pred")) 
 

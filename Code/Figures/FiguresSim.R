@@ -54,8 +54,8 @@ load(here("Data/SimN100/SubSimOutput_GFOSR_L1.RData"))
 load(here("Data/SimN100/SubSimOutput_GFOSR_L5.RData"))
 
 # choose 4 subjects to plot
-rand_id <- sample(501:600, size = 4)
-rand_id <- sample(101:200, size = 4)
+rand_id <- sample(501:600, size = 2)
+rand_id <- sample(101:200, size = 2)
 
 #### Format ####
 ##### N = 500 #####
@@ -126,6 +126,7 @@ pred_list_gfofr_l5 <- lapply(pred_subset_gfofr_l5, function(x){
 })
 
 
+#### Figure ####
 # individual prediction tracks
 bind_rows(
   pred_list_fGFPCA[[1]] %>% filter(id %in% rand_id) %>% 
@@ -141,7 +142,7 @@ bind_rows(
             .funs = function(x){exp(x)/(1+exp(x))}) %>%
   mutate(method=factor(method, 
                        levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
-  mutate(id = factor(id, levels = unique(id), labels = paste0("Subject ", 1:4))) %>%
+  mutate(id = factor(id, levels = unique(id), labels = paste0("Subject ", 1:2))) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.1, alpha = 0.3)+
   geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed", linewidth=1.1)+
@@ -155,8 +156,8 @@ bind_rows(
   scale_x_continuous(breaks = seq(0, 1, by = 0.2))+
   theme(legend.position = "bottom")+
   scale_color_manual(values = cols)
-ggsave(filename = here("Images/simN500.pdf"), width=10, height=10)
-ggsave(filename = here("Images/simN100.pdf"), width=10, height=10)
+ggsave(filename = here("Images/simN500.pdf"), width=10, height=5)
+ggsave(filename = here("Images/simN100.pdf"), width=10, height=5)
 
 
 # coverage rate of prediction interval
