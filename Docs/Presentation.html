@@ -11,11 +11,11 @@
 
 <meta name="author" content="Ying Jin" />
 
-<meta name="date" content="2024-05-29" />
+<meta name="date" content="2024-10-22" />
 
 <title>Presentation report</title>
 
-<script src="Presentation_files/header-attrs-2.26/header-attrs.js"></script>
+<script src="Presentation_files/header-attrs-2.28/header-attrs.js"></script>
 <script src="Presentation_files/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="Presentation_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
@@ -252,7 +252,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Presentation report</h1>
 <h4 class="author">Ying Jin</h4>
-<h4 class="date">2024-05-29</h4>
+<h4 class="date">2024-10-22</h4>
 
 </div>
 
@@ -323,7 +323,7 @@ sim2 &lt;- bind_rows(
                 .funs = function(x){exp(x)/(1+exp(x))}) %&gt;%
   mutate(method=factor(method, 
          levels = c(&quot;fGFPCA&quot;, &quot;GFOSR (L=5)&quot;, &quot;GFOSR (L=1)&quot;,&quot;GLMMadaptive&quot;)))</code></pre>
-<pre class="r"><code>bind_rows(sim1 %&gt;% mutate(sim = &quot;Simulation 1&quot;), sim2 %&gt;% mutate(sim = &quot;Simulation 2&quot;)) %&gt;%
+<pre class="r"><code>bind_rows(sim1 %&gt;% mutate(sim = &quot;Original Sample&quot;), sim2 %&gt;% mutate(sim = &quot;Reduced sample&quot;)) %&gt;%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = &quot;True&quot;), linetype = &quot;dashed&quot;)+
@@ -425,7 +425,6 @@ bind_rows(
                      labels = c(&quot;0am&quot;, &quot;6am&quot;, &quot;12pm&quot;, &quot;6pm&quot;, &quot;12am&quot;))+
   theme(legend.position = &quot;right&quot;, axis.text.x = element_text(size = 7))+
   scale_color_manual(values = cols)</code></pre>
-<p><img src="Presentation_files/figure-html/fig_appl_paper-1.png" width="960" /></p>
 </div>
 
 

@@ -144,7 +144,7 @@ sim2 <- bind_rows(
 
 
 ```{r sim, fig.height=4, fig.width=10}
-bind_rows(sim1 %>% mutate(sim = "Simulation 1"), sim2 %>% mutate(sim = "Simulation 2")) %>%
+bind_rows(sim1 %>% mutate(sim = "Original Sample"), sim2 %>% mutate(sim = "Reduced sample")) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.2)+
   geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
@@ -222,7 +222,7 @@ df_nhanes %>%
 
 
 
-```{r load_nhanes_result}
+```{r load_nhanes_result, eval=F}
 # df_nhanes <- read_rds(here("Data/nhanes_bi.rds"))
 load(here("Data/ApplOutput_fGFPCA.RData"))
 load(here("Data/ApplOutput_GLMMadaptive.RData"))
@@ -236,7 +236,7 @@ pred_appl_gfosr_l5 <- pred_appl_gfosr_l5 %>%
   rename(pred360=pred_w1, pred720=pred_w2, pred1080=pred_w3)
 ```
 
-```{r fig_appl_paper, fig.height=4, fig.width=10}
+```{r fig_appl_paper, fig.height=4, fig.width=10, eval=F}
 # redefine color scale
 cols <- cols[1:3] 
 names(cols) <- c("6am", "12pm", "6pm")
