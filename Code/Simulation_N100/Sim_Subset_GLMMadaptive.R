@@ -1,3 +1,8 @@
+
+# This script includes code for simulation on the original sample
+# using the competing method GLMMadaptive
+# 
+
 set.seed(1114)
 
 library(here)

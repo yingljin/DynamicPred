@@ -42,7 +42,7 @@ df %>% select(SEQN, age_years_interview, BMI, gender) %>% distinct(.) %>%
 ## data structure
 id_vec <- unique(pred_nhanes_fgfpca$id)[1:6]
 
-pred_nhanes_fgfpca %>% 
+p1 <- pred_nhanes_fgfpca %>% 
   filter(id %in% id_vec) %>%
   select(id, Y, sind, starts_with("pred1080")) %>% 
   mutate_at(vars(starts_with("pred1080")), function(x)exp(x)/(1+exp(x))) %>%
@@ -85,7 +85,7 @@ df_plot$value[df_plot$name=="pred1080" & df_plot$sind <= 1080] <- NA
 
 
 
-df_plot %>% 
+p2 <- df_plot %>% 
   mutate_at("value", function(x)exp(x)/(1+exp(x))) %>% 
   mutate(name = as.numeric(gsub("pred", "", name))) %>%
   mutate(max_t=factor(name, levels = c(360, 720, 1080), 
@@ -110,3 +110,7 @@ df_plot %>%
         axis.text.y.right = element_text(color="red"))
 ggsave(here("Images/MotiveExp_b.pdf"),
        width=10, height=5)
+
+
+ggarrange(p1, p2, col=1, 
+          )

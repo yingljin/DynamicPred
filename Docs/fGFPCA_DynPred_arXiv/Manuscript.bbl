@@ -1,0 +1,336 @@
+\begin{thebibliography}{40}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Baek and Lee(2022)]{Baek2022}
+ChaeWon Baek and Byoungchan Lee.
+\newblock A guide to autoregressive distributed lag models for impulse response
+  estimations.
+\newblock \emph{Oxford Bulletin of Economics and Statistics}, 84\penalty0
+  (5):\penalty0 1101--1122, 2022.
+\newblock \doi{https://doi.org/10.1111/obes.12494}.
+\newblock URL \url{https://onlinelibrary.wiley.com/doi/abs/10.1111/obes.12494}.
+
+\bibitem[Bauer et~al.(2018)Bauer, Scheipl, Küchenhoff, and Gabriel]{Bauer2018}
+Alexander Bauer, Fabian Scheipl, Helmut Küchenhoff, and Alice-Agnes Gabriel.
+\newblock An introduction to semiparametric function-on-scalar regression.
+\newblock \emph{Statistical Modelling: An International Journal}, 18:\penalty0
+  1471082X1774803, 01 2018.
+\newblock \doi{10.1177/1471082X17748034}.
+
+\bibitem[Chen et~al.(2013)Chen, Wang, cho Paik, and Choi]{chen2013}
+Huaihou Chen, Yuanjia Wang, Myunghee cho Paik, and H.~Alex Choi.
+\newblock A marginal approach to reduced-rank penalized spline smoothing with
+  application to multilevel functional data.
+\newblock \emph{J Am Stat Assoc.}, 108\penalty0 (504):\penalty0 1216--1229,
+  2013.
+\newblock \doi{10.1080/01621459.2013.826134}.
+
+\bibitem[Chiou(2012)]{chiou2012}
+Jeng-Min Chiou.
+\newblock Dynamical functional prediction and classification, with application
+  to traffic flow prediction.
+\newblock \emph{The Annals of Applied Statistics}, 6\penalty0 (4):\penalty0
+  1588--1614, 2012.
+\newblock \doi{10.1214/12-AOAS595}.
+\newblock URL \url{https://doi.org/10.1214/12-AOAS595}.
+
+\bibitem[Crainiceanu et~al.(2024)Crainiceanu, Goldsmith, Leroux, and
+  Cui]{fdaR2024}
+Ciprian~M. Crainiceanu, Jeff Goldsmith, Andrew Leroux, and Erjia Cui.
+\newblock \emph{Functional Data Analysis with R}.
+\newblock Chapman and Hall/CRC, 2024.
+
+\bibitem[Davidian and Giltinan(2003)]{davidian2003}
+Marie Davidian and David~M. Giltinan.
+\newblock \emph{Nonlinear Models for Repeated Measurement Data: An Overview and
+  Update}, volume~8.
+\newblock [International Biometric Society, Springer], 2003.
+\newblock URL \url{http://www.jstor.org/stable/1400665}.
+
+\bibitem[Delaigle and Hall(2016)]{delaigo2016}
+A.~Delaigle and P.~Hall.
+\newblock Approximating fragmented functional data by segments of markov
+  chains.
+\newblock \emph{Biometrika}, 103\penalty0 (4):\penalty0 779--799, 11 2016.
+\newblock ISSN 0006-3444.
+\newblock \doi{10.1093/biomet/asw040}.
+\newblock URL \url{https://doi.org/10.1093/biomet/asw040}.
+
+\bibitem[Gertheiss et~al.(2017)Gertheiss, Goldsmith, and maria
+  Staicu]{gertheiss2017}
+Jan Gertheiss, Jeff Goldsmith, and Ana maria Staicu.
+\newblock A note on modeling sparse exponential-family functional response
+  curves.
+\newblock \emph{Comput Stat Data Anal}, 105:\penalty0 46--52, 2017.
+\newblock \doi{10.1016/j.csda.2016.07.010}.
+
+\bibitem[Goldberg et~al.(2014)Goldberg, Ritov, and Mandelbaum]{goldberg2014}
+Y.~Goldberg, Y.~Ritov, and A.~Mandelbaum.
+\newblock Predicting the continuation of a function with applications to call
+  center data.
+\newblock \emph{Journal of Statistical Planning and Inference}, 147:\penalty0
+  53--65, 2014.
+\newblock ISSN 0378-3758.
+\newblock \doi{https://doi.org/10.1016/j.jspi.2013.11.006}.
+\newblock URL
+  \url{https://www.sciencedirect.com/science/article/pii/S0378375813002929}.
+
+\bibitem[Goldsmith et~al.(2011)Goldsmith, Bobb, Crainiceanu, Caffo, and
+  Reich]{Goldsmith2011}
+Jeff Goldsmith, Jennifer Bobb, Ciprian~M. Crainiceanu, Brian Caffo, and Daniel
+  Reich.
+\newblock Penalized functional regression.
+\newblock \emph{Journal of Computational and Graphical Statistics}, 20\penalty0
+  (4):\penalty0 830--851, 2011.
+\newblock \doi{10.1198/jcgs.2010.10007}.
+
+\bibitem[Goldsmith et~al.(2015)Goldsmith, Zipunnikov, and
+  Schrack]{goldsmith2015}
+Jeff Goldsmith, Vadim Zipunnikov, and Jennifer Schrack.
+\newblock Generalized multilevel function-on-scalar regression and principal
+  component analysis.
+\newblock \emph{Biometrics}, 71\penalty0 (2):\penalty0 344--53, 2015.
+\newblock \doi{10.1111/biom.12278}.
+
+\bibitem[Goldsmith et~al.(2022)Goldsmith, Scheipl, Huang, Wrobel, Di, Gellar,
+  Harezlak, McLean, Swihart, Xiao, Crainiceanu, and Reiss]{refundpkg}
+Jeff Goldsmith, Fabian Scheipl, Lei Huang, Julia Wrobel, Chongzhi Di, Jonathan
+  Gellar, Jaroslaw Harezlak, Mathew~W. McLean, Bruce Swihart, Luo Xiao, Ciprian
+  Crainiceanu, and Philip~T. Reiss.
+\newblock \emph{refund: Regression with Functional Data}, 2022.
+\newblock URL \url{https://CRAN.R-project.org/package=refund}.
+\newblock R package version 0.1-28.
+
+\bibitem[Hall et~al.(2008)Hall, Müller, and Yao]{hall2018}
+Peter Hall, Hans-Georg Müller, and Fang Yao.
+\newblock {Modelling Sparse Generalized Longitudinal Observations with Latent
+  Gaussian Processes}.
+\newblock \emph{Journal of the Royal Statistical Society Series B: Statistical
+  Methodology}, 70\penalty0 (4):\penalty0 703--723, 05 2008.
+\newblock ISSN 1369-7412.
+\newblock \doi{10.1111/j.1467-9868.2008.00656.x}.
+\newblock URL \url{https://doi.org/10.1111/j.1467-9868.2008.00656.x}.
+
+\bibitem[Karas et~al.(2022)Karas, Muschelli, Leroux, Urbanek, Wanigatunga, Bai,
+  Crainiceanu, and Schrack]{preprocess}
+Marta Karas, John Muschelli, Andrew Leroux, Jacek~K Urbanek, Amal~A
+  Wanigatunga, Jiawei Bai, Ciprian~M Crainiceanu, and Jennifer~A Schrack.
+\newblock Comparison of accelerometry-based measures of physical activity:
+  Retrospective observational data analysis study.
+\newblock \emph{JMIR Mhealth Uhealth}, 10\penalty0 (7):\penalty0 e38077, Jul
+  2022.
+\newblock ISSN 2291-5222.
+\newblock \doi{10.2196/38077}.
+\newblock URL \url{https://mhealth.jmir.org/2022/7/e38077}.
+
+\bibitem[Koster et~al.(2016)Koster, Shiroma, Caserotti, Matthews, Chen, Glynn,
+  and Harris]{Koster2016}
+Annemarie Koster, Eric~J Shiroma, Paolo Caserotti, Charles~E Matthews, Kong~Y.
+  Chen, Nancy~W Glynn, and Tamara~B Harris.
+\newblock Comparison of sedentary estimates between activpal and hip- and
+  wrist-worn actigraph.
+\newblock \emph{Med Sci Sports Exerc}, 48\penalty0 (8):\penalty0 1514--1522, 08
+  2016.
+\newblock \doi{10.1249/MSS.0000000000000924}.
+
+\bibitem[Kraus(2015)]{kraus2015}
+David Kraus.
+\newblock Components and completion of partially observed functional data.
+\newblock \emph{Journal of the Royal Statistical Society. Series B (Statistical
+  Methodology)}, 77\penalty0 (4):\penalty0 777--801, 2015.
+\newblock ISSN 13697412, 14679868.
+\newblock URL \url{http://www.jstor.org/stable/24775309}.
+
+\bibitem[Laird and Ware(1982)]{Laird1982}
+Nan~M. Laird and James~H. Ware.
+\newblock Random-effects models for longitudinal data.
+\newblock \emph{Biometrics}, 38\penalty0 (4):\penalty0 963--974, 1982.
+\newblock ISSN 0006341X, 15410420.
+\newblock URL \url{http://www.jstor.org/stable/2529876}.
+
+\bibitem[Leroux et~al.(2018{\natexlab{a}})Leroux, Xiao, Crainiceanu, and
+  Checkley]{leroux2016}
+Andrew Leroux, Luo Xiao, Ciprian Crainiceanu, and William Checkley.
+\newblock Dynamic prediction in functional concurrent regression with an
+  application to child growth.
+\newblock \emph{Statistics in medicine}, 37\penalty0 (2):\penalty0 1376–1388,
+  4 2018{\natexlab{a}}.
+
+\bibitem[Leroux et~al.(2018{\natexlab{b}})Leroux, Xiao, Crainiceanu, and
+  Checkly]{fcrpkg}
+Andrew Leroux, Luo Xiao, Ciprian Crainiceanu, and William Checkly.
+\newblock \emph{fcr: Functional Concurrent Regression for Sparse Data},
+  2018{\natexlab{b}}.
+\newblock URL \url{https://CRAN.R-project.org/package=fcr}.
+\newblock R package version 1.0.
+
+\bibitem[Leroux et~al.(2023{\natexlab{a}})Leroux, Crainiceanu, and
+  Wrobel]{fGFPCA}
+Andrew Leroux, Ciprian Crainiceanu, and Julia Wrobel.
+\newblock Fast generalized functional principal components analysis,
+  2023{\natexlab{a}}.
+
+\bibitem[Leroux et~al.(2023{\natexlab{b}})Leroux, Crainiceanu, and
+  Wrobel]{leroux2022}
+Andrew Leroux, Ciprian Crainiceanu, and Julia Wrobel.
+\newblock Fast generalized functional principal components analysis,
+  2023{\natexlab{b}}.
+\newblock URL \url{https://arxiv.org/abs/2305.02389}.
+
+\bibitem[Li et~al.(2018)Li, Huang, and Shen]{Li2018}
+Gen Li, Jianhua~Z. Huang, and Haipeng Shen.
+\newblock {Exponential Family Functional Data Analysis via a Low-Rank Model}.
+\newblock \emph{Biometrics}, 74\penalty0 (4):\penalty0 1301--1310, 05 2018.
+\newblock ISSN 0006-341X.
+\newblock \doi{10.1111/biom.12885}.
+\newblock URL \url{https://doi.org/10.1111/biom.12885}.
+
+\bibitem[Liang and Zeger(1986)]{liang1986}
+Kung-Yee Liang and Scott~L. Zeger.
+\newblock Longitudinal data analysis using generalized linear models.
+\newblock \emph{Biometrika}, 73\penalty0 (1):\penalty0 13--22, 04 1986.
+\newblock ISSN 0006-3444.
+\newblock \doi{10.1093/biomet/73.1.13}.
+\newblock URL \url{https://doi.org/10.1093/biomet/73.1.13}.
+
+\bibitem[Lindstrom and Bates(1990)]{lindstrom1990}
+Mary~J. Lindstrom and Douglas~M. Bates.
+\newblock Nonlinear mixed effects models for repeated measures data.
+\newblock \emph{Biometrics}, 46\penalty0 (3):\penalty0 673--687, 1990.
+\newblock ISSN 0006341X, 15410420.
+\newblock URL \url{http://www.jstor.org/stable/2532087}.
+
+\bibitem[Morris(2015)]{Morris2015}
+Jeffrey~S. Morris.
+\newblock Functional regression.
+\newblock \emph{Annual Review of Statistics and Its Application}, 2\penalty0
+  (Volume 2, 2015):\penalty0 321--359, 2015.
+\newblock ISSN 2326-831X.
+\newblock \doi{https://doi.org/10.1146/annurev-statistics-010814-020413}.
+\newblock URL
+  \url{https://www.annualreviews.org/content/journals/10.1146/annurev-statistics-010814-020413}.
+
+\bibitem[Ramsay and Silverman(2005)]{fda2005}
+J.~O. Ramsay and B.~W. Silverman.
+\newblock \emph{Functional Data Analysis}.
+\newblock Springer New York, NY, 2005.
+
+\bibitem[Reiss et~al.(2010)Reiss, Huang, and Mennes]{Reiss2010}
+Philip~T. Reiss, Lei Huang, and Maarten Mennes.
+\newblock Fast function-on-scalar regression with penalized basis expansions.
+\newblock \emph{The International Journal of Biostatistics}, 6\penalty0 (1),
+  2010.
+\newblock \doi{doi:10.2202/1557-4679.1246}.
+\newblock URL \url{https://doi.org/10.2202/1557-4679.1246}.
+
+\bibitem[Rizopoulos(2011)]{Rizopoulos2011}
+Dimitris Rizopoulos.
+\newblock {Dynamic Predictions and Prospective Accuracy in Joint Models for
+  Longitudinal and Time-to-Event Data}.
+\newblock \emph{Biometrics}, 67\penalty0 (3):\penalty0 819--829, 02 2011.
+\newblock ISSN 0006-341X.
+\newblock \doi{10.1111/j.1541-0420.2010.01546.x}.
+\newblock URL \url{https://doi.org/10.1111/j.1541-0420.2010.01546.x}.
+
+\bibitem[Rizopoulos(2022)]{GLMMadaptive}
+Dimitris Rizopoulos.
+\newblock \emph{GLMMadaptive: Generalized Linear Mixed Models using Adaptive
+  Gaussian Quadrature}, 2022.
+\newblock URL \url{https://CRAN.R-project.org/package=GLMMadaptive}.
+\newblock R package version 0.8-5.
+
+\bibitem[Rizopoulos et~al.(2017)Rizopoulos, Molenberghs, and
+  Lesaffre]{Rizopoulos2017}
+Dimitris Rizopoulos, Geert Molenberghs, and Emmanuel~M.E.H. Lesaffre.
+\newblock Dynamic predictions with time-dependent covariates in survival
+  analysis using joint modeling and landmarking.
+\newblock \emph{Biometrical Journal}, 59\penalty0 (6):\penalty0 1261--1276,
+  2017.
+\newblock \doi{https://doi.org/10.1002/bimj.201600238}.
+\newblock URL
+  \url{https://onlinelibrary.wiley.com/doi/abs/10.1002/bimj.201600238}.
+
+\bibitem[Shang(2017)]{shang2017}
+Han~Lin Shang.
+\newblock Functional time series forecasting with dynamic updating: An
+  application to intraday particulate matter concentration.
+\newblock \emph{Econometrics and Statistics}, 1:\penalty0 184--200, 2017.
+\newblock ISSN 2452-3062.
+\newblock \doi{https://doi.org/10.1016/j.ecosta.2016.08.004}.
+\newblock URL
+  \url{https://www.sciencedirect.com/science/article/pii/S2452306216300235}.
+
+\bibitem[Stringer(2023)]{Stringer2023}
+Alex Stringer.
+\newblock Approximate marginal likelihood inference in mixed models for grouped
+  data, 2023.
+\newblock URL \url{https://arxiv.org/abs/2310.01589}.
+
+\bibitem[Suresh et~al.(2017)Suresh, Taylor, Spratt, Daignault, and
+  Tsodikov]{suresh2017}
+Krithika Suresh, Jeremy~M.G. Taylor, Daniel~E. Spratt, Stephanie Daignault, and
+  Alexander Tsodikov.
+\newblock Comparison of joint modeling and landmarking for dynamic prediction
+  under an illness-death model.
+\newblock \emph{Biom J}, 59\penalty0 (6):\penalty0 1277--1300, 2017.
+\newblock \doi{10.1002/bimj.201600235}.
+
+\bibitem[van~der Linde(2009)]{linde2019}
+Angelika van~der Linde.
+\newblock A bayesian latent variable approach to functional principal
+  components analysi with binary and count data.
+\newblock \emph{A StA Adv Stat Anal}, \penalty0 (93):\penalty0 307--333, 2009.
+\newblock \doi{10.1007/s10182-009-0113-6}.
+
+\bibitem[Van~Houwelingen(2007)]{vanHouwelingen2007}
+Hans~C Van~Houwelingen.
+\newblock Dynamic prediction by landmarking in event history analysis.
+\newblock \emph{Scandinavian Journal of Statistics}, 34\penalty0 (1):\penalty0
+  70--85, 2007.
+
+\bibitem[Weishampel et~al.(2023)Weishampel, Staicu, and Rand]{weishampel2023}
+Anthony Weishampel, Ana-Maria Staicu, and William Rand.
+\newblock Classification of social media users with generalized functional data
+  analysis.
+\newblock \emph{Computational Statistics \& Data Analysis}, 179:\penalty0
+  107647, 2023.
+\newblock ISSN 0167-9473.
+\newblock \doi{https://doi.org/10.1016/j.csda.2022.107647}.
+\newblock URL
+  \url{https://www.sciencedirect.com/science/article/pii/S0167947322002274}.
+
+\bibitem[Wrobel(2018)]{Wrobel2018}
+Julia Wrobel.
+\newblock register: Registration for exponential family functional data.
+\newblock \emph{Journal of Open Source Software}, 3\penalty0 (22):\penalty0
+  557, 2018.
+\newblock \doi{10.21105/joss.00557}.
+\newblock URL \url{https://doi.org/10.21105/joss.00557}.
+
+\bibitem[Wrobel et~al.(2019)Wrobel, Zipunnikov, Schrack, and
+  Goldsmith]{wrobel2019}
+Julia Wrobel, Vadim Zipunnikov, Jennifer Schrack, and Jeff Goldsmith.
+\newblock Registration for exponential family functional data.
+\newblock \emph{Biometrics}, 75\penalty0 (1):\penalty0 48--57, 2019.
+\newblock \doi{https://doi.org/10.1111/biom.12963}.
+\newblock URL \url{https://onlinelibrary.wiley.com/doi/abs/10.1111/biom.12963}.
+
+\bibitem[Xiao et~al.(2016)Xiao, Zipunnikov, Ruppert, and Crainiceanu]{face}
+Luo Xiao, Vadim Zipunnikov, David Ruppert, and Ciprian Crainiceanu.
+\newblock Fast covariance estimation for high-dimensional functional data.
+\newblock \emph{Statistics and Computing}, 26\penalty0 (1):\penalty0 409--421,
+  2016.
+\newblock \doi{https://doi.org/10.1007/s11222-014-9485-x}.
+
+\bibitem[Zhou et~al.(2024)Zhou, Wrobel, Crainiceanu, and Leroux]{zhou2024}
+Xinkai Zhou, Julia Wrobel, Ciprian~M. Crainiceanu, and Andrew Leroux.
+\newblock Analysis of active/inactive patterns in the nhanes data using
+  generalized multilevel functional principal component analysis.
+\newblock 2024.
+\newblock URL \url{https://arxiv.org/abs/2311.14054}.
+
+\end{thebibliography}

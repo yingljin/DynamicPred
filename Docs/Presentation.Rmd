@@ -220,6 +220,14 @@ df_nhanes %>%
 
 ```
 
+```{r eval=FALSE}
+# all negative
+df_nhanes %>% 
+  group_by(SEQN) %>%
+  summarise(n0 = sum(Z==0)) %>%
+  filter(n0==1440) %>%
+  select(SEQN) %>% unlist()
+```
 
 
 ```{r load_nhanes_result, eval=F}

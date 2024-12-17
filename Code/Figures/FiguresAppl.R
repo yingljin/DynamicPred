@@ -85,12 +85,14 @@ bind_rows(
   pred_nhanes_adglmm %>% filter(id %in% rand_id) %>%
     mutate(method = "GLMMadaptive"),
   pred_appl_gfosr_l1 %>% filter(id %in% rand_id) %>%
-    mutate(method = "GFOSR (L=1)"),
+    mutate(method = "DLM (L=1)"),
   pred_appl_gfosr_l5 %>% filter(id %in% rand_id) %>%
-    mutate(method = "GFOSR (L=5)") 
+    mutate(method = "DLM (L=5)") 
 ) %>% 
   mutate_at(vars(starts_with("pred")), function(x)exp(x)/(1+exp(x))) %>% 
   mutate(id = paste("ID","=", id)) %>%
+  mutate(method=factor(method, 
+                       levels = c("fGFPCA", "DLM (L=5)", "DLM (L=1)","GLMMadaptive"))) %>%
   ggplot()+
   geom_point(aes(x=sind, y=Y), size = 0.1, alpha = 0.3)+
   geom_line(aes(x=sind, y = pred360, col = "6am"), linewidth=1.1)+

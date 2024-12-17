@@ -1,7 +1,13 @@
+
+# This scripts include codes to simulated data
+# corresponding to Section 4 in the manuscript
+
 # clear workspace
 rm(list=ls())
+
 # set seed
 set.seed(1090)
+
 # load and, if necessary, install packages used in simulating data 
 # (some of these you'll need for model fitting)
 pckgs <- c("tidyverse","mgcv","refund","lme4")
@@ -12,14 +18,14 @@ invisible(
         })
 )
 
-### Simulate data ###
+#### Simulate data ####
 
 ## basic parameters
 # number of subjects
 N <- 500
 # number of observations per subject (observations per function)
 J <- 1000
-# functional domain, equally spaced grid on 0,1
+# functional domain, equally spaced grid on [0,1]
 sind <- seq(0,1,len=J)
 
 ## simulate outcomes g(E[Y_i(s)]) = \eta_i(s) = f_0(s) + f_1(s)X_i + b_i(s)

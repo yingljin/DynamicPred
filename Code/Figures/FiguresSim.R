@@ -46,15 +46,13 @@ load(here("Data/SimN500/SimOutput_fGFPCA.RData"))
 load(here("Data/SimN500/SimOutput_GLMMadaptive.RData"))
 load(here("Data/SimN500/SimOutput_GFOSR_L1.RData"))
 load(here("Data/SimN500/SimOutput_GFOSR_L5.RData"))
+rand_id <- sample(501:600, size = 2)
 
 ## N = 100
 load(here("Data/SimN100/SubSimOutput_fGFPCA.RData"))
 load(here("Data/SimN100/SubSimOutput_GLMMadaptive.RData"))
 load(here("Data/SimN100/SubSimOutput_GFOSR_L1.RData"))
 load(here("Data/SimN100/SubSimOutput_GFOSR_L5.RData"))
-
-# choose 4 subjects to plot
-rand_id <- sample(501:600, size = 2)
 rand_id <- sample(101:200, size = 2)
 
 #### Format ####
@@ -126,6 +124,8 @@ pred_list_gfofr_l5 <- lapply(pred_subset_gfofr_l5, function(x){
 })
 
 
+
+
 #### Figure ####
 # individual prediction tracks
 bind_rows(
@@ -134,14 +134,14 @@ bind_rows(
   pred_list_GLMMad[[1]] %>% filter(id %in% rand_id) %>%
     mutate(method = "GLMMadaptive"),
   pred_list_gfofr_l1[[1]] %>% filter(id %in% rand_id) %>%
-    mutate(method = "GFOSR (L=1)"),
+    mutate(method = "DLM (L=1)"),
   pred_list_gfofr_l5[[1]] %>% filter(id %in% rand_id) %>%
-    mutate(method = "GFOSR (L=5)") 
+    mutate(method = "DLM (L=5)") 
 ) %>% 
   mutate_at(vars(eta_i, starts_with("pred")), 
             .funs = function(x){exp(x)/(1+exp(x))}) %>%
   mutate(method=factor(method, 
-                       levels = c("fGFPCA", "GFOSR (L=5)", "GFOSR (L=1)","GLMMadaptive"))) %>%
+                       levels = c("fGFPCA", "DLM (L=5)", "DLM (L=1)","GLMMadaptive"))) %>%
   mutate(id = factor(id, levels = unique(id), labels = paste0("Subject ", 1:2))) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y), size = 0.1, alpha = 0.3)+
@@ -162,9 +162,11 @@ ggsave(filename = here("Images/simN100.pdf"), width=10, height=5)
 
 # coverage rate of prediction interval
 bind_rows(calc_predint_cover(pred_list_fGFPCA) %>% mutate(method = "fGFPCA"),
-          calc_predint_cover(pred_list_gfofr_l5) %>% mutate(method = "GFOSR (L=5)"),
-          calc_predint_cover(pred_list_gfofr_l1) %>% mutate(method = "GFOSR (L=1)"),
+          calc_predint_cover(pred_list_gfofr_l5) %>% mutate(method = "DLM (L=5)"),
+          calc_predint_cover(pred_list_gfofr_l1) %>% mutate(method = "DLM (L=1)"),
           calc_predint_cover(pred_list_GLMMad) %>% mutate(method = "GLMMadaptive")) %>%
+  mutate(method=factor(method, 
+                       levels = c("fGFPCA", "DLM (L=5)", "DLM (L=1)","GLMMadaptive"))) %>% 
   ggplot()+
   geom_line(aes(x=t, y=cover0.2, col = "0.2"), na.rm = T, linewidth=1.1)+
   geom_line(aes(x=t, y=cover0.4, col = "0.4"), na.rm = T, linewidth=1.1)+
