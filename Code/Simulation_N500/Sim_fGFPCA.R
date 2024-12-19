@@ -1,6 +1,5 @@
-# This script implements the full simulation 
-# for dynamic prediction of fGFPCA
-# on the simulated dataset generated from Code/GenData.R
+# This script implements the full simulation for dynamic prediction of fGFPCA
+# correponding to Section 4.4.1 in the manuscript
 
 #### set up ####
 
@@ -20,14 +19,13 @@ library(knitr)
 library(mvtnorm)
 library(mgcv)
 library(splines)
-# library(LaplacesDemon)
 library(rstan)
 theme_set(theme_minimal())
 
 
 #### load simulated data ####
 
-load(here("Data/sim_data.RData"))
+load(here("Data/sim_data.RData")) # data generated from Code/GenData.R
 
 N <- length(unique(sim_data[[1]]$id))
 J <- length(unique(sim_data[[1]]$t))
@@ -47,7 +45,7 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 #### fGFPCA Model estimation ####
 
 # functions
-source(here("Code/GLMM-FPCA.R")) 
+source(here("Code/Functions/GLMM-FPCA.R")) 
 # source(here("Code/OutSampBayes.R"))
 
 # split data into train and test set
@@ -61,7 +59,7 @@ brks <- seq(0, J, by = bin_w) # cutoff points on time index
 mid <- (brks+bin_w/2)[1:n_bin] # interval mid point time index
 mid_t <- t[mid] # actually time corresponding to bin mid point
 
-# values used for projection
+# values used for projection in step 4
 p <- 3 # order of b splines 
 knots <- 35 # number of knots (same from FPCA model)
 knots_values <- seq(-p, knots + p, length = knots + 1 + 2 *p)/knots
@@ -69,7 +67,7 @@ knots_values <- knots_values * (max(mid_t) - min(mid_t)) + min(mid_t)
 
 
 # result container
-# M <- 5
+M <- 3 # try on a few datasets first
 # M
 pred_list_fGFPCA <- list()
 # score_list_all <- list()
@@ -175,7 +173,7 @@ for(m in 1:M){
       )
       
       fit <- stan(
-        file = here("Code/prediction.stan"),  # Stan program
+        file = here("Code/Functions/prediction.stan"),  # Stan program
         data = stanData,    # named list of data
         chains = 2,             # number of Markov chains
         warmup = 1000,          # number of warmup iterations per chain
@@ -197,14 +195,6 @@ for(m in 1:M){
       df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(new_mu+eta_draws[1, ])
       df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(new_mu+eta_draws[2, ])
       
-    
-      # sd_scores_tmax <- summary(fit)$summary[1:K, "sd"]
-      # qt_score_tmax <- summary(fit)$summary[1:K, c("2.5%", "97.5%")]
-  
-      # sd_eta <- sqrt((new_phi^2) %*% sd_scores_tmax^2)
-      # df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(eta_pred_out[, 1]-qnorm(0.975)*sd_eta)
-      # df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(eta_pred_out[, 1]+qnorm(0.975)*sd_eta)
-      # 
       
     }
     
@@ -224,17 +214,13 @@ for(m in 1:M){
 
 close(pb)
 
-# score_list_m
-
 
 #### Check output ####
 
 # time 
 mean(time_fGFPCA)
 
-
 # prediction
-
 # figure
 rand_id <- sample(test_id, 4)
 
@@ -273,232 +259,12 @@ df_exp %>%
               linetype="dashed")+
   facet_grid(rows = vars(id))+
   guides(alpha = "none", col="none")
-
-df_exp %>%
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"))+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm = T)+
-  geom_ribbon(aes(x=t, ymin=pred0.2_qlb, ymax = pred0.2_qub,
-                  col = "0.2", fill = "0.2", alpha = 0.1),
-              linetype="dashed")+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm = T)+
-  geom_ribbon(aes(x=t, ymin=pred0.4_qlb, ymax = pred0.4_qub,
-                  col = "0.4", fill = "0.4", alpha = 0.1),
-              linetype="dashed")+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm = T)+
-  geom_ribbon(aes(x=t, ymin=pred0.6_qlb, ymax = pred0.6_qub,
-                  col = "0.6", fill = "0.6", alpha = 0.1),
-              linetype="dashed")+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm = T)+
-  geom_ribbon(aes(x=t, ymin=pred0.8_qlb, ymax = pred0.8_qub,
-                  col = "0.8", fill = "0.8", alpha = 0.1),
-              linetype="dashed")+
-  facet_grid(rows = vars(id))+
-  guides(alpha = "none", col="none")
-ggsave(here("Images/IntervalExp1.jpeg"), height=12, width = 5)  
   
- 
-  
-# another figure
-ggarrange(
-  df_exp %>% 
-    ggplot()+
-    geom_point(aes(x=sind, y=Y), size = 0.2)+
-    geom_line(aes(x=sind, y=eta_i))+
-    geom_line(aes(x=sind, y=pred0.2), na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.2_lb), linetype="dashed", na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.2_ub), linetype="dashed",na.rm=T, col = "red"),
-  
-  df_exp %>% 
-    ggplot()+
-    geom_point(aes(x=sind, y=Y), size = 0.2)+
-    geom_line(aes(x=sind, y=eta_i))+
-    geom_line(aes(x=sind, y=pred0.4), na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.4_lb), linetype="dashed", na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.4_ub), linetype="dashed",na.rm=T, col = "red"),
-  
-  df_exp %>% 
-    ggplot()+
-    geom_point(aes(x=sind, y=Y), size = 0.2)+
-    geom_line(aes(x=sind, y=eta_i))+
-    geom_line(aes(x=sind, y=pred0.6), na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.6_lb), linetype="dashed", na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.6_ub), linetype="dashed",na.rm=T, col = "red"),
-  
-  df_exp %>% 
-    ggplot()+
-    geom_point(aes(x=sind, y=Y), size = 0.2)+
-    geom_line(aes(x=sind, y=eta_i))+
-    geom_line(aes(x=sind, y=pred0.8), na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.8_lb), linetype="dashed", na.rm=T, col = "red")+
-    geom_line(aes(x=sind, y=pred0.8_ub), linetype="dashed",na.rm=T, col = "red"),
-  nrow = 1
-)
-ggsave(here("Images/IntervalExp.jpeg"), height=12, width = 12)
-
-
-
-
-
-
-df_exp %>% 
-  ggplot()+
-  geom_point(aes(x=t, y=Y), size = 0.2)+
-  geom_line(aes(x=t, y=eta_i, col = "True"), linetype = "dashed")+
-  geom_line(aes(x=t, y=pred0.2, col = "0.2"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.4, col = "0.4"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.6, col = "0.6"), na.rm=T, linewidth = 1.0)+
-  geom_line(aes(x=t, y=pred0.8, col = "0.8"), na.rm=T, linewidth = 1.0)
-
 
 #### Save results ####
 
 save(pred_list_fGFPCA, time_fGFPCA,
-     file = here("Data/TrialRun/SimOutput_fGFPCA.RData"))
+     file = here("Data/SimOutput_fGFPCA.RData"))
 
-save(pred_list_fGFPCA, time_fGFPCA,
-     file = here("Data/SimN500/SimOutput_fGFPCA.RData"))
-
-
-#### Calculate ISE ####
-
-# load simulation results
-# load(here("Data/SimOutput_fGFPCA.RData"))
-
-dim(pred_list_all[[1]])
-
-## prediction window 
-window <- seq(0, 1, by = 0.2)
-M <- length(pred_list_all)
-
-## ISE container 
-ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-# dims: prediction window, max obs time, simulation iter
-
-## calculation
-for(m in 1:M){
-  this_df <- pred_list_all[[m]]
-  ise_tb <- pred_list_all[[m]] %>%
-    mutate(err1 = (pred0.2-eta_i)^2,
-           err2 = (pred0.4-eta_i)^2,
-           err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>%
-    select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("err"))
-  ise_mat[, ,m] <- as.matrix(ise_tb)
-  
-  
-}
-
-ise_mat
-
-mean_ise <- apply(ise_mat, c(1, 2), mean)
-mean_ise <- data.frame(mean_ise) %>% 
-  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-         .before = 1)
-colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
-mean_ise
-
-
-#### Calculate AUC ####
-
-## auc container 
-auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-
-## a function to calculate AUC
-get_auc <- function(y, pred){
-  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
-    auc <- NA
-  }
-  else{
-    this_perf <- performance(prediction(pred, y), measure = "auc")
-    auc <- this_perf@y.values[[1]]
-  }
-  return(auc)
-}
-
-get_auc(pred_list_all[[1]]$Y[pred_list_all[[1]]$t>0.2], 
-        pred_list_all[[1]]$pred0.2[pred_list_all[[1]]$t>0.2])
-
-## calcualte AUC
-
-for(m in 1:M){
-  this_df <- pred_list_all[[m]]
-  auc_tb <- this_df %>% 
-    mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-    select(Y, starts_with("pred"), window) %>%
-    group_by(window) %>%
-    summarise(auc1 = get_auc(Y, pred0.2),
-              auc2 = get_auc(Y, pred0.4),
-              auc3 = get_auc(Y, pred0.6),
-              auc4 = get_auc(Y, pred0.8)) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("auc"))
-  auc_mat[, ,m] <- as.matrix(auc_tb)
-
-}
-
-
-mean_auc <- apply(auc_mat, c(1, 2), mean)
-mean_auc <- data.frame(mean_auc) %>% 
-  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-         .before = 1)
-colnames(mean_auc) <- c("Window", "0.2", "0.4", "0.6", "0.8")
-mean_auc
-
-#### prediction interval ####
-## Maybe start with if the prediction interval covers the truth?
-
-list_cover <- list()
-
-for(m in 1:M){
-
-  list_cover[[m]] <- pred_list_all[[m]] %>%
-    mutate(
-      cover0.2 = pred0.2_lb<=eta_i & pred0.2_ub>=eta_i,
-      cover0.4 = pred0.4_lb<=eta_i & pred0.4_ub>=eta_i,
-      cover0.6 = pred0.6_lb<=eta_i & pred0.6_ub>=eta_i,
-      cover0.8 = pred0.8_lb<=eta_i & pred0.8_ub>=eta_i
-    ) %>% 
-    group_by(t) %>% 
-    summarize_at(vars(starts_with("cover")), mean)
-}
-  
-### one simulation
-list_cover[[137]] %>% 
-  mutate(cover0.2=ifelse(t<=0.2, NA, cover0.2),
-         cover0.4=ifelse(t<=0.4, NA, cover0.4),
-         cover0.6=ifelse(t<=0.6, NA, cover0.6),
-         cover0.8=ifelse(t<=0.8, NA, cover0.8)) %>%
-  ggplot()+
-  geom_line(aes(x=t, y=cover0.2, col="0.2"))+
-  geom_line(aes(x=t, y=cover0.4, col="0.4"))+
-  geom_line(aes(x=t, y=cover0.6, col="0.6"))+
-  geom_line(aes(x=t, y=cover0.8, col="0.8"))+
-  labs(x="t", y="coverage rate", title = "One simulation")
-ggsave(here("Images/CoverRate.jpeg"), height=5, width = 5)
-
-### All simulation
-list_cover %>% 
-  bind_rows(.id="iter") %>%
-  group_by(t) %>% 
-  summarize_at(vars(starts_with("cover")), mean) %>% 
-  mutate(cover0.2=ifelse(t<=0.2, NA, cover0.2),
-         cover0.4=ifelse(t<=0.4, NA, cover0.4),
-         cover0.6=ifelse(t<=0.6, NA, cover0.6),
-         cover0.8=ifelse(t<=0.8, NA, cover0.8)) %>%
-  ggplot()+
-  geom_line(aes(x=t, y=cover0.2, col="0.2"))+
-  geom_line(aes(x=t, y=cover0.4, col="0.4"))+
-  geom_line(aes(x=t, y=cover0.6, col="0.6"))+
-  geom_line(aes(x=t, y=cover0.8, col="0.8"))+
-  labs(x="t", y="coverage rate", title = "All simulation")
-  
-ggsave(here("Images/CoverRate_All.jpeg"), height=5, width = 5)
+# save(pred_list_fGFPCA, time_fGFPCA,
+#      file = here("Data/SimN500/SimOutput_fGFPCA.RData"))

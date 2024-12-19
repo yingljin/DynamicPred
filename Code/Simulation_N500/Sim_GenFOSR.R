@@ -1,7 +1,7 @@
 # This script implements the full simulation
 # with a second reference method
-# a generalized function-on-funciton regression
-# on the simulated dataset generated from Code/GenData.R
+# a Distributed Lag Model
+
 
 #### set up ####
 
@@ -25,7 +25,7 @@ theme_set(theme_minimal())
 
 #### load simulated data ####
 
-load(here("Data/sim_data.RData"))
+load(here("Data/sim_data.RData")) # data generated from Code/GenData.R
 
 N <- length(unique(sim_data[[1]]$id))
 J <- length(unique(sim_data[[1]]$t))
@@ -49,7 +49,7 @@ L <- 1 # number of last observations used as time-fixed predictor
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 #### Simulation ####
-# M <-5
+M <- 3 # try on a small sample
 time_gfofr <- rep(NA, M)
 pred_list_gfofr <- list()
 
@@ -79,6 +79,7 @@ for(m in 1:M){
     df_pred_tr <- train_df %>% filter(window > w) %>%
       left_join(y_obs_max, by = "id") %>% 
       mutate_at(vars(Y, starts_with("yl")), as.factor)
+    ## if using last 5 observations as predictors
     # fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
     #                       s(t, bs="cr", k=20, by = yl5)+
     #                       s(t, bs="cr", k=20, by = yl4)+
@@ -88,6 +89,7 @@ for(m in 1:M){
     #                     family = binomial, data=df_pred_tr,
     #                     method = "fREML",
     #                     discrete = TRUE)
+    ## if using last 1 observations as predictor
     fit_gen_fosr <- bam(Y ~ s(t, bs="cr", k=20) +
                           s(t, bs="cr", k=20, by = yl1),
                         family = binomial, data=df_pred_tr,
@@ -129,7 +131,7 @@ for(m in 1:M){
 close(pb)
 
 #### Check output ####
-pred_list_gfofr[[1]] %>% filter(t>=0.35) %>% View()
+# pred_list_gfofr[[1]] %>% filter(t>=0.35) %>% View()
 
 rand_id <- sample(test_df$id, 4)
 
@@ -165,7 +167,7 @@ df_exp %>%
   facet_grid(rows = vars(id))+
   guides(alpha = "none", col="none")+
   labs(title = "GFOSR (L=5)")
-ggsave(here("Images/IntervalExp1_3.jpeg"), height=12, width = 5)  
+
 
 #### Save results ####
 
@@ -174,22 +176,4 @@ time_gfofr_l1 <- time_gfofr
 
 
 save(pred_list_gfofr, time_gfofr, 
-     file = here("Data//TrialRun/SimOutput_GFOSR_L1.RData"))
-save(pred_list_gfofr_l1, time_gfofr_l1, 
-     file = here("Data/SimN500/SimOutput_GFOSR_L1.RData"))
-
-pred_list_gfofr[[399]] %>%
-  filter(t>0.55 & t<0.65)
-  View()
-  
-pred_list_gfofr[[399]] %>% filter(id %in% c(501, 511, 521, 531)) %>% 
-    ggplot()+
-    geom_point(aes(x=t, y=Y))+
-    geom_line(aes(x=t, y=plogis(eta_i), col = "red"))+
-    geom_line(aes(x=t, y=plogis(pred_w1), col = "w1"))+
-    geom_line(aes(x=t, y=plogis(pred_w2), col = "w2"))+
-    geom_line(aes(x=t, y=plogis(pred_w3), col = "w3"))+
-    geom_line(aes(x=t, y=plogis(pred_w4), col = "w4"))+
-    facet_wrap(~id)
-
-# test_df %>% filter(sind > 400)
+     file = here("Data/SimOutput_GFOSR_L1.RData"))

@@ -1,3 +1,0 @@
-library(LaplacesDemon)
-
-data("demonsnacks")

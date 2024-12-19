@@ -6,7 +6,7 @@
 *.RData
 *.rdb
 *.rdx
-
+*.docx
 
 Data/
 Code/Scripts/
