@@ -42,7 +42,7 @@ J <- 1000
 
 #### set up ####
 K <- 4 # number of eigenfunctions
-source(here("Code/GLMM-FPCA.R")) 
+source(here("Code/Functions/GLMM-FPCA.R")) 
 # source(here("Code/OutSampBayes.R"))
 
 # values for binning 

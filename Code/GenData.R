@@ -59,8 +59,7 @@ for(m in 1:M){
 
 }
 
-# save
-save(sim_data, file = here("Data/sim_data.RData"))
+
 
 # visualization
 
@@ -70,7 +69,8 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
   ggplot()+
   geom_point(aes(x=t, y=Y))+
   geom_line(aes(x=t, y=plogis(eta_i)), col = "red")+
-  #geom_line(aes(x=sind_inx, y=eta_i), col = "blue")+
   facet_wrap(~id)
 
+# save
+save(sim_data, file = here("Data/sim_data.RData"))
  
