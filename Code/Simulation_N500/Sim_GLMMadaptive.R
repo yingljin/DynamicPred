@@ -2,7 +2,6 @@
 # This script implements the full simulation 
 # for dynamic prediction using GLMMadaptive
 # as a completing method 
-# on the simulated dataset generated from Code/GenData.R
 
 #### set up ####
 
@@ -24,7 +23,7 @@ library(LaplacesDemon)
 theme_set(theme_minimal())
 
 # load simulated data set. From Code/GenData.R
-load(here("Data/sim_data.RData"))
+load(here("Data/sim_data.RData")) # data generated from Code/GenData.R
 
 #### Data overview ####
 
@@ -50,8 +49,8 @@ N_train <- 500
 N_test <- 100
 
 # containers
-M <- length(sim_data)
-# M <- 5
+# M <- length(sim_data)
+M <- 3 # try on a few datasets
 pred_list_GLMMad <- list()
 time_GLMMad <- pred_time_ref <- rep(NA, M)
 
