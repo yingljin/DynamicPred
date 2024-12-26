@@ -1,3 +1,8 @@
+# This script includes code for simulation on the reduced sample
+# using the competing method DLM
+# corresponding to manuscript Section 4.4.2
+
+
 set.seed(1114)
 
 library(here)
@@ -28,10 +33,6 @@ M <- 500 # number of simulations
 
 sim_data <- lapply(sim_data[1:M], function(x){x %>% filter(id %in% c(1:200))})
 
-lapply(sim_data, dim)
-head(sim_data[[1]])
-unique(sim_data[[1]]$id)
-unique(sim_data[[1]]$t)
 
 Ntr <- Nte <- 100 # trainig and testing sample size
 N <- Ntr+Nte
@@ -53,12 +54,14 @@ sim_data[[357]] %>% filter(id %in% rand_id) %>%
 
 #### model set up ####
 L <- 5
-# L <- 5 # number of last observations used as time-fixed predictor
+# L <- 1 # number of last observations used as time-fixed predictor
 windows <- seq(0, 1, by = 0.2) # prediction window
 
 
 
 #### Simulation ####
+
+M <- 5 # try on a few datasets
 
 t_vec_gfofr_subset <- rep(NA, M)
 pred_list_gfofr_subset <- list()
@@ -140,7 +143,7 @@ close(pb)
 
 #### check result ####
 
-pred_list_gfofr_subset[[1]] %>% filter(t>=0.35) %>% View()
+# pred_list_gfofr_subset[[1]] %>% filter(t>=0.35) %>% View()
 pred_list_gfofr_subset[[1]] %>% filter(id %in% 101:104) %>%
   mutate_at(vars(eta_i, starts_with("pred")), 
             function(x){exp(x)/(1+exp(x))})  %>%
@@ -175,4 +178,4 @@ pred_subset_gfofr_l5 <- pred_list_gfofr_subset
 time_subset_gfofr_l5 <- t_vec_gfofr_subset
 
 save(pred_subset_gfofr_l5, time_subset_gfofr_l5, 
-     file = here("Data/SimN100/SubSimOutput_GFOSR_L5.RData"))
+     file = here("Data/SubSimOutput_GFOSR_L5.RData"))
