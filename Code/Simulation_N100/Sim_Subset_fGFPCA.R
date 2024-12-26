@@ -68,13 +68,12 @@ window <- seq(0.2, 0.8, by = 0.2)
 
 #### containers ####
 
-# M <- 5
+M <- 5 # try first on a small sample
 pred_list_all <- list()
 # converge_state_list <- list()
 time_vec <- rep(NA, M)
 
 
-M
 
 #### fGFPCA ####
 
@@ -163,7 +162,7 @@ for(m in 1:M){
       
       # fit stan
       fit <- stan(
-        file = here("Code/prediction.stan"),  # Stan program
+        file = here("Code/Functions/prediction.stan"),  # Stan program
         data = stanData,    # named list of data
         chains = 2,             # number of Markov chains
         warmup = 1000,          # number of warmup iterations per chain
@@ -198,6 +197,7 @@ for(m in 1:M){
   setTxtProgressBar(pb, m)
 }
 
+
 close(pb)
 
 
@@ -207,9 +207,6 @@ close(pb)
 mean(time_vec)
 
 
-pred_list_all[[1]] %>% 
-  filter(t > 0.4) %>%
-  View()
 
 rand_id <- sample(test_id, 4)
 
@@ -263,34 +260,6 @@ time_subset_fGFPCA <- time_vec
 pred_subset_fGFPCA <- pred_list_all
 
 save(time_subset_fGFPCA, pred_subset_fGFPCA, 
-     file = here("Data/SimN100/SubSimOutput_fGFPCA.RData"))
-
-
-#### ISE ####
-window <- seq(0, 1, by = 0.2)
-ise_fgfpca2 <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-
-
-for(m in 1:length(pred_subset_fGFPCA)){
-  this_df <- pred_subset_fGFPCA[[m]]
-  ise_tb_m <- this_df %>%
-    mutate(err1 = (pred0.2-eta_i)^2,
-           err2 = (pred0.4-eta_i)^2,
-           err3 = (pred0.6-eta_i)^2,
-           err4 = (pred0.8-eta_i)^2) %>% 
-    select(id, t, starts_with("err")) %>% 
-    mutate(window = cut(t, breaks = seq(0, 1, by=0.2), include.lowest = T)) %>% 
-    group_by(window, id) %>% 
-    summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-    group_by(window) %>% 
-    summarize_at(vars(err1, err2, err3, err4), mean) %>%
-    filter(window != "[0,0.2]") %>% 
-    select(starts_with("err")) %>% as.matrix()
-  ise_fgfpca2[,,m] <- ise_tb_m
-}
-
-mean_ise_fgfpca2 <- apply(ise_fgfpca2, c(1, 2), mean)
-
-colnames(mean_ise_fgfpca2) <- c("0.2", "0.4", "0.6", "0.8")
+     file = here("Data/SubSimOutput_fGFPCA.RData"))
 
 
