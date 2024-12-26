@@ -1,3 +1,7 @@
+# This script includes code for simulation on the reduced sample
+# using the proposed method fGFPCA
+# corresponding to manuscript Section 4.4.2
+
 set.seed(1114)
 
 library(here)

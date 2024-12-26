@@ -1,7 +1,7 @@
 
-# This script includes code for simulation on the original sample
+# This script includes code for simulation on the reduced sample
 # using the competing method GLMMadaptive
-# 
+# corresponding to manuscript Section 4.4.2
 
 set.seed(1114)
 
@@ -32,10 +32,10 @@ load(here("Data/sim_data.RData"))
 M <- 500 # number of simulations
 
 sim_data <- lapply(sim_data[1:M], function(x){x %>% filter(id %in% c(1:200))})
-lapply(sim_data, dim)
-head(sim_data[[1]])
-unique(sim_data[[1]]$id)
-unique(sim_data[[1]]$t)
+# lapply(sim_data, dim)
+# head(sim_data[[1]])
+# unique(sim_data[[1]]$id)
+# unique(sim_data[[1]]$t)
 
 Ntr <- Nte <- 100 # trainig and testing sample size
 J <- 1000
@@ -53,12 +53,12 @@ t_bin <- seq(0, J, by = 10)
 
 #### Containers ####
 
-# M <- 5
+M <- 5
 
 pred_list_all <- list()
 time_vec <- rep(NA, M)
 
-# incorporate a convergen check since some iteration would run into numeric issues
+# incorporate a convergence check since some iteration would run into numeric issues
 # such as singularity
 # we skip such datasets, saving results only of the numeric-free datsets
 num_probs <- rep(NA, M)
@@ -66,8 +66,6 @@ num_probs <- rep(NA, M)
 
 #### GLMMadaptive ####
 
-# The simulation process run into a numeric problem at the 95th iteration
-# (singularity)
 
 pb = txtProgressBar(min = 0, max = M, initial = 0, style = 3) 
 for(m in 1:M){
@@ -148,8 +146,7 @@ close(pb)
 mean(time_vec)
 sum(num_probs)
 
-pred_list_all[[1]] %>% filter(t>0.39) %>% View()
-pred_list_all[[99]] %>% filter(t>0.2) %>% View()
+# pred_list_all[[1]] %>% filter(t>0.39) %>% View()
 
 pred_list_all[[1]] %>% 
   filter(id %in% 101:104) %>% 
@@ -185,77 +182,10 @@ pred_subset_adglmm <- pred_list_all
 
 save(fit_time_subset_adglmm, pred_subset_adglmm, 
      num_probs,
-     file = here("Data/SimN100/SubSimOutput_GLMMadaptive.RData"))
-
-
-
-
-
-
-## separate by window
-window <- seq(0, 1, by = 0.2)
-M <- 1
-
-#### ISE ####
-# ise_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-ise_mat <- df_pred_m %>%
-  mutate(err1 = (pred0.2-eta_i)^2,
-         err2 = (pred0.4-eta_i)^2,
-         err3 = (pred0.6-eta_i)^2,
-         err4 = (pred0.8-eta_i)^2) %>% 
-  select(id, t, starts_with("err")) %>% 
-  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-  group_by(window, id) %>% 
-  summarise_at(vars(err1, err2, err3, err4), sum) %>% 
-  group_by(window) %>% 
-  summarize_at(vars(err1, err2, err3, err4), mean) %>%
-  filter(window != "[0,0.2]") %>% 
-  select(starts_with("err"))
-# ise_mat[, ,m] <- as.matrix(ise_tb)
-
-
-# dims: prediction window, max obs time, simulation iter
-mean_ise <- apply(ise_mat, c(1, 2), mean)
-mean_ise <- data.frame(mean_ise) %>% 
-  mutate(Window = c("(0.2, 0.4]", "(0.4, 0.6]", "(0.6, 0.8]", "(0.8, 1.0]"),
-         .before = 1)
-colnames(mean_ise) <- c("Window", "0.2", "0.4", "0.6", "0.8")
-mean_ise
-
-
-#### Calculate AUC ####
-
-## auc container 
-# auc_mat <- array(NA, dim = c(length(window)-2, length(window)-2, M))
-
-## a function to calculate AUC
-get_auc <- function(y, pred){
-  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
-    auc <- NA
-  }
-  else{
-    this_perf <- performance(prediction(pred, y), measure = "auc")
-    auc <- this_perf@y.values[[1]]
-  }
-  return(auc)
-}
-
-
-## calcualte AUC
-auc_tb <- df_pred_m %>% 
-  mutate(window = cut(t, breaks = window, include.lowest = T)) %>% 
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>%
-  summarise(auc1 = get_auc(Y, pred0.2),
-            auc2 = get_auc(Y, pred0.4),
-            auc3 = get_auc(Y, pred0.6),
-            auc4 = get_auc(Y, pred0.8)) %>%
-  filter(window != "[0,0.2]") %>% 
-  select(starts_with("auc"))
-
-#### save data ####
-df_subset_adglmm <- df_pred_m
-save(df_subset_adglmm, 
      file = here("Data/SubSimOutput_GLMMadaptive.RData"))
+
+
+
+
 
 
