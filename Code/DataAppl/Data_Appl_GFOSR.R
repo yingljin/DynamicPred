@@ -1,4 +1,6 @@
 # data application of NHANES
+# using DLM
+# corresponding to manuscript Section 5
 
 set.seed(1114)
 
@@ -19,7 +21,7 @@ library(LaplacesDemon)
 library(splines)
 
 #### load data ####
-df <- read_rds(here("Data/nhanes_bi.rds"))
+df <- read_rds(here("DataRaw/nhanes_bi_sub.rds"))
 df <- df %>% rename(id=SEQN, Y=Z)
 head(df)
 
@@ -28,9 +30,10 @@ J <- max(df$sind) # 1440 measures for each subject
 t <- unique(df$sind)
 
 #### Data split ####
-# 60% (5257) subjects for training, 40% (3506) for out-of-sample prediction
+# 60%  subjects for training, 40% for out-of-sample prediction
 train_id <- sample(unique(df$id), size = N*0.6)
 test_id <- setdiff(unique(df$id), train_id)
+
 
 train_df <- df %>% filter(id %in% train_id)
 test_df <- df %>% filter(id %in% test_id)
@@ -48,6 +51,7 @@ test_df$window <- cut(test_df$sind, breaks=window,
                        labels = 1:4, include.lowest = T)
 test_df$window <- as.numeric(as.character(test_df$window))
 
+# specify the lag window of DLM
 # L <- 1
 L <- 5
 
@@ -107,7 +111,7 @@ time_appl_gfosr_l5 <- t2-t1
 save(pred_appl_gfosr_l5, time_appl_gfosr_l5, file = here("Data/Appl_GFOSR_L5.RData"))
   
 
-  
+#### check output ####  
 test_df %>% filter(sind>350)
 
 
@@ -125,6 +129,3 @@ test_df %>%
 nhanes_pred_adglmm <- df_pred
 
 
-
-save(nhanes_pred_fgfpca, nhanes_pred_adglmm,
-     file = here("Data/ApplOutput.RData"))

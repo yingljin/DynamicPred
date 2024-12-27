@@ -1,4 +1,7 @@
 # data application of NHANES
+# using fGFPCA
+# corresponding to manuscript Section 5
+
 
 set.seed(1114)
 
@@ -21,7 +24,7 @@ library(mvtnorm)
 library(rstan)
 
 #### load data ####
-df <- read_rds(here("Data/nhanes_bi.rds"))
+df <- read_rds(here("DataRaw/nhanes_bi_sub.rds"))
 df <- df %>% rename(id=SEQN, Y=Z)
 
 N <- length(unique(df$id)) # sample size 8763
@@ -30,8 +33,8 @@ t <- unique(df$sind)
 K <- 4 # number of eigenfunctions to use
 
 # functions
-source(here("Code/GLMM-FPCA.R")) 
-# source(here("Code/OutSampBayes.R"))
+source(here("Code/Functions/GLMM-FPCA.R")) 
+
 
 #### Data split ####
 
@@ -53,8 +56,6 @@ mid <- (brks+bin_w/2)[1:n_bin] # mid points
 
 train_df$bin <- cut(train_df$sind, breaks = brks, include.lowest = T, labels = mid)
 train_df$bin <- as.numeric(as.character(train_df$bin))
-
-
 
 ## checks
 head(train_df)
@@ -83,7 +84,7 @@ df_est_latent %>%
 
 
 
-# FPCA
+# Step 3: FPCA
 uni_eta_hat <- df_est_latent %>% filter(bin==sind)
 mat_est_unique <- matrix(uni_eta_hat$eta_hat,
                          nrow=length(train_id), 
@@ -95,7 +96,7 @@ fpca_mod <- fpca.face(mat_est_unique, argvals = mid, var=T, npc=K) # keep 4 PCs
 t2 <- Sys.time()
 t2-t1 
 
-## checks
+## check eigenvaluse and eigenfunctions
 fpca_mod$evalues
 data.frame(sind = mid, 
            fpca_mod$efunctions) %>%
@@ -104,11 +105,12 @@ data.frame(sind = mid,
   geom_line(aes(x=sind, y=value))+
   facet_wrap(~name)
 
+## check mean
 plot(mid, fpca_mod$mu, type = "l")
 
-save(fpca_mod, file = here("Data/Appl_fpca_model.RData"))
+# save(fpca_mod, file = here("Data/Appl_fpca_model.RData"))
 
-# Re-evaluation
+# Step 4: Re-evaluation
 ## grid extension
 p <- 3 # order of b splines 
 knots <- 35 # number of knots (same from FPCA model)
@@ -167,23 +169,24 @@ debias_glmm <- bam(Y ~ s(sind, bs = "bs")+
                    discrete = TRUE)
 t2 <- Sys.time()
 t2-t1 # 21 hours
-save(debias_glmm, file = here("Data/DataAppl/global_bam.RData"))
+# save model
+# save(debias_glmm, file = here("Data/DataAppl/global_bam.RData"))
 
-
-# reload the debias GLMM model
+# if we don't wish to retrain the model, we can simply reload the debias GLMM model
 # load(here("Data/DataAppl/global_bam.RData"))
 
+# check mean function
 new_mu <- predict(debias_glmm, type = "terms")[1:J, 1]+coef(debias_glmm)[1]# extract re-evaluated mean
 plot(t, new_mu)
 lines(mid, fpca_mod$mu, col = "Red")
 summary(new_mu)
 
-# fpca_mod$evalues
+# check eigenvalues
 new_lambda <- 1/debias_glmm$sp[2:5] # extract re-evaluated lambda
 new_lambda/sum(new_lambda)
 # the 2nd and 3rd eigenvalues flipped! 
 
-## rescale using the number of bins
+## rescale eigenfunctions using the number of bins
 head(df_phi) 
 new_phi <- df_phi %>% select(starts_with("phi"))*sqrt(n_bin)
 new_phi <- as.matrix(new_phi)
@@ -206,7 +209,7 @@ for(i in seq_along(test_id)){
   df_i <- test_df %>% filter(id==test_id[i])
   
   # per max obs time
-  t1 <- Sys.time()
+  # t1 <- Sys.time()
   for(tmax in window[2:4]){
     df_it <- df_i %>% filter(t <= tmax)
     
@@ -220,7 +223,7 @@ for(i in seq_along(test_id)){
     
     # fit stan model
     fit <- stan(
-      file = here("Code/prediction.stan"),  # Stan program
+      file = here("Code/Functions/prediction.stan"),  # Stan program
       data = stanData,    # named list of data
       chains = 2,             # number of Markov chains
       warmup = 1000,          # number of warmup iterations per chain
@@ -243,7 +246,7 @@ for(i in seq_along(test_id)){
     df_i[ , paste0("pred", tmax, "_lb")] <- as.vector(new_mu+eta_draws[1, ])
     df_i[ , paste0("pred", tmax, "_ub")] <- as.vector(new_mu+eta_draws[2, ])
   }
-  t2 <- Sys.time()
+  # t2 <- Sys.time()
   
   pred_list_m[[i]] <- df_i
   
@@ -262,77 +265,9 @@ pred_nhanes_fgfpca <- bind_rows(pred_list_m)
 
 #### save results ####
 save(pred_nhanes_fgfpca, 
-     file = here("Data/DataAppl/ApplOutput_fGFPCA.RData"))
+     file = here("Data/ApplOutput_fGFPCA.RData"))
 
-# motivation example images
-## figure 1a
-pred_nhanes_fgfpca %>% 
-  select(id, Y, sind, starts_with("pred1080")) %>% 
-  mutate_at(vars(starts_with("pred1080")), function(x)exp(x)/(1+exp(x))) %>%
-  mutate(id = factor(id, levels = unique(id),
-                     labels = paste0("Participant ", 1:6))) %>% 
-  ggplot()+
-  geom_line(aes(x=sind, y = pred1080, ), col = "red")+
-  geom_point(aes(x=sind, y = Y), size = 0.1, alpha = 0.3)+
-  facet_wrap(~id)+
-  scale_x_continuous(name = "",
-                     breaks = c(360, 720, 1080), 
-                     labels = c("6am", "12pm", "6pm"))+
-  scale_y_continuous(name = "Observed indicator",
-                     breaks = c(0, 1),
-                     sec.axis = dup_axis(name="Predicted probablity",
-                                         breaks = seq(0, 1, by = 0.25)))+
-  theme(legend = element_blank(),
-        axis.title.y.right = element_text(color="red"),
-        axis.text.y.right = element_text(color="red"))
-ggsave(here("Images/MotiveExp_a.pdf"),
-              width=10, height=6)
-
-
-# Figure 1b
-## one male (62178) and one female (62209)
-pred_nhanes_fgfpca %>% select(id, gender) %>% distinct(.)
-
-df_plot <- pred_nhanes_fgfpca %>% filter(id==62178 | id == 62209) %>% 
-  select(id, Y, sind, pred360, pred720, pred1080) %>% 
-  pivot_longer(starts_with("pred")) 
-  
-df_plot$Y[df_plot$name=="pred360" & df_plot$sind>360] <- NA
-df_plot$Y[df_plot$name=="pred720" & df_plot$sind>720] <- NA
-df_plot$Y[df_plot$name=="pred1080" & df_plot$sind>1080] <- NA
-
-df_plot$value[df_plot$name=="pred360" & df_plot$sind <= 360] <- NA
-df_plot$value[df_plot$name=="pred720" & df_plot$sind <= 720] <- NA
-df_plot$value[df_plot$name=="pred1080" & df_plot$sind <= 1080] <- NA
-
-
-
-df_plot %>% 
-  mutate_at("value", function(x)exp(x)/(1+exp(x))) %>% 
-  mutate(name = as.numeric(gsub("pred", "", name))) %>%
-  mutate(max_t=factor(name, levels = c(360, 720, 1080), 
-                      labels = c("Observed up to 6am", 
-                                 "Observed up to 12pm", 
-                                 "Observed up to 6pm"))) %>% 
-  mutate(id = factor(id, levels = unique(id), 
-                     labels = paste0("Participant ", c(4, 6)))) %>% 
-  ggplot()+
-  geom_point(aes(x=sind, y=Y), size = 0.1, alpha = 0.3)+
-  geom_line(aes(x=sind, y = value), col = "red")+
-  geom_vline(aes(xintercept = name), linetype = "dashed")+
-  facet_grid(cols = vars(max_t), rows = vars(id))+
-  scale_x_continuous(name = "",
-                     breaks = c(360, 720, 1080), 
-                     labels = c("6am", "12pm", "6pm"))+
-  scale_y_continuous(name = "Observed indicator",
-                     breaks = c(0, 1),
-                     sec.axis = dup_axis(name="Predicted probablity",
-                                         breaks = seq(0, 1, by = 0.25)))+
-  theme(legend = element_blank(),
-        axis.title.y.right = element_text(color="red"),
-        axis.text.y.right = element_text(color="red"))
-ggsave(here("Images/MotiveExp_b.pdf"),
-       width=10, height=6)
+#### Check results ####
 
 # Prediction tracks
 head(pred_nhanes_fgfpca)
@@ -353,31 +288,4 @@ pred_nhanes_fgfpca %>%
   facet_wrap(~id)+
   labs(x = "Time", y = "Estimated latent function (probablity scale)")
 
-# check AUC
-
-## a function to calculate AUC
-get_auc <- function(y, pred){
-  if(sum(is.na(y))>0 | sum(is.na(pred))>0){
-    auc <- NA
-  }
-  else{
-    this_perf <- performance(prediction(pred, y), measure = "auc")
-    auc <- this_perf@y.values[[1]]
-  }
-  return(auc)
-}
-
-auc_appl_fgfpca <- pred_nhanes_fgfpca %>% 
-  mutate(window = cut(sind, breaks = window, include.lowest = T)) %>% 
-  select(Y, starts_with("pred"), window) %>%
-  group_by(window) %>% 
-  summarise(auc1 = get_auc(Y, pred360),
-            auc2 = get_auc(Y, pred720),
-            auc3 = get_auc(Y, pred1080)) %>%
-  filter(window != "[0,360]") %>% 
-  select(starts_with("auc"))
-
-##### save prediction #####
-save(pred_nhanes_fgfpca, 
-     file = here("Data/ApplOutput_fGFPCA.RData"))
 

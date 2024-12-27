@@ -1,4 +1,7 @@
-# Reference method: GLMMadaptive 
+# data application of NHANES
+# using GLMMadaptive
+# corresponding to manuscript Section 5
+
 set.seed(1114)
 
 library(here)
@@ -18,7 +21,7 @@ library(LaplacesDemon)
 library(splines)
 
 #### load data ####
-df <- read_rds(here("Data/nhanes_bi.rds"))
+df <- read_rds(here("DataRaw/nhanes_bi_sub.rds"))
 df <- df %>% rename(id=SEQN, Y=Z)
 
 N <- length(unique(df$id)) # sample size 8763
@@ -29,7 +32,7 @@ K <- 4 # number of eigenfunctions to use
 
 #### Data split ####
 
-# 60% (5257) subjects for training, 40% (3506) for out-of-sample prediction
+# 60% subjects for training, 40% for out-of-sample prediction
 train_id <- sample(unique(df$id), size = N*0.6)
 test_id <- setdiff(unique(df$id), train_id)
 
